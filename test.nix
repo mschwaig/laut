@@ -5,49 +5,62 @@
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 let
+  cachePort = 5000;
   cache = { config, pkgs, ... }: {
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
-      
-      services.nginx = {
-      enable = true;
-      virtualHosts."cache.local" = {
-          locations."/" = {
-          root = "/var/cache";
-          extraConfig = ''
-              autoindex on;
-          '';
-          };
+
+      services.nix-serve = {
+        enable = true;
+        # consider using ng package
+        # secretKeyFile = pkgs.writeText "secret-key" "secret-key-content";
       };
-      };
-      
-      networking.firewall.allowedTCPPorts = [ 80 ];
-      networking.extraHosts = ''
-      127.0.0.1 cache.local
-      '';
-      
-      # Create directory for cache data
-      system.activationScripts.createCache = ''
-      mkdir -p /var/cache
-      chmod 755 /var/cache
-      '';
+
+      networking.firewall.allowedTCPPorts = [ cachePort ];
   };
-  makeBuilder = "";
+  makeBuilder  = { pkgs, ... }: {
+      virtualisation.memorySize = 2048;
+      virtualisation.cores = 2;
+
+      nix = {
+        settings = {
+          experimental-features = [ "nix-command" "flakes" ];
+          trusted-substituters = [ ];
+          post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
+            echo "Running post-build hook"
+            echo $1 $2
+          '';
+        };
+      };
+
+      system.activationScripts.postGeneration = {
+        text = ''
+          echo "Running post-generation script"
+          STORE_DIR="mktemp -d"
+          nix --store $STORE_DIR build nixpkgs#hello
+        '';
+        deps = [];  # Add dependencies if needed
+      };
+
+      environment.systemPackages = with pkgs; [
+        nix
+        git
+      ];
+  };
   makeTest = name: { extraConfig, trustModel ? null }: pkgs.nixosTest {
     name = "sbom-verify-${name}";
-    
+
     nodes = {
       inherit cache;
+
+      builderA = makeBuilder { inherit pkgs; };
+      builderB = makeBuilder { inherit pkgs; };
       # TODO: add builder-A builder-B nixpkgs-mirror;
 
       ${name} = { config, pkgs, ... }: {
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
-          
-          networking.extraHosts = ''
-          192.168.1.1 cache.local
-          '';
-          
+
           environment.systemPackages = with pkgs; [
             nix
             git
@@ -57,16 +70,26 @@ let
 
     # Test script to verify the setup
     testScript = ''
-    start_all()
+    cache.start()
+    cache.wait_for_unit("nix-serve")
+    cache.wait_for_open_port(${builtins.toString cachePort})
+
+    builderA.start()
+    builderB.start()
+    builderA.wait_for_unit("network.target")
+    builderB.wait_for_unit("network.target")
+    builderA.shutdown()
+    builderB.shutdown()
     
-    cache.wait_for_unit("nginx")
-    cache.wait_for_open_port(80)
-    
+    ${name}.start()
     ${name}.wait_for_unit("network.target")
-    ${name}.succeed("ping -c 1 cache.local")
+    ${name}.succeed("curl http://cache:5000/nix-cache-info")
 
     # TODO: run test script
     # using specific trust model
+
+    # run verification tool
+    # run nix build
     '';
   };
 in {
@@ -89,14 +112,14 @@ in {
   # Distributed trust model - requires multiple builder agreement
   distributedTrustVM = makeTest "distributed_trust" {
     extraConfig.nix.settings = {
-        substituters = [ 
-          "http://builder1.local"
-          "http://builder2.local"
-        ];
-        trusted-public-keys = [
-          "builder1.local:${placeholder "BUILDER1_KEY"}"
-          "builder2.local:${placeholder "BUILDER2_KEY"}"
-        ];
-      };
+      substituters = [
+        "http://builder1.local"
+        "http://builder2.local"
+      ];
+      trusted-public-keys = [
+        "builder1.local:${placeholder "BUILDER1_KEY"}"
+        "builder2.local:${placeholder "BUILDER2_KEY"}"
+      ];
     };
+  };
 }
