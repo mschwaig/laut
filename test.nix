@@ -71,7 +71,7 @@ let
   };
 in {
   # Full local reproducibility model - trusts only itself
-  fullReproVM = makeTest "full-local-repro" {
+  fullReproVM = makeTest "full_local_repro" {
     extraConfig.nix.settings = {
         substituters = [ ];
         trusted-public-keys = [ ];
@@ -79,7 +79,7 @@ in {
   };
 
   # Trusted infrastructure model - trusts central cache
-  trustedInfraVM = makeTest "trusted-infra" {
+  trustedInfraVM = makeTest "trusted_infra" {
     extraConfig.nix.settings = {
         substituters = [ "http://cache.local" ];
         trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
@@ -87,7 +87,7 @@ in {
   };
 
   # Distributed trust model - requires multiple builder agreement
-  distributedTrustVM = makeTest "distributed-trust" {
+  distributedTrustVM = makeTest "distributed_trust" {
     extraConfig.nix.settings = {
         substituters = [ 
           "http://builder1.local"
