@@ -14,3 +14,8 @@ For verification I just run my tool first, with the defined trust model, and if 
 Then I check if both tools are in agreement about the output and its runtime closure.
 
 Of course in reality they could be disagreeing now, but this ugliness will disappear, if Nix adopts my verification.
+
+TODOs/next steps:
+
+convert signature format code to python
+write verification code
