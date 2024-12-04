@@ -99,6 +99,7 @@ in {
         substituters = [ ];
         trusted-public-keys = [ ];
     };
+    #  trust_model = Builder(self())
   };
 
   # Trusted infrastructure model - trusts central cache
@@ -107,6 +108,9 @@ in {
         substituters = [ "http://cache.local" ];
         trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
     };
+    #  trust_model = threshold(1,
+    #   Builder(self()),
+    #   Signer("cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=", legacy=true))
   };
 
   # Distributed trust model - requires multiple builder agreement
@@ -121,5 +125,20 @@ in {
         "builder2.local:${placeholder "BUILDER2_KEY"}"
       ];
     };
+    #  trust_model = threshold(2,
+    #   Builder("builderA:IRs7KiYMNnwMOui+D4VufEelbplIR7vzbMIDJjaG5GU="),
+    #   Builder("builderB:iN9OEB6nRfDK0Ae8fscfOZAjWPXn4CdIIHiaMwWxXQk="))
   };
+  attestBuilder = makeTest "attest_builder" {
+    extraConfig.nix.settings = {
+        substituters = [ "http://cache.local" ];
+        trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
+    };
+    #  trust_model = Builder("builderA:IRs7KiYMNnwMOui+D4VufEelbplIR7vzbMIDJjaG5GU=",
+    #     sw_flake = "github:nixos/nixpkgs-builders/8d99dd5e331e9fc8f3480d739b709eafc1e4ceb6#amd-tpm-2.0",
+    #     host_sw_criteria = SW_CRITERIA.TPM-2.0_STRICT,
+    #     host_hw_criteria = HW_CRTIERIA.HP_MILAN_NO_PUBLIC_VULN,
+    #     host_identity = "smRvhWX9+vVTe3gpNsAp4EuJmUtdw2Ih9xcp+Mjd+6g=")
+  };
+
 }
