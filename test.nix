@@ -1,10 +1,11 @@
-{ pkgs, ca-pkgs, makeTest, nix-vsbom, ... }:
+{ pkgs, ca-pkgs, nix-vsbom, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 let
+  ia-pkgs = pkgs;
   pkgs = ca-pkgs;
   cachePort = 5000;
   cache = { config, pkgs, ... }: {
@@ -48,7 +49,7 @@ let
         git
       ];
   };
-  makeTest = name: { extraConfig, trustModel ? null }: pkgs.nixosTest {
+  makeTest = name: { extraConfig, trustModel ? null }: ia-pkgs.nixosTest {
     name = "sbom-verify-${name}";
 
     nodes = {

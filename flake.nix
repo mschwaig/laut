@@ -32,7 +32,6 @@
               config.contentAddressedByDefault = true;
             };
             in import ./test.nix {
-                makeTest = import (nixpkgs + "/nixos/tests/make-test-python.nix");
                 inherit pkgs ca-pkgs nix-vsbom;
             };
     });
