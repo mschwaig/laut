@@ -27,9 +27,13 @@
         checks = let
             system = "x86_64-linux";
             pkgs = nixpkgs.legacyPackages.${system};
+            ca-pkgs = import nixpkgs {
+              inherit system;
+              config.contentAddressedByDefault = true;
+            };
             in import ./test.nix {
                 makeTest = import (nixpkgs + "/nixos/tests/make-test-python.nix");
-                inherit pkgs nix-vsbom;
+                inherit pkgs ca-pkgs nix-vsbom;
             };
     });
 }

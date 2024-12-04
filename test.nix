@@ -1,10 +1,11 @@
-{ pkgs, makeTest, nix-vsbom, ... }:
+{ pkgs, ca-pkgs, makeTest, nix-vsbom, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 let
+  pkgs = ca-pkgs;
   cachePort = 5000;
   cache = { config, pkgs, ... }: {
       virtualisation.memorySize = 2048;
