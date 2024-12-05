@@ -14,7 +14,7 @@ let
   accessKey = "BKIKJAA5BMMU2RHO6IBB";
   secretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
   env = "AWS_ACCESS_KEY_ID=${accessKey} AWS_SECRET_ACCESS_KEY=${secretKey}";
-  storeUrl = "s3://binary-cache?endpoint=http://cache:9000&region=eu-west-1";
+  storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
 
   cache = { config, pkgs, ... }: {
       virtualisation.memorySize = 2048;
@@ -23,6 +23,7 @@ let
       services.minio = {
         enable = true;
         region = "eu-west-1";
+        listenAddress = "cache:9000";
         rootCredentialsFile = pkgs.writeText "minio-credentials" ''
           MINIO_ROOT_USER=${accessKey}
           MINIO_ROOT_PASSWORD=${secretKey}
@@ -90,11 +91,12 @@ let
     cache.wait_for_open_port(${builtins.toString cachePort})
 
     # configure cache
-    server.succeed("mc config host add minio http://localhost:9000 ${accessKey} ${secretKey} --api s3v4")
-    server.succeed("mc mb minio/binary-cache")
-    server.succeed("mc policy set download local/binary-cache") # allow public read
+    cache.succeed("mc config host add minio http://localhost:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
+    cache.succeed("mc mb minio/binary-cache")
+    cache.succeed("mc policy set download minio/binary-cache") # allow public read
 
     builderA.start()
+    builderA.succeed("curl -v http://cache:9000/minio/health/ready")
     builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderB.start()
     builderA.wait_for_unit("network.target")
@@ -103,7 +105,7 @@ let
     builderA.succeed("curl -f http://cache:${builtins.toString cachePort}/minio/health/ready")
     builderA.succeed("""
       nix-store --generate-binary-cache-key cache /etc/nix/key.private /etc/nix/key.public
-      nix copy --to 's3://cache?endpoint=http://cache:9000&region=eu-west-1:${builtins.toString cachePort}&scheme=http' /nix/store/*-bash-*
+      nix copy --to '${storeUrl}' /nix/store/*-bash-*
     """)
 
     builderA.shutdown()
