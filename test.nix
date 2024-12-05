@@ -7,15 +7,18 @@
 let
   ia-pkgs = pkgs;
   pkgs = ca-pkgs;
-  cachePort = 5000;
+  cachePort = 9000;
   cache = { config, pkgs, ... }: {
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
-
-      services.nix-serve = {
+      environment.systemPackages = [ pkgs.minio-client ];
+      services.minio = {
         enable = true;
-        # consider using ng package
-        # secretKeyFile = pkgs.writeText "secret-key" "secret-key-content";
+        region = "eu-west-1";
+        rootCredentialsFile = pkgs.writeText "minio-credentials" ''
+          MINIO_ROOT_USER=admin
+          MINIO_ROOT_PASSWORD=adminpass
+        '';
       };
 
       networking.firewall.allowedTCPPorts = [ cachePort ];
@@ -73,19 +76,29 @@ let
     # Test script to verify the setup
     testScript = ''
     cache.start()
-    cache.wait_for_unit("nix-serve")
+    cache.wait_for_unit("minio")
     cache.wait_for_open_port(${builtins.toString cachePort})
 
     builderA.start()
     builderB.start()
     builderA.wait_for_unit("network.target")
     builderB.wait_for_unit("network.target")
+
+    builderA.succeed("curl -f http://cache:${builtins.toString cachePort}/minio/health/ready")
+    builderA.succeed("""
+      nix-store --generate-binary-cache-key cache /etc/nix/key.private /etc/nix/key.public
+      nix copy --to 's3://cache?endpoint=http://cache:9000&region=eu-west-1:${builtins.toString cachePort}&scheme=http' /nix/store/*-bash-*
+    """)
+
     builderA.shutdown()
     builderB.shutdown()
     
     ${name}.start()
     ${name}.wait_for_unit("network.target")
-    ${name}.succeed("curl http://cache:5000/nix-cache-info")
+    ${name}.succeed("curl http://cache:9000/nix-cache-info")
+
+    ${name}.succeed("nix-store --verify")
+    ${name}.succeed("nix-store --realise /nix/store/*-bash-*")
 
     # TODO: run test script
     # using specific trust model
