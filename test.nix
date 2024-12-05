@@ -51,6 +51,7 @@ let
       virtualisation.additionalPaths = [ pkgA ];
 
       nix = {
+        extraOptions = "experimental-features = nix-command";
         settings = {
           experimental-features = [ "nix-command" "flakes" ];
           trusted-substituters = [ ];
@@ -89,6 +90,13 @@ let
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
 
+          nix = {
+            extraOptions = "experimental-features = nix-command";
+            settings = {
+              experimental-features = [ "nix-command" "flakes" ];
+            };
+          };
+
           environment.systemPackages = with pkgs; [
             nix
             git
@@ -114,13 +122,18 @@ let
     builderA.wait_for_unit("network.target")
     builderB.wait_for_unit("network.target")
 
-    builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
-    cache.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
-    builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
-
     builderA.succeed("""
       nix-store --generate-binary-cache-key builderA /etc/nix/key.private /etc/nix/key.public
     """)
+    builderA.succeed("""
+      nix-store --generate-binary-cache-key builderB /etc/nix/key.private /etc/nix/key.public
+    """)
+
+
+    builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
+    cache.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
+    builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
+    builderB.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
 
     builderA.shutdown()
     builderB.shutdown()
@@ -128,9 +141,9 @@ let
     ${name}.start()
     ${name}.wait_for_unit("network.target")
     ${name}.fail("nix path-info ${pkgA}")
-    ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
-    ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
-    ${name}.succeed("nix path-info ${pkgA}")
+    ${name}.succeed("${env} nix --extra-experimental-features nix-command store info --store '${storeUrl}' >&2")
+    ${name}.succeed("${env} nix --extra-experimental-features nix-command copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
+    ${name}.succeed("nix --extra-experimental-features nix-command path-info ${pkgA}")
 
     ${name}.succeed("nix-store --verify")
 
@@ -165,6 +178,7 @@ in {
   # Distributed trust model - requires multiple builder agreement
   distributedTrustVM = makeTest "distributed_trust" {
     extraConfig.nix.settings = {
+      experimental-features = [ "nix-command" "flakes" ];
       substituters = [
         "http://builder1.local"
         "http://builder2.local"
