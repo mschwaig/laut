@@ -8,6 +8,14 @@ let
   ia-pkgs = pkgs;
   pkgs = ca-pkgs;
   cachePort = 9000;
+
+  pkgA = pkgs.cowsay;
+
+  accessKey = "BKIKJAA5BMMU2RHO6IBB";
+  secretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
+  env = "AWS_ACCESS_KEY_ID=${accessKey} AWS_SECRET_ACCESS_KEY=${secretKey}";
+  storeUrl = "s3://binary-cache?endpoint=http://cache:9000&region=eu-west-1";
+
   cache = { config, pkgs, ... }: {
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
@@ -16,8 +24,8 @@ let
         enable = true;
         region = "eu-west-1";
         rootCredentialsFile = pkgs.writeText "minio-credentials" ''
-          MINIO_ROOT_USER=admin
-          MINIO_ROOT_PASSWORD=adminpass
+          MINIO_ROOT_USER=${accessKey}
+          MINIO_ROOT_PASSWORD=${secretKey}
         '';
       };
 
@@ -26,6 +34,8 @@ let
   makeBuilder  = { pkgs, ... }: {
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
+
+      virtualisation.additionalPaths = [ pkgA ];
 
       nix = {
         settings = {
@@ -79,7 +89,13 @@ let
     cache.wait_for_unit("minio")
     cache.wait_for_open_port(${builtins.toString cachePort})
 
+    # configure cache
+    server.succeed("mc config host add minio http://localhost:9000 ${accessKey} ${secretKey} --api s3v4")
+    server.succeed("mc mb minio/binary-cache")
+    server.succeed("mc policy set download local/binary-cache") # allow public read
+
     builderA.start()
+    builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderB.start()
     builderA.wait_for_unit("network.target")
     builderB.wait_for_unit("network.target")
@@ -95,6 +111,10 @@ let
     
     ${name}.start()
     ${name}.wait_for_unit("network.target")
+    ${name}.fail("nix path-info ${pkgA}")
+    ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
+    ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
+    ${name}.succeed("nix path-info ${pkgA}")
     ${name}.succeed("curl http://cache:9000/nix-cache-info")
 
     ${name}.succeed("nix-store --verify")
