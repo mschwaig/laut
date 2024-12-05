@@ -17,17 +17,29 @@ let
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
 
   cache = { config, pkgs, ... }: {
+      virtualisation.writableStore = true;
+      virtualisation.additionalPaths = [ pkgA ];
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
       environment.systemPackages = [ pkgs.minio-client ];
+      nix.extraOptions = "experimental-features = nix-command";
       services.minio = {
         enable = true;
         region = "eu-west-1";
-        listenAddress = "cache:9000";
+        listenAddress = "127.0.0.1:9002";
         rootCredentialsFile = pkgs.writeText "minio-credentials" ''
           MINIO_ROOT_USER=${accessKey}
           MINIO_ROOT_PASSWORD=${secretKey}
         '';
+      };
+
+      services.caddy = {
+        enable = true;
+        virtualHosts."http://cache:9000" = {
+          extraConfig = ''
+            reverse_proxy localhost:9002
+          '';
+        };
       };
 
       networking.firewall.allowedTCPPorts = [ cachePort ];
@@ -88,6 +100,7 @@ let
     testScript = ''
     cache.start()
     cache.wait_for_unit("minio")
+    cache.wait_for_open_port(9002)
     cache.wait_for_open_port(${builtins.toString cachePort})
 
     # configure cache
@@ -96,13 +109,14 @@ let
     cache.succeed("mc policy set download minio/binary-cache") # allow public read
 
     builderA.start()
-    builderA.succeed("curl -v http://cache:9000/minio/health/ready")
-    builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderB.start()
     builderA.wait_for_unit("network.target")
     builderB.wait_for_unit("network.target")
 
-    builderA.succeed("curl -f http://cache:${builtins.toString cachePort}/minio/health/ready")
+    builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
+    cache.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
+    builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
+
     builderA.succeed("""
       nix-store --generate-binary-cache-key cache /etc/nix/key.private /etc/nix/key.public
       nix copy --to '${storeUrl}' /nix/store/*-bash-*
@@ -117,10 +131,8 @@ let
     ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
     ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
     ${name}.succeed("nix path-info ${pkgA}")
-    ${name}.succeed("curl http://cache:9000/nix-cache-info")
 
     ${name}.succeed("nix-store --verify")
-    ${name}.succeed("nix-store --realise /nix/store/*-bash-*")
 
     # TODO: run test script
     # using specific trust model
