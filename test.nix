@@ -42,7 +42,7 @@ let
         };
       };
 
-      networking.firewall.allowedTCPPorts = [ cachePort ];
+      networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
   };
   makeBuilder  = { pkgs, ... }: {
       virtualisation.memorySize = 2048;
@@ -99,14 +99,15 @@ let
     # Test script to verify the setup
     testScript = ''
     cache.start()
+    cache.forward_port(9001, 9001)
     cache.wait_for_unit("minio")
     cache.wait_for_open_port(9002)
     cache.wait_for_open_port(${builtins.toString cachePort})
 
     # configure cache
-    cache.succeed("mc config host add minio http://localhost:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
-    cache.succeed("mc mb minio/binary-cache")
-    cache.succeed("mc policy set download minio/binary-cache") # allow public read
+    cache.succeed("${env} mc config host add minio http://cache:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
+    cache.succeed("${env} mc mb minio/binary-cache")
+    cache.succeed("${env} mc policy set download minio/binary-cache") # allow public read
 
     builderA.start()
     builderB.start()
@@ -118,8 +119,7 @@ let
     builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
 
     builderA.succeed("""
-      nix-store --generate-binary-cache-key cache /etc/nix/key.private /etc/nix/key.public
-      nix copy --to '${storeUrl}' /nix/store/*-bash-*
+      nix-store --generate-binary-cache-key builderA /etc/nix/key.private /etc/nix/key.public
     """)
 
     builderA.shutdown()
