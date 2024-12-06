@@ -53,7 +53,6 @@ let
       nix = {
         extraOptions = "experimental-features = nix-command";
         settings = {
-          experimental-features = [ "nix-command" "flakes" ];
           trusted-substituters = [ ];
           post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
             echo "Running post-build hook"
@@ -89,13 +88,6 @@ let
       ${name} = { config, pkgs, ... }: {
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
-
-          nix = {
-            extraOptions = "experimental-features = nix-command";
-            settings = {
-              experimental-features = [ "nix-command" "flakes" ];
-            };
-          };
 
           environment.systemPackages = with pkgs; [
             nix
@@ -141,9 +133,9 @@ let
     ${name}.start()
     ${name}.wait_for_unit("network.target")
     ${name}.fail("nix path-info ${pkgA}")
-    ${name}.succeed("${env} nix --extra-experimental-features nix-command store info --store '${storeUrl}' >&2")
-    ${name}.succeed("${env} nix --extra-experimental-features nix-command copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
-    ${name}.succeed("nix --extra-experimental-features nix-command path-info ${pkgA}")
+    ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
+    ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
+    ${name}.succeed("nix path-info ${pkgA}")
 
     ${name}.succeed("nix-store --verify")
 
@@ -157,18 +149,24 @@ let
 in {
   # Full local reproducibility model - trusts only itself
   fullReproVM = makeTest "full_local_repro" {
-    extraConfig.nix.settings = {
-        substituters = [ ];
-        trusted-public-keys = [ ];
+    extraConfig.nix = {
+      extraOptions = "experimental-features = nix-command flakes";
+      settings = {
+          substituters = [ ];
+          trusted-public-keys = [ ];
+      };
     };
     #  trust_model = Builder(self())
   };
 
   # Trusted infrastructure model - trusts central cache
   trustedInfraVM = makeTest "trusted_infra" {
-    extraConfig.nix.settings = {
+    extraConfig.nix = {
+      extraOptions = "experimental-features = nix-command flakes";
+      settings = {
         substituters = [ "http://cache.local" ];
         trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
+      };
     };
     #  trust_model = threshold(1,
     #   Builder(self()),
@@ -177,16 +175,18 @@ in {
 
   # Distributed trust model - requires multiple builder agreement
   distributedTrustVM = makeTest "distributed_trust" {
-    extraConfig.nix.settings = {
-      experimental-features = [ "nix-command" "flakes" ];
-      substituters = [
-        "http://builder1.local"
-        "http://builder2.local"
-      ];
-      trusted-public-keys = [
-        "builder1.local:${placeholder "BUILDER1_KEY"}"
-        "builder2.local:${placeholder "BUILDER2_KEY"}"
-      ];
+    extraConfig.nix = {
+      extraOptions = "experimental-features = nix-command flakes";
+      settings = {
+        substituters = [
+          "http://builder1.local"
+          "http://builder2.local"
+        ];
+        trusted-public-keys = [
+          "builder1.local:${placeholder "BUILDER1_KEY"}"
+          "builder2.local:${placeholder "BUILDER2_KEY"}"
+        ];
+      };
     };
     #  trust_model = threshold(2,
     #   Builder("builderA:IRs7KiYMNnwMOui+D4VufEelbplIR7vzbMIDJjaG5GU="),
@@ -194,8 +194,11 @@ in {
   };
   attestBuilder = makeTest "attest_builder" {
     extraConfig.nix.settings = {
-        substituters = [ "http://cache.local" ];
-        trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
+      extraConfig.nix = {
+        extraOptions = "experimental-features = nix-command flakes";
+          substituters = [ "http://cache.local" ];
+          trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
+      };
     };
     #  trust_model = Builder("builderA:IRs7KiYMNnwMOui+D4VufEelbplIR7vzbMIDJjaG5GU=",
     #     sw_flake = "github:nixos/nixpkgs-builders/8d99dd5e331e9fc8f3480d739b709eafc1e4ceb6#amd-tpm-2.0",
