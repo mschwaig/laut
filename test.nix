@@ -128,14 +128,6 @@ let
     builderA.wait_for_unit("network.target")
     builderB.wait_for_unit("network.target")
 
-    builderA.succeed("""
-      nix-store --generate-binary-cache-key builderA /etc/nix/key.private /etc/nix/key.public
-    """)
-    builderA.succeed("""
-      nix-store --generate-binary-cache-key builderB /etc/nix/key.private /etc/nix/key.public
-    """)
-
-
     builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
     cache.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
