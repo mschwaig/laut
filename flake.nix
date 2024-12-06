@@ -11,9 +11,15 @@
   outputs = { self, nixpkgs, bombon, flake-utils }:
     flake-utils.lib.eachSystem [ "x86_64-linux" ]  (system:
     let
+        contentAddressedOverlay = final: prev: {
+          config = prev.config // {
+            contentAddressedByDefault = true;
+          };
+        };
         pkgs = import nixpkgs {
-            inherit system;
-            # TODO: add override to modify Nix
+          inherit system;
+          overlays = [ contentAddressedOverlay ];
+#          config.contentAddressedByDefault = true;
         };
         nix = pkgs.nix;
         nix-vsbom = bombon.lib.${system}.buildBom nix {
@@ -26,13 +32,9 @@
 
         checks = let
             system = "x86_64-linux";
-            pkgs = nixpkgs.legacyPackages.${system};
-            ca-pkgs = import nixpkgs {
-              inherit system;
-              config.contentAddressedByDefault = true;
-            };
+            # pkgs = nixpkgs.legacyPackages.${system};
             in import ./test.nix {
-                inherit pkgs ca-pkgs nix-vsbom;
+                inherit pkgs nix-vsbom;
             };
     });
 }

@@ -1,12 +1,12 @@
-{ pkgs, ca-pkgs, nix-vsbom, ... }:
+{ pkgs, nix-vsbom, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 let
-  ia-pkgs = pkgs;
-  pkgs = ca-pkgs;
+ # ia-pkgs = pkgs;
+ # pkgs = ca-pkgs;
   cachePort = 9000;
 
   pkgA = pkgs.cowsay;
@@ -16,7 +16,7 @@ let
   env = "AWS_ACCESS_KEY_ID=${accessKey} AWS_SECRET_ACCESS_KEY=${secretKey}";
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
 
-  cache = { config, pkgs, ... }: {
+  cache = { ... }: {
       virtualisation.writableStore = true;
       virtualisation.additionalPaths = [ pkgA ];
       virtualisation.memorySize = 2048;
@@ -44,7 +44,7 @@ let
 
       networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
   };
-  makeBuilder  = { pkgs, privateKey, publicKey, ... }: {
+  makeBuilder  = { privateKey, publicKey, ... }: {
       virtualisation.memorySize = 4096;
       virtualisation.cores = 2;
       virtualisation.diskSize = 4096;
@@ -72,9 +72,6 @@ let
         };
       };
 
-      # services.nix-daemon.enable = true;
-      # services.nix-daemon.socketActivation = false;
-
       system.activationScripts.postGeneration = {
         text = ''
           echo "Running post-generation script"
@@ -95,25 +92,23 @@ let
         ];
       };
   };
-  makeTest = name: { extraConfig, trustModel ? null }: ia-pkgs.nixosTest {
+  makeTest = name: { extraConfig, trustModel ? null }: pkgs.nixosTest {
     name = "sbom-verify-${name}";
 
     nodes = {
       inherit cache;
 
       builderA = makeBuilder {
-        inherit pkgs;
         privateKey = ./testkeys/builderA_key.private;
         publicKey = ./testkeys/builderA_key.public;
       };
       builderB = makeBuilder {
-        inherit pkgs;
         privateKey = ./testkeys/builderB_key.private;
         publicKey = ./testkeys/builderB_key.public;
       };
       # TODO: add nixpkgs-mirror;
 
-      ${name} = { config, pkgs, ... }: {
+      ${name} = { ... }: {
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
 
@@ -143,10 +138,6 @@ let
     builderB.wait_for_unit("network.target")
 
     builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
-    cache.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
-    builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
-    builderB.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
-
     builderA.succeed("nix-channel --update")
 
     # builderA.shutdown()
