@@ -59,14 +59,12 @@ let
         extraOptions = ''
         experimental-features = nix-command flakes ca-derivations
         post-build-hook = ${pkgs.writeShellScript "copy-to-cache" ''
-            echo "Running post-build hook"
-            set -eu
-            sig_key="/etc/nix/private-key"
+            set -eux
+            set -f # disable globbing
+            export IFS=' '
 
-            for path in $DRV_PATH $OUT_PATHS; do
-                nix store sign --key-file $sig_key $path
-                ${env} nix copy --to ${storeUrl} $path
-            done
+            echo "Uploading paths" $OUT_PATHS
+            ${env} nix copy --to "${storeUrl}" $OUT_PATHS
           ''}
         '';
         settings = {
@@ -148,6 +146,8 @@ let
     cache.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderB.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
+
+    builderA.succeed("nix-channel --update")
 
     # builderA.shutdown()
     # builderB.shutdown()
