@@ -44,7 +44,7 @@ let
 
       networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
   };
-  makeBuilder  = { pkgs, ... }: {
+  makeBuilder  = { pkgs, privateKey, publicKey, ... }: {
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
 
@@ -70,10 +70,16 @@ let
         deps = [];  # Add dependencies if needed
       };
 
-      environment.systemPackages = with pkgs; [
-        nix
-        git
-      ];
+      environment = {
+        etc = {
+          "nix/private-key".source = privateKey;
+          "nix/public-key".source = publicKey;
+        };
+        systemPackages = with pkgs; [
+          nix
+          git
+        ];
+      };
   };
   makeTest = name: { extraConfig, trustModel ? null }: ia-pkgs.nixosTest {
     name = "sbom-verify-${name}";
@@ -81,9 +87,17 @@ let
     nodes = {
       inherit cache;
 
-      builderA = makeBuilder { inherit pkgs; };
-      builderB = makeBuilder { inherit pkgs; };
-      # TODO: add builder-A builder-B nixpkgs-mirror;
+      builderA = makeBuilder {
+        inherit pkgs;
+        privateKey = ./testkeys/builderA_key.private;
+        publicKey = ./testkeys/builderA_key.public;
+      };
+      builderB = makeBuilder {
+        inherit pkgs;
+        privateKey = ./testkeys/builderB_key.private;
+        publicKey = ./testkeys/builderB_key.public;
+      };
+      # TODO: add nixpkgs-mirror;
 
       ${name} = { config, pkgs, ... }: {
           virtualisation.memorySize = 2048;
