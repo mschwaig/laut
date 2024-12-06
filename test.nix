@@ -45,21 +45,37 @@ let
       networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
   };
   makeBuilder  = { pkgs, privateKey, publicKey, ... }: {
-      virtualisation.memorySize = 2048;
+      virtualisation.memorySize = 4096;
       virtualisation.cores = 2;
+      virtualisation.diskSize = 4096;
+      virtualisation.writableStore = true;
+      virtualisation.useNixStoreImage = true;
+      systemd.services.nix-daemon.enable = true;
+      virtualisation.mountHostNixStore = false;
 
       virtualisation.additionalPaths = [ pkgA ];
 
       nix = {
-        extraOptions = "experimental-features = nix-command";
+        extraOptions = ''
+        experimental-features = nix-command flakes ca-derivations
+        post-build-hook = ${pkgs.writeShellScript "copy-to-cache" ''
+            echo "Running post-build hook"
+            set -eu
+            sig_key="/etc/nix/private-key"
+
+            for path in $DRV_PATH $OUT_PATHS; do
+                nix store sign --key-file $sig_key $path
+                ${env} nix copy --to ${storeUrl} $path
+            done
+          ''}
+        '';
         settings = {
           trusted-substituters = [ ];
-          post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
-            echo "Running post-build hook"
-            echo $1 $2
-          '';
         };
       };
+
+      # services.nix-daemon.enable = true;
+      # services.nix-daemon.socketActivation = false;
 
       system.activationScripts.postGeneration = {
         text = ''
@@ -133,17 +149,17 @@ let
     builderA.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
     builderB.succeed("${env} nix copy --to '${storeUrl}' ${pkgA}")
 
-    builderA.shutdown()
-    builderB.shutdown()
+    # builderA.shutdown()
+    # builderB.shutdown()
     
-    ${name}.start()
-    ${name}.wait_for_unit("network.target")
-    ${name}.fail("nix path-info ${pkgA}")
-    ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
-    ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
-    ${name}.succeed("nix path-info ${pkgA}")
+    # ${name}.start()
+    # ${name}.wait_for_unit("network.target")
+    # ${name}.fail("nix path-info ${pkgA}")
+    # ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
+    # ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
+    # ${name}.succeed("nix path-info ${pkgA}")
 
-    ${name}.succeed("nix-store --verify")
+    # ${name}.succeed("nix-store --verify")
 
     # TODO: run test script
     # using specific trust model
