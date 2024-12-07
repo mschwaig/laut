@@ -143,7 +143,11 @@ let
     builderB.wait_for_unit("network.target")
 
     builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
-    builderA.succeed("nix-channel --update")
+
+    builderA.succeed("mkdir -p ~/.config/nixpkgs")
+    builderA.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
+
+    builderA.succeed("nix build --impure nixpkgs#hello")
 
     # builderA.shutdown()
     # builderB.shutdown()
