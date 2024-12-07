@@ -60,7 +60,10 @@ let
         registry.nixpkgs.flake = inputs.nixpkgs;
         extraOptions = ''
         experimental-features = nix-command flakes ca-derivations
-        post-build-hook = ${pkgs.writeShellScript "copy-to-cache" ''
+        '';
+        settings = {
+          trusted-substituters = [ ];
+          post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
             set -eux
             set -f # disable globbing
 
@@ -70,10 +73,7 @@ let
             echo Pushing "$OUT_PATHS" to ${storeUrl}
             ${env} printf "%s" "$OUT_PATHS" | xargs nix copy --no-require-sigs --to ${storeUrl}
             ${env} printf "%s" "$DRV_PATH"^'*' | xargs nix copy --no-require-sigs --to ${storeUrl}
-          ''}
-        '';
-        settings = {
-          trusted-substituters = [ ];
+          '';
         };
       };
 
@@ -141,9 +141,9 @@ let
     cache.succeed("${env} mc policy set download minio/binary-cache") # allow public read
 
     builderA.start()
-    builderB.start()
+    #builderB.start()
     builderA.wait_for_unit("network.target")
-    builderB.wait_for_unit("network.target")
+    #builderB.wait_for_unit("network.target")
 
     builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
 
