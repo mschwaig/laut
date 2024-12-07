@@ -8,7 +8,7 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, bombon, flake-utils }:
+  outputs = { self, nixpkgs, bombon, flake-utils }@inputs:
     flake-utils.lib.eachSystem [ "x86_64-linux" ]  (system:
     let
         contentAddressedOverlay = final: prev: {
@@ -34,7 +34,7 @@
             system = "x86_64-linux";
             # pkgs = nixpkgs.legacyPackages.${system};
             in import ./test.nix {
-                inherit pkgs nix-vsbom;
+                inherit pkgs nix-vsbom inputs contentAddressedOverlay;
             };
     });
 }

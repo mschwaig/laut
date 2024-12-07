@@ -1,4 +1,4 @@
-{ pkgs, nix-vsbom, ... }:
+{ pkgs, nix-vsbom, inputs, contentAddressedOverlay, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
@@ -55,7 +55,9 @@ let
 
       virtualisation.additionalPaths = [ pkgA ];
 
+      nixpkgs.overlays = [ contentAddressedOverlay ];
       nix = {
+        registry.nixpkgs.flake = inputs.nixpkgs;
         extraOptions = ''
         experimental-features = nix-command flakes ca-derivations
         post-build-hook = ${pkgs.writeShellScript "copy-to-cache" ''
@@ -111,6 +113,9 @@ let
       ${name} = { ... }: {
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
+
+          nix.registry.nixpkgs.flake = inputs.nixpkgs;
+          nixpkgs.overlays = [ contentAddressedOverlay ];
 
           environment.systemPackages = with pkgs; [
             nix
