@@ -45,7 +45,7 @@ let
       networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
   };
   makeBuilder  = { privateKey, publicKey, ... }: {
-      virtualisation.memorySize = 4096;
+      virtualisation.memorySize = 16384;
       virtualisation.cores = 2;
       virtualisation.diskSize = 4096;
       virtualisation.writableStore = true;
@@ -63,10 +63,13 @@ let
         post-build-hook = ${pkgs.writeShellScript "copy-to-cache" ''
             set -eux
             set -f # disable globbing
-            export IFS=' '
 
-            echo "Uploading paths" $OUT_PATHS
-            ${env} nix copy --to "${storeUrl}" $OUT_PATHS
+            [ -n "$OUT_PATHS" ]
+            [ -n "$DRV_PATH" ]
+
+            echo Pushing "$OUT_PATHS" to ${storeUrl}
+            ${env} printf "%s" "$OUT_PATHS" | xargs nix copy --no-require-sigs --to ${storeUrl}
+            ${env} printf "%s" "$DRV_PATH"^'*' | xargs nix copy --no-require-sigs --to ${storeUrl}
           ''}
         '';
         settings = {
