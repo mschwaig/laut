@@ -13,7 +13,6 @@ let
 
   accessKey = "BKIKJAA5BMMU2RHO6IBB";
   secretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
-  env = "AWS_ACCESS_KEY_ID=${accessKey} AWS_SECRET_ACCESS_KEY=${secretKey}";
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
 
   cache = { ... }: {
@@ -31,6 +30,11 @@ let
           MINIO_ROOT_USER=${accessKey}
           MINIO_ROOT_PASSWORD=${secretKey}
         '';
+      };
+
+      environment.variables = {
+        AWS_ACCESS_KEY_ID = accessKey;
+        AWS_SECRET_ACCESS_KEY = secretKey;
       };
 
       services.caddy = {
@@ -91,6 +95,10 @@ let
       };
 
       environment = {
+        variables = {
+          AWS_ACCESS_KEY_ID = accessKey;
+          AWS_SECRET_ACCESS_KEY = secretKey;
+        };
         etc = {
           "nix/private-key".source = privateKey;
           "nix/public-key".source = publicKey;
@@ -140,9 +148,9 @@ let
     cache.wait_for_open_port(${builtins.toString cachePort})
 
     # configure cache
-    cache.succeed("${env} mc config host add minio http://cache:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
-    cache.succeed("${env} mc mb minio/binary-cache")
-    cache.succeed("${env} mc policy set download minio/binary-cache") # allow public read
+    cache.succeed("mc config host add minio http://cache:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
+    cache.succeed("mc mb minio/binary-cache")
+    cache.succeed("mc policy set download minio/binary-cache") # allow public read
 
     builderA.start()
     #builderB.start()
@@ -163,8 +171,8 @@ let
     # ${name}.start()
     # ${name}.wait_for_unit("network.target")
     # ${name}.fail("nix path-info ${pkgA}")
-    # ${name}.succeed("${env} nix store info --store '${storeUrl}' >&2")
-    # ${name}.succeed("${env} nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
+    # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
+    # ${name}.succeed("nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
     # ${name}.succeed("nix path-info ${pkgA}")
 
     # ${name}.succeed("nix-store --verify")
