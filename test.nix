@@ -46,7 +46,7 @@ let
   };
   makeBuilder  = { privateKey, publicKey, ... }: {
       virtualisation.memorySize = 16384;
-      virtualisation.cores = 2;
+      virtualisation.cores = 8;
       virtualisation.diskSize = 4096;
       virtualisation.writableStore = true;
       virtualisation.useNixStoreImage = true;
