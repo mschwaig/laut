@@ -159,7 +159,8 @@ let
     builderA.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
 
     builderA.wait_for_unit("default.target")
-    builderA.succeed("nix build --impure ${trivialPackage}")
+    builderA.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
+    builderA.succeed("nix build --impure ${trivialPackage} --secret-key-files \"/etc/nix/private-key\"")
 
     # builderA.shutdown()
     # builderB.shutdown()
