@@ -13,6 +13,10 @@ let
 
   accessKey = "BKIKJAA5BMMU2RHO6IBB";
   secretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
+  cacheCredentials = {
+    AWS_ACCESS_KEY_ID = accessKey;
+    AWS_SECRET_ACCESS_KEY = secretKey;
+  };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
 
   cache = { ... }: {
@@ -32,10 +36,7 @@ let
         '';
       };
 
-      environment.variables = {
-        AWS_ACCESS_KEY_ID = accessKey;
-        AWS_SECRET_ACCESS_KEY = secretKey;
-      };
+      environment.variables = cacheCredentials;
 
       services.caddy = {
         enable = true;
@@ -72,9 +73,6 @@ let
             set -f # disable globbing
             #exec > >(tee -a $HOME/hooklog) 2>&1
 
-            export AWS_ACCESS_KEY_ID=${accessKey}
-            export AWS_SECRET_ACCESS_KEY=${secretKey}
-
             [ -n "$OUT_PATHS" ]
             [ -n "$DRV_PATH" ]
 
@@ -95,10 +93,7 @@ let
       };
 
       environment = {
-        variables = {
-          AWS_ACCESS_KEY_ID = accessKey;
-          AWS_SECRET_ACCESS_KEY = secretKey;
-        };
+        variables = cacheCredentials;
         etc = {
           "nix/private-key".source = privateKey;
           "nix/public-key".source = publicKey;
