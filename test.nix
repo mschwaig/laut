@@ -66,13 +66,17 @@ let
           post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
             set -eux
             set -f # disable globbing
+            #exec > >(tee -a $HOME/hooklog) 2>&1
+
+            export AWS_ACCESS_KEY_ID=${accessKey}
+            export AWS_SECRET_ACCESS_KEY=${secretKey}
 
             [ -n "$OUT_PATHS" ]
             [ -n "$DRV_PATH" ]
 
             echo Pushing "$OUT_PATHS" to ${storeUrl}
-            ${env} printf "%s" "$OUT_PATHS" | xargs nix copy --no-require-sigs --to ${storeUrl}
-            ${env} printf "%s" "$DRV_PATH"^'*' | xargs nix copy --no-require-sigs --to ${storeUrl}
+            printf "%s" "$OUT_PATHS" | xargs nix copy --to "${storeUrl}" --no-require-sigs
+            printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${storeUrl}" --no-require-sigs
           '';
         };
       };
@@ -150,6 +154,7 @@ let
     builderA.succeed("mkdir -p ~/.config/nixpkgs")
     builderA.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
 
+    builderA.wait_for_unit("default.target")
     builderA.succeed("nix build --impure nixpkgs#hello")
 
     # builderA.shutdown()
