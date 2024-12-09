@@ -18,6 +18,7 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
+  trivialPackage = "nixpkgs#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
 
   cache = { ... }: {
       virtualisation.writableStore = true;
@@ -158,7 +159,7 @@ let
     builderA.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
 
     builderA.wait_for_unit("default.target")
-    builderA.succeed("nix build --impure nixpkgs#hello")
+    builderA.succeed("nix build --impure ${trivialPackage}")
 
     # builderA.shutdown()
     # builderB.shutdown()
