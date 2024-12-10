@@ -36,5 +36,14 @@
             in import ./test.nix {
                 inherit pkgs nix-vsbom inputs contentAddressedOverlay;
             };
+        devShell = let
+          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+            rfc8785
+          ]);
+        in pkgs.mkShell {
+          buildInputs = [
+            pythonEnv
+          ];        
+        };
     });
 }
