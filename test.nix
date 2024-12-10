@@ -137,6 +137,18 @@ let
 
     # Test script to verify the setup
     testScript = ''
+    from threading import Thread
+    from typing import Callable
+    from functools import wraps
+
+    def run_in_background(func: Callable):
+      @wraps(func)
+      def wrapper(*args, **kwargs):
+        thread = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
+        thread.start()
+        return thread
+      return wrapper
+
     cache.start()
     cache.forward_port(9001, 9001)
     cache.wait_for_unit("minio")
@@ -148,23 +160,36 @@ let
     cache.succeed("mc mb minio/binary-cache")
     cache.succeed("mc policy set download minio/binary-cache") # allow public read
 
-    builderA.start()
-    #builderB.start()
-    builderA.wait_for_unit("network.target")
-    #builderB.wait_for_unit("network.target")
+    @run_in_background
+    def boot_and_configure(builder):
+      builder.start()
+      builder.wait_for_unit("network.target")
 
-    builderA.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
+      builder.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
 
-    builderA.succeed("mkdir -p ~/.config/nixpkgs")
-    builderA.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
+      builder.succeed("mkdir -p ~/.config/nixpkgs")
+      builder.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
 
-    builderA.wait_for_unit("default.target")
-    builderA.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-    builderA.succeed("nix build --impure ${trivialPackage} --secret-key-files \"/etc/nix/private-key\"")
+      builder.wait_for_unit("default.target")
 
-    # builderA.shutdown()
-    # builderB.shutdown()
-    
+    t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
+
+    t1.join()
+    t2.join()
+
+    @run_in_background
+    def build_and_upload(builder):
+      builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
+      builder.succeed("nix build --impure ${trivialPackage} --secret-key-files \"/etc/nix/private-key\"")
+
+    t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
+
+    t1.join()
+    t2.join()
+
+    builderA.shutdown()
+    builderB.shutdown()
+
     # ${name}.start()
     # ${name}.wait_for_unit("network.target")
     # ${name}.fail("nix path-info ${pkgA}")
