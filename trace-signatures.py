@@ -3,6 +3,8 @@ import subprocess
 import json
 import sys
 import rfc8785
+import hashlib
+import base64
 
 def get_canonical_derivation(path):
     """
@@ -12,7 +14,7 @@ def get_canonical_derivation(path):
         path: Path to .drv file or Nix store path
         
     Returns:
-        str: Canonicalized JSON string of the derivation
+        bytes: Canonicalized JSON bytes of the derivation
     """
     try:
         # Run nix derivation show
@@ -36,6 +38,10 @@ def get_canonical_derivation(path):
         print(f"Error parsing derivation JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
+def compute_sha256_base64(data):
+    hash_bytes = hashlib.sha256(data).digest()
+    return base64.b64encode(hash_bytes).decode('ascii')
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: canonical-derivation.py PATH")
@@ -44,7 +50,9 @@ def main():
     
     path = sys.argv[1]
     canonical = get_canonical_derivation(path)
-    print(canonical)
+    sha256_hash = compute_sha256_base64(canonical)
+    print(f"Canonical JSON: {canonical.decode('utf-8')}")
+    print(f"SHA-256 (base64): {sha256_hash}")
 
 if __name__ == '__main__':
     main()
