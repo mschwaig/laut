@@ -5,6 +5,8 @@ import sys
 import rfc8785
 import hashlib
 import base64
+import jwt
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 def get_canonical_derivation(path):
     """
@@ -24,13 +26,13 @@ def get_canonical_derivation(path):
             text=True,
             check=True
         )
-        
+
         # Parse the JSON output
         deriv_json = json.loads(result.stdout)
-        
+
         # Canonicalize using JCS
         return rfc8785.dumps(deriv_json)
-        
+
     except subprocess.CalledProcessError as e:
         print(f"Error running 'nix derivation show': {e.stderr}", file=sys.stderr)
         sys.exit(1)
@@ -41,12 +43,6 @@ def get_canonical_derivation(path):
 def get_content_hash(drv_path):
     """
     Get the content hash for a derivation using nix-store --query --hash
-
-    Args:
-        drv_path: Path to the .drv file
-
-    Returns:
-        str: The content hash
     """
     try:
         result = subprocess.run(
@@ -64,12 +60,6 @@ def resolve_dependencies(deriv_json):
     """
     Resolve all dependencies in a derivation by getting their content hashes
     and incorporating them into inputSrcs.
-
-    Args:
-        deriv_json: Parsed JSON derivation data
-
-    Returns:
-        dict: Modified derivation with resolved dependencies
     """
     # We'll work with the first (and typically only) derivation in the JSON
     drv_path = next(iter(deriv_json))
@@ -78,7 +68,7 @@ def resolve_dependencies(deriv_json):
     # Get existing inputSrcs
     resolved_srcs = list(drv_data.get('inputSrcs', []))
 
-    #  Get all input derivations and do not sort since we assume the order is meaningful
+    # Get all input derivations and do not sort since we assume the order is meaningful
     input_drvs = drv_data.get('inputDrvs', {}).keys()
 
     # Get content hash for each input derivation and add to inputSrcs
@@ -94,19 +84,76 @@ def resolve_dependencies(deriv_json):
     return modified_drv
 
 def compute_sha256_base64(data):
+    """Compute SHA-256 hash and return base64 encoded"""
     hash_bytes = hashlib.sha256(data).digest()
     return base64.b64encode(hash_bytes).decode('ascii')
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: canonical-derivation.py PATH")
-        print("PATH can be a .drv file or a store path")
+def get_output_hash(path):
+    """Get the content hash of the built output"""
+    try:
+        result = subprocess.run(
+            ['nix-store', '--query', '--hash', path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Error getting output hash for {path}: {e.stderr}", file=sys.stderr)
         sys.exit(1)
 
-    path = sys.argv[1]
+def parse_nix_key_file(key_path):
+    """
+    Parse a Nix signing key file in the format 'name:base64key'
+    The key is in libsodium format: 64 bytes (32 byte key + 32 byte salt)
+    """
+    with open(key_path, 'r') as f:
+        content = f.read().strip()
+
+    name, key_b64 = content.split(':', 1)
+    key_bytes = base64.b64decode(key_b64)
+    
+    # Extract just the private key (first 32 bytes)
+    private_key_bytes = key_bytes[:32]
+
+    return Ed25519PrivateKey.from_private_bytes(private_key_bytes)
+
+def create_trace_signature(input_hash: str, output_hash: str, private_key):
+    """Create a JWS signature in the specified format"""
+    headers = {
+        "alg": "EdDSA",
+        "type": "ntrace",
+        "v": "1"
+    }
+
+    payload = {
+        "in": input_hash,
+        "out": output_hash,
+        "builder": {
+            "rebuild": "1",
+        }
+    }
+
+    return jwt.encode(
+        payload,
+        private_key,
+        algorithm="EdDSA",
+        headers=headers
+    )
+
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: trace-signatures.py DRV_PATH PRIVATE_KEY_PATH")
+        sys.exit(1)
+
+    drv_path = sys.argv[1]
+    private_key_path = sys.argv[2]
+
+    # Parse the private key file
+    private_key = parse_nix_key_file(private_key_path)
 
     # Get initial derivation
-    canonical = get_canonical_derivation(path)
+    canonical = get_canonical_derivation(drv_path)
     initial_json = json.loads(canonical.decode('utf-8'))
 
     # Resolve dependencies
@@ -116,10 +163,19 @@ def main():
     resolved_canonical = rfc8785.dumps(resolved_json)
 
     # Compute final input hash
-    final_hash = compute_sha256_base64(resolved_canonical)
+    input_hash = compute_sha256_base64(resolved_canonical)
 
-    print(f"Resolved JSON: {resolved_canonical.decode('utf-8')}")
-    print(f"Final SHA-256 (base64): {final_hash}")
+    # Get the output path from the derivation
+    drv_path_key = next(iter(initial_json))
+    output_path = initial_json[drv_path_key]['outputs']['out']['path']
+
+    # Get output hash
+    output_hash = get_output_hash(output_path)
+
+    # Create JWS
+    jws_token = create_trace_signature(input_hash, output_hash, private_key)
+
+    print(jws_token)
 
 if __name__ == '__main__':
     main()

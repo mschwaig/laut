@@ -38,7 +38,7 @@
             };
         devShell = let
           pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            rfc8785
+            rfc8785 pyjwt cryptography
           ]);
         in pkgs.mkShell {
           buildInputs = [
