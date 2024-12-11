@@ -80,6 +80,8 @@ let
             echo Pushing "$OUT_PATHS" to ${storeUrl}
             printf "%s" "$OUT_PATHS" | xargs nix copy --to "${storeUrl}" --no-require-sigs
             printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${storeUrl}" --secret-key-files /etc/nix/private-key
+
+            trace-signatures.py sign "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
           '';
         };
       };

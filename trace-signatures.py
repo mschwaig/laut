@@ -6,17 +6,62 @@ import rfc8785
 import hashlib
 import base64
 import jwt
+import boto3
+import click
+from botocore.config import Config
+from urllib.parse import urlparse
+import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+def get_s3_client(store_url):
+    """
+    Create an S3 client from the store URL and environment credentials
+    """
+    parsed_url = urlparse(store_url)
+    if not parsed_url.scheme.startswith('s3'):
+        raise ValueError(f"Unsupported store URL scheme: {parsed_url.scheme}")
+
+    # Extract endpoint URL from the store URL
+    endpoint_url = f"https://{parsed_url.netloc}"
+
+    # Create S3 client with path-style addressing
+    config = Config(s3={'addressing_style': 'path'})
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint_url,
+        config=config
+    )
+
+def upload_signature(store_url, input_hash, signature):
+    """
+    Upload the signature to S3-compatible storage
+    """
+    try:
+        s3_client = get_s3_client(store_url)
+        parsed_url = urlparse(store_url)
+        bucket = parsed_url.path.strip('/')
+
+        # Create the trace content
+        trace_content = {
+            "signatures": [signature]
+        }
+
+        # Upload to traces/<input-hash>
+        key = f"traces/{input_hash}"
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=json.dumps(trace_content),
+            ContentType='application/json'
+        )
+
+    except Exception as e:
+        print(f"Error uploading signature: {e}", file=sys.stderr)
+        sys.exit(1)
 
 def get_canonical_derivation(path):
     """
     Get a canonicalized JSON representation of a Nix derivation.
-    
-    Args:
-        path: Path to .drv file or Nix store path
-        
-    Returns:
-        bytes: Canonicalized JSON bytes of the derivation
     """
     try:
         # Run nix derivation show
@@ -112,7 +157,7 @@ def parse_nix_key_file(key_path):
 
     name, key_b64 = content.split(':', 1)
     key_bytes = base64.b64decode(key_b64)
-    
+
     # Extract just the private key (first 32 bytes)
     private_key_bytes = key_bytes[:32]
 
@@ -141,41 +186,62 @@ def create_trace_signature(input_hash: str, output_hash: str, private_key):
         headers=headers
     )
 
-def main():
-    if len(sys.argv) != 3:
-        print("Usage: trace-signatures.py DRV_PATH PRIVATE_KEY_PATH")
+@click.group()
+def cli():
+    """Nix build trace signature tool"""
+    pass
+
+@cli.command()
+@click.argument('drv-path')
+@click.option('--secret-key-file', required=True, multiple=True,
+              help='Path to the secret key file')
+@click.option('--to', required=True,
+              help='URL of the target store (e.g., s3://bucket-name)')
+def sign(drv_path, secret_key_file, to):
+    """Sign a derivation and upload the signature"""
+    try:
+        # Parse the first private key file (maintain compatibility with original behavior)
+        private_key = parse_nix_key_file(secret_key_file[0])
+
+        # Get initial derivation
+        canonical = get_canonical_derivation(drv_path)
+        initial_json = json.loads(canonical.decode('utf-8'))
+
+        # Resolve dependencies
+        resolved_json = resolve_dependencies(initial_json)
+
+        # Canonicalize the resolved derivation
+        resolved_canonical = rfc8785.dumps(resolved_json)
+
+        # Compute final input hash
+        input_hash = compute_sha256_base64(resolved_canonical)
+
+        # Get the output path from the derivation
+        drv_path_key = next(iter(initial_json))
+        output_path = initial_json[drv_path_key]['outputs']['out']['path']
+
+        # Get output hash
+        output_hash = get_output_hash(output_path)
+
+        # Create JWS
+        jws_token = create_trace_signature(input_hash, output_hash, private_key)
+
+        # Print the signature to stdout
+        print(jws_token)
+
+        # Upload signature to S3
+        upload_signature(to, input_hash, jws_token)
+
+    except Exception as e:
+        click.echo(f"Error: {str(e)}", err=True)
         sys.exit(1)
 
-    drv_path = sys.argv[1]
-    private_key_path = sys.argv[2]
-
-    # Parse the private key file
-    private_key = parse_nix_key_file(private_key_path)
-
-    # Get initial derivation
-    canonical = get_canonical_derivation(drv_path)
-    initial_json = json.loads(canonical.decode('utf-8'))
-
-    # Resolve dependencies
-    resolved_json = resolve_dependencies(initial_json)
-
-    # Canonicalize the resolved derivation
-    resolved_canonical = rfc8785.dumps(resolved_json)
-
-    # Compute final input hash
-    input_hash = compute_sha256_base64(resolved_canonical)
-
-    # Get the output path from the derivation
-    drv_path_key = next(iter(initial_json))
-    output_path = initial_json[drv_path_key]['outputs']['out']['path']
-
-    # Get output hash
-    output_hash = get_output_hash(output_path)
-
-    # Create JWS
-    jws_token = create_trace_signature(input_hash, output_hash, private_key)
-
-    print(jws_token)
+@cli.command()
+@click.argument('drv-path')
+def verify(drv_path):
+    """Verify signatures for a derivation (placeholder for future implementation)"""
+    click.echo("Verification not yet implemented")
+    sys.exit(1)
 
 if __name__ == '__main__':
-    main()
+    cli()
