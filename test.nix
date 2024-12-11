@@ -104,9 +104,11 @@ let
         systemPackages = with pkgs; [
           nix
           git
+          inputs.packages.x86_64-linux.trace-signatures
         ];
       };
   };
+
   makeTest = name: { extraConfig, trustModel ? null }: pkgs.nixosTest {
     name = "sbom-verify-${name}";
 
