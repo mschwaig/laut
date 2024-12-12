@@ -17,6 +17,41 @@ def debug_print(msg):
     """Print debug message to stderr"""
     print(f"DEBUG: {msg}", file=sys.stderr)
 
+def get_output_path_from_derivation(deriv_json):
+    """Extract output path from derivation JSON with better error handling"""
+    try:
+        debug_print(f"Derivation JSON structure: {json.dumps(deriv_json, indent=2)}")
+        drv_path_key = next(iter(deriv_json))
+        drv_data = deriv_json[drv_path_key]
+
+        debug_print(f"Outputs structure: {json.dumps(drv_data.get('outputs', {}), indent=2)}")
+
+        # First try the standard structure
+        if 'outputs' in drv_data and 'out' in drv_data['outputs']:
+            output_data = drv_data['outputs']['out']
+            if isinstance(output_data, dict):
+                if 'path' in output_data:
+                    return output_data['path']
+            elif isinstance(output_data, str):
+                return output_data
+
+        # If that fails, try to find any output path
+        if 'outputs' in drv_data:
+            outputs = drv_data['outputs']
+            # Try first output if multiple exist
+            if outputs:
+                first_output = next(iter(outputs.values()))
+                if isinstance(first_output, dict) and 'path' in first_output:
+                    return first_output['path']
+                elif isinstance(first_output, str):
+                    return first_output
+
+        raise ValueError("Could not find output path in derivation")
+
+    except Exception as e:
+        debug_print(f"Error extracting output path: {str(e)}")
+        raise
+
 def get_s3_client(store_url):
     """
     Create an S3 client from the store URL and environment credentials
@@ -228,8 +263,8 @@ def sign(drv_path, secret_key_file, to):
         input_hash = compute_sha256_base64(resolved_canonical)
 
         debug_print("Getting output path")
-        drv_path_key = next(iter(initial_json))
-        output_path = initial_json[drv_path_key]['outputs']['out']['path']
+        output_path = get_output_path_from_derivation(initial_json)
+        debug_print(f"Found output path: {output_path}")
 
         debug_print("Getting output hash")
         output_hash = get_output_hash(output_path)
