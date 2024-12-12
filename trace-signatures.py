@@ -192,9 +192,9 @@ def cli():
     pass
 
 @cli.command()
-@click.argument('drv-path')
-@click.option('--secret-key-file', required=True, multiple=True,
-              help='Path to the secret key file')
+@click.argument('drv-path', type=click.Path(exists=True))
+@click.option('--secret-key-file', required=True, type=click.Path(exists=True),
+              help='Path to the secret key file', multiple=True)
 @click.option('--to', required=True,
               help='URL of the target store (e.g., s3://bucket-name)')
 def sign(drv_path, secret_key_file, to):
@@ -237,11 +237,19 @@ def sign(drv_path, secret_key_file, to):
         sys.exit(1)
 
 @cli.command()
-@click.argument('drv-path')
+@click.argument('drv-path', type=click.Path(exists=True))
 def verify(drv_path):
     """Verify signatures for a derivation (placeholder for future implementation)"""
     click.echo("Verification not yet implemented")
     sys.exit(1)
 
+def main():
+    """Entry point for the script"""
+    try:
+        cli(prog_name='trace-signatures.py')
+    except Exception as e:
+        click.echo(f"Fatal error: {str(e)}", err=True)
+        sys.exit(1)
+
 if __name__ == '__main__':
-    cli()
+    main()
