@@ -1,4 +1,3 @@
-#! /usr/bin/env -S python3 -u
 import subprocess
 import json
 import sys
@@ -8,10 +7,15 @@ import base64
 import jwt
 import boto3
 import click
+import traceback
 from botocore.config import Config
 from urllib.parse import urlparse
 import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+def debug_print(msg):
+    """Print debug message to stderr"""
+    print(f"DEBUG: {msg}", file=sys.stderr)
 
 def get_s3_client(store_url):
     """
@@ -189,6 +193,7 @@ def create_trace_signature(input_hash: str, output_hash: str, private_key):
 @click.group()
 def cli():
     """Nix build trace signature tool"""
+    debug_print("CLI group initialized")
     pass
 
 @cli.command()
@@ -199,40 +204,51 @@ def cli():
               help='URL of the target store (e.g., s3://bucket-name)')
 def sign(drv_path, secret_key_file, to):
     """Sign a derivation and upload the signature"""
+    debug_print(f"Sign command called with:")
+    debug_print(f"  drv_path: {drv_path}")
+    debug_print(f"  secret_key_file: {secret_key_file}")
+    debug_print(f"  to: {to}")
+    
     try:
-        # Parse the first private key file (maintain compatibility with original behavior)
+        debug_print("Parsing private key file")
         private_key = parse_nix_key_file(secret_key_file[0])
 
-        # Get initial derivation
+        debug_print("Getting canonical derivation")
         canonical = get_canonical_derivation(drv_path)
+        debug_print("Parsing JSON")
         initial_json = json.loads(canonical.decode('utf-8'))
 
-        # Resolve dependencies
+        debug_print("Resolving dependencies")
         resolved_json = resolve_dependencies(initial_json)
 
-        # Canonicalize the resolved derivation
+        debug_print("Canonicalizing resolved derivation")
         resolved_canonical = rfc8785.dumps(resolved_json)
 
-        # Compute final input hash
+        debug_print("Computing input hash")
         input_hash = compute_sha256_base64(resolved_canonical)
 
-        # Get the output path from the derivation
+        debug_print("Getting output path")
         drv_path_key = next(iter(initial_json))
         output_path = initial_json[drv_path_key]['outputs']['out']['path']
 
-        # Get output hash
+        debug_print("Getting output hash")
         output_hash = get_output_hash(output_path)
 
-        # Create JWS
+        debug_print("Creating JWS token")
         jws_token = create_trace_signature(input_hash, output_hash, private_key)
 
-        # Print the signature to stdout
+        debug_print("Printing signature")
         print(jws_token)
 
-        # Upload signature to S3
+        debug_print("Uploading signature")
         upload_signature(to, input_hash, jws_token)
 
     except Exception as e:
+        debug_print("Exception in sign command:")
+        debug_print(f"Error type: {type(e).__name__}")
+        debug_print(f"Error message: {str(e)}")
+        debug_print("Traceback:")
+        traceback.print_exc(file=sys.stderr)
         click.echo(f"Error: {str(e)}", err=True)
         sys.exit(1)
 
@@ -240,16 +256,34 @@ def sign(drv_path, secret_key_file, to):
 @click.argument('drv-path', type=click.Path(exists=True))
 def verify(drv_path):
     """Verify signatures for a derivation (placeholder for future implementation)"""
+    debug_print("Verify command called (not implemented)")
     click.echo("Verification not yet implemented")
     sys.exit(1)
 
 def main():
     """Entry point for the script"""
+    debug_print("Script started")
+    debug_print(f"Args: {sys.argv}")
+    debug_print(f"Working directory: {os.getcwd()}")
+    debug_print(f"Python version: {sys.version}")
+
     try:
-        cli(prog_name='trace-signatures.py')
+        debug_print("Invoking Click CLI")
+        cli.main(prog_name='trace-signatures.py', standalone_mode=False)
+    except click.exceptions.ClickException as e:
+        debug_print(f"Click exception: {str(e)}")
+        debug_print(f"Parameters: {e.ctx.params if e.ctx else 'No context'}")
+        e.show()
+        sys.exit(e.exit_code)
     except Exception as e:
+        debug_print("Exception in main:")
+        debug_print(f"Error type: {type(e).__name__}")
+        debug_print(f"Error message: {str(e)}")
+        debug_print("Traceback:")
+        traceback.print_exc(file=sys.stderr)
         click.echo(f"Fatal error: {str(e)}", err=True)
         sys.exit(1)
 
 if __name__ == '__main__':
+    debug_print("Starting from __main__")
     main()
