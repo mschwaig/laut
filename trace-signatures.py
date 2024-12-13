@@ -100,7 +100,7 @@ def get_s3_client(store_url):
     except Exception as e:
         debug_print(f"Error creating S3 client: {str(e)}")
         raise
-
+f
 def upload_signature(store_url, input_hash, signature):
     """
     Upload the signature to S3-compatible storage
@@ -116,13 +116,13 @@ def upload_signature(store_url, input_hash, signature):
             "signatures": [signature]
         }
 
-        # Upload to traces/<input-hash>
-        key = f"traces/{input_hash}"
-        debug_print(f"Uploading to bucket: {bucket}, key: {key}")
+        # Ensure URL-safe path
+        safe_path = f"traces/{input_hash}"
+        debug_print(f"Uploading to bucket: {bucket}, key: {safe_path}")
 
         s3_client.put_object(
             Bucket=bucket,
-            Key=key,
+            Key=safe_path,
             Body=json.dumps(trace_content),
             ContentType='application/json'
         )
@@ -200,9 +200,10 @@ def resolve_dependencies(deriv_json):
     return modified_drv
 
 def compute_sha256_base64(data):
-    """Compute SHA-256 hash and return base64 encoded"""
+    """Compute SHA-256 hash and return URL-safe base64 encoded"""
     hash_bytes = hashlib.sha256(data).digest()
-    return base64.b64encode(hash_bytes).decode('ascii')
+    # Use URL-safe base64 encoding without padding
+    return base64.urlsafe_b64encode(hash_bytes).decode('ascii').rstrip('=')
 
 def get_output_hash(path):
     """Get the content hash of the built output"""
@@ -243,7 +244,7 @@ def create_trace_signature(input_hash: str, output_hash: str, private_key):
     }
 
     payload = {
-        "in": input_hash,
+        "in": input_hash,  # Already URL-safe from compute_sha256_base64
         "out": output_hash,
         "builder": {
             "rebuild": "1",
