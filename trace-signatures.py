@@ -17,68 +17,99 @@ def debug_print(msg):
     """Print debug message to stderr"""
     print(f"DEBUG: {msg}", file=sys.stderr)
 
-def get_output_path_from_derivation(deriv_json):
-    """Extract output path from derivation JSON with better error handling"""
+def get_output_path(drv_path):
+    """
+    Get the output path for a derivation, handling both input-addressed and
+    content-addressed derivations.
+    """
+    debug_print(f"Getting output path for derivation: {drv_path}")
     try:
+        # First try nix path-info with ^* to handle CA derivations
+        result = subprocess.run(
+            ['nix', 'path-info', f'{drv_path}^*'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        outputs = result.stdout.strip().split('\n')
+        if outputs and outputs[0]:
+            debug_print(f"Found CA derivation output: {outputs[0]}")
+            return outputs[0]
+
+        # If that fails (no outputs), try getting it from the derivation
+        debug_print("No CA outputs found, trying derivation JSON")
+        canonical = get_canonical_derivation(drv_path)
+        deriv_json = json.loads(canonical.decode('utf-8'))
         debug_print(f"Derivation JSON structure: {json.dumps(deriv_json, indent=2)}")
-        drv_path_key = next(iter(deriv_json))
-        drv_data = deriv_json[drv_path_key]
 
-        debug_print(f"Outputs structure: {json.dumps(drv_data.get('outputs', {}), indent=2)}")
-
-        # First try the standard structure
+        drv_data = deriv_json[drv_path]
         if 'outputs' in drv_data and 'out' in drv_data['outputs']:
             output_data = drv_data['outputs']['out']
-            if isinstance(output_data, dict):
-                if 'path' in output_data:
-                    return output_data['path']
-            elif isinstance(output_data, str):
-                return output_data
+            if isinstance(output_data, dict) and 'path' in output_data:
+                debug_print(f"Found input-addressed output path: {output_data['path']}")
+                return output_data['path']
 
-        # If that fails, try to find any output path
-        if 'outputs' in drv_data:
-            outputs = drv_data['outputs']
-            # Try first output if multiple exist
-            if outputs:
-                first_output = next(iter(outputs.values()))
-                if isinstance(first_output, dict) and 'path' in first_output:
-                    return first_output['path']
-                elif isinstance(first_output, str):
-                    return first_output
+        raise ValueError("Could not determine output path")
 
-        raise ValueError("Could not find output path in derivation")
-
+    except subprocess.CalledProcessError as e:
+        debug_print(f"Error running nix path-info: {e.stderr}")
+        raise
     except Exception as e:
-        debug_print(f"Error extracting output path: {str(e)}")
+        debug_print(f"Error getting output path: {str(e)}")
         raise
 
 def get_s3_client(store_url):
     """
     Create an S3 client from the store URL and environment credentials
     """
-    parsed_url = urlparse(store_url)
-    if not parsed_url.scheme.startswith('s3'):
-        raise ValueError(f"Unsupported store URL scheme: {parsed_url.scheme}")
+    debug_print(f"Creating S3 client for URL: {store_url}")
+    try:
+        parsed_url = urlparse(store_url)
+        if not parsed_url.scheme.startswith('s3'):
+            raise ValueError(f"Unsupported store URL scheme: {parsed_url.scheme}")
 
-    # Extract endpoint URL from the store URL
-    endpoint_url = f"https://{parsed_url.netloc}"
+        # Get bucket name - everything between s3:// and first ? or /
+        bucket = parsed_url.path.split('?')[0].strip('/')
+        if not bucket:
+            bucket = parsed_url.netloc.split('?')[0]
+        debug_print(f"Extracted bucket name: {bucket}")
 
-    # Create S3 client with path-style addressing
-    config = Config(s3={'addressing_style': 'path'})
-    return boto3.client(
-        's3',
-        endpoint_url=endpoint_url,
-        config=config
-    )
+        # Parse query parameters
+        from urllib.parse import parse_qs
+        query_params = parse_qs(parsed_url.query)
+        debug_print(f"URL query parameters: {query_params}")
+
+        # Get endpoint URL from the parameters
+        endpoint_url = query_params.get('endpoint', [None])[0]
+        if endpoint_url:
+            debug_print(f"Using endpoint URL: {endpoint_url}")
+        else:
+            debug_print("No endpoint URL specified, using default S3 endpoint")
+
+        # Create S3 client with path-style addressing
+        config = Config(s3={'addressing_style': 'path'})
+        return {
+            'client': boto3.client(
+                's3',
+                endpoint_url=endpoint_url,
+                config=config
+            ),
+            'bucket': bucket
+        }
+
+    except Exception as e:
+        debug_print(f"Error creating S3 client: {str(e)}")
+        raise
 
 def upload_signature(store_url, input_hash, signature):
     """
     Upload the signature to S3-compatible storage
     """
     try:
-        s3_client = get_s3_client(store_url)
-        parsed_url = urlparse(store_url)
-        bucket = parsed_url.path.strip('/')
+        debug_print(f"Uploading signature for input hash: {input_hash}")
+        s3_info = get_s3_client(store_url)
+        s3_client = s3_info['client']
+        bucket = s3_info['bucket']
 
         # Create the trace content
         trace_content = {
@@ -87,23 +118,26 @@ def upload_signature(store_url, input_hash, signature):
 
         # Upload to traces/<input-hash>
         key = f"traces/{input_hash}"
+        debug_print(f"Uploading to bucket: {bucket}, key: {key}")
+
         s3_client.put_object(
             Bucket=bucket,
             Key=key,
             Body=json.dumps(trace_content),
             ContentType='application/json'
         )
+        debug_print("Upload successful")
 
     except Exception as e:
-        print(f"Error uploading signature: {e}", file=sys.stderr)
-        sys.exit(1)
+        debug_print(f"Error uploading signature: {str(e)}")
+        raise
 
 def get_canonical_derivation(path):
     """
     Get a canonicalized JSON representation of a Nix derivation.
     """
     try:
-        # Run nix derivation show
+        debug_print(f"Running nix derivation show for: {path}")
         result = subprocess.run(
             ['nix', 'derivation', 'show', path],
             capture_output=True,
@@ -111,18 +145,16 @@ def get_canonical_derivation(path):
             check=True
         )
 
-        # Parse the JSON output
         deriv_json = json.loads(result.stdout)
-
-        # Canonicalize using JCS
+        debug_print("Successfully parsed derivation JSON")
         return rfc8785.dumps(deriv_json)
 
     except subprocess.CalledProcessError as e:
-        print(f"Error running 'nix derivation show': {e.stderr}", file=sys.stderr)
-        sys.exit(1)
+        debug_print(f"Error running 'nix derivation show': {e.stderr}")
+        raise
     except json.JSONDecodeError as e:
-        print(f"Error parsing derivation JSON: {e}", file=sys.stderr)
-        sys.exit(1)
+        debug_print(f"Error parsing derivation JSON: {e}")
+        raise
 
 def get_content_hash(drv_path):
     """
@@ -243,7 +275,7 @@ def sign(drv_path, secret_key_file, to):
     debug_print(f"  drv_path: {drv_path}")
     debug_print(f"  secret_key_file: {secret_key_file}")
     debug_print(f"  to: {to}")
-    
+
     try:
         debug_print("Parsing private key file")
         private_key = parse_nix_key_file(secret_key_file[0])
@@ -263,7 +295,7 @@ def sign(drv_path, secret_key_file, to):
         input_hash = compute_sha256_base64(resolved_canonical)
 
         debug_print("Getting output path")
-        output_path = get_output_path_from_derivation(initial_json)
+        output_path = get_output_path(drv_path)
         debug_print(f"Found output path: {output_path}")
 
         debug_print("Getting output hash")
