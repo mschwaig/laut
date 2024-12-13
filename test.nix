@@ -1,4 +1,4 @@
-{ pkgs, nix-vsbom, inputs, contentAddressedOverlay, ... }:
+{ pkgs, nix-vsbom, trace-signatures, inputs, contentAddressedOverlay, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
@@ -104,7 +104,7 @@ let
         systemPackages = with pkgs; [
           nix
           git
-          inputs.packages.x86_64-linux.trace-signatures
+          trace-signatures
         ];
       };
   };
