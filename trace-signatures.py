@@ -204,6 +204,7 @@ def upload_signature(store_url, input_hash, signature):
     except Exception as e:
         debug_print(f"Error uploading signature: {str(e)}")
         raise
+
 def get_canonical_derivation(path):
     """
     Get a canonicalized JSON representation of a Nix derivation.
