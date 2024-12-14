@@ -8,6 +8,7 @@ import jwt
 import boto3
 import click
 import traceback
+import botocore
 from botocore.config import Config
 from urllib.parse import urlparse
 import os
@@ -100,38 +101,109 @@ def get_s3_client(store_url):
     except Exception as e:
         debug_print(f"Error creating S3 client: {str(e)}")
         raise
-f
+
+def get_existing_signatures(s3_client, bucket: str, key: str):
+    """
+    Get existing signatures from S3, returns None if the object doesn't exist
+    """
+    try:
+        debug_print(f"Fetching existing signatures from {bucket}/{key}")
+        response = s3_client.get_object(
+            Bucket=bucket,
+            Key=key
+        )
+        content = json.loads(response['Body'].read())
+        etag = response['ETag'].strip('"')  # Remove quotes from ETag
+        debug_print(f"Found existing signatures with ETag: {etag}")
+        return content, etag
+    except botocore.exceptions.ClientError as err:
+        if err.response['Error']['Code'] == 'NoSuchKey':
+            debug_print("No existing signatures found")
+            return None, None
+        else:
+            debug_print(f"Unexpected error getting signatures: {err.response}")
+            raise
+    except Exception as e:
+        debug_print(f"Error fetching existing signatures: {str(e)}")
+        raise
+
 def upload_signature(store_url, input_hash, signature):
     """
-    Upload the signature to S3-compatible storage
+    Upload the signature to S3-compatible storage using ETag for atomic updates
     """
     try:
         debug_print(f"Uploading signature for input hash: {input_hash}")
         s3_info = get_s3_client(store_url)
         s3_client = s3_info['client']
         bucket = s3_info['bucket']
+        key = f"traces/{input_hash}"
 
-        # Create the trace content
-        trace_content = {
-            "signatures": [signature]
-        }
+        max_retries = 5
+        retry_count = 0
 
-        # Ensure URL-safe path
-        safe_path = f"traces/{input_hash}"
-        debug_print(f"Uploading to bucket: {bucket}, key: {safe_path}")
+        while retry_count < max_retries:
+            try:
+                # Get existing content and ETag
+                existing_content, etag = get_existing_signatures(s3_client, bucket, key)
 
-        s3_client.put_object(
-            Bucket=bucket,
-            Key=safe_path,
-            Body=json.dumps(trace_content),
-            ContentType='application/json'
-        )
-        debug_print("Upload successful")
+                if existing_content is None:
+                    # No existing signatures, create new file
+                    new_content = {
+                        "signatures": [signature]
+                    }
+                    debug_print("Creating new signatures file")
+                    s3_client.put_object(
+                        Bucket=bucket,
+                        Key=key,
+                        Body=json.dumps(new_content),
+                        ContentType='application/json'
+                    )
+                    debug_print("Upload successful")
+                    break
+                else:
+                    # Append to existing signatures if not already present
+                    if signature not in existing_content["signatures"]:
+                        new_content = {
+                            "signatures": existing_content["signatures"] + [signature]
+                        }
+                        debug_print("Updating existing signatures file")
+                        try:
+                            # Use the correct header for conditional put
+                            s3_client.put_object(
+                                Bucket=bucket,
+                                Key=key,
+                                Body=json.dumps(new_content),
+                                ContentType='application/json',
+                                Metadata={'If-Match': etag}
+                            )
+                            debug_print("Update successful")
+                            break
+                        except botocore.exceptions.ClientError as err:
+                            if err.response['Error']['Code'] in ['PreconditionFailed', 'InvalidRequest']:
+                                # ETag mismatch, retry
+                                retry_count += 1
+                                debug_print(f"ETag mismatch, retrying ({retry_count}/{max_retries})")
+                                if retry_count >= max_retries:
+                                    raise Exception("Max retries exceeded while trying to update signatures")
+                                continue
+                            else:
+                                debug_print(f"Unexpected error during conditional put: {err.response}")
+                                raise
+                    else:
+                        debug_print("Signature already exists, skipping upload")
+                        break
+
+            except Exception as e:
+                if retry_count >= max_retries:
+                    debug_print(f"Failed after {max_retries} attempts")
+                    raise
+                debug_print(f"Error during attempt {retry_count + 1}: {str(e)}")
+                retry_count += 1
+                continue
 
     except Exception as e:
         debug_print(f"Error uploading signature: {str(e)}")
         raise
-
 def get_canonical_derivation(path):
     """
     Get a canonicalized JSON representation of a Nix derivation.
