@@ -154,6 +154,7 @@ let
       return wrapper
 
     cache.start()
+    cache.forward_port(9000, 9000)
     cache.forward_port(9001, 9001)
     cache.wait_for_unit("minio")
     cache.wait_for_open_port(9002)

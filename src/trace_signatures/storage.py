@@ -5,8 +5,22 @@ import botocore
 from urllib.parse import urlparse, parse_qs
 from .utils import debug_print
 
-def get_s3_client(store_url):
-    """Create an S3 client from the store URL"""
+from urllib.parse import urlparse, parse_qs
+import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
+import botocore
+import json
+from .utils import debug_print
+
+def get_s3_client(store_url, anon=False):
+    """
+    Create an S3 client from the store URL
+
+    Args:
+        store_url (str): The S3 store URL
+        anon (bool): If True, use anonymous access without credentials
+    """
     debug_print(f"Creating S3 client for URL: {store_url}")
     try:
         parsed_url = urlparse(store_url)
@@ -20,7 +34,16 @@ def get_s3_client(store_url):
         query_params = parse_qs(parsed_url.query)
         endpoint_url = query_params.get('endpoint', [None])[0]
 
-        config = Config(s3={'addressing_style': 'path'})
+        if anon:
+            debug_print("Using anonymous access (unsigned requests)")
+            config = Config(
+                signature_version=UNSIGNED,
+                s3={'addressing_style': 'path'}
+            )
+        else:
+            debug_print("Using default credential chain")
+            config = Config(s3={'addressing_style': 'path'})
+
         return {
             'client': boto3.client(
                 's3',
