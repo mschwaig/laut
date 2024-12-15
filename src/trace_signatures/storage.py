@@ -1,10 +1,3 @@
-import json
-import boto3
-from botocore.config import Config
-import botocore
-from urllib.parse import urlparse, parse_qs
-from .utils import debug_print
-
 from urllib.parse import urlparse, parse_qs
 import boto3
 from botocore import UNSIGNED

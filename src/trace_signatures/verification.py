@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from typing import Set, Dict, List, Optional
 import sys
-import boto3
 import json
 import subprocess
-from urllib.parse import urlparse
+from pathlib import Path
 from .utils import debug_print, compute_sha256_base64, get_canonical_derivation
 from .storage import get_s3_client
 
@@ -33,11 +32,8 @@ class BuildStep:
             self.resolved_inputs = {}
 
 def get_derivation_info(drv_path: str) -> DerivationInfo:
-    """
-    Get detailed information about a derivation including all its dependencies
-    """
+    """Get detailed information about a derivation including all its dependencies"""
     try:
-        # Get the full derivation data using nix derivation show
         result = subprocess.run(
             ['nix', 'derivation', 'show', drv_path],
             capture_output=True,
@@ -51,17 +47,14 @@ def get_derivation_info(drv_path: str) -> DerivationInfo:
 
         drv_data = deriv_json[drv_path]
 
-        # Get input derivations
         input_derivations = set()
         if "inputDrvs" in drv_data:
             input_derivations.update(drv_data["inputDrvs"].keys())
 
-        # Get input sources
         input_sources = set()
         if "inputSrcs" in drv_data:
             input_sources.update(drv_data["inputSrcs"])
 
-        # Get output paths
         output_paths = {}
         if "outputs" in drv_data:
             for output_name, output_data in drv_data["outputs"].items():
@@ -83,9 +76,7 @@ def get_derivation_info(drv_path: str) -> DerivationInfo:
         raise RuntimeError(f"Unexpected error analyzing derivation: {str(e)}")
 
 def build_dependency_tree(target_drv: str) -> Dict[str, DerivationInfo]:
-    """
-    Build a complete dependency tree for a derivation including all build-time dependencies
-    """
+    """Build a complete dependency tree for a derivation"""
     dependency_map: Dict[str, DerivationInfo] = {}
     to_process = {target_drv}
     processed = set()
@@ -98,14 +89,11 @@ def build_dependency_tree(target_drv: str) -> Dict[str, DerivationInfo]:
         try:
             info = get_derivation_info(current_drv)
             dependency_map[current_drv] = info
-
-            # Add all input derivations to processing queue
             to_process.update(info.input_derivations - processed)
-
             processed.add(current_drv)
 
         except Exception as e:
-            print(f"Error processing derivation {current_drv}: {str(e)}", file=sys.stderr)
+            debug_print(f"Error processing derivation {current_drv}: {str(e)}")
             raise
 
     return dependency_map
@@ -121,7 +109,6 @@ class SignatureVerifier:
         """Convert dependency map into build steps with resolution tracking"""
         # First pass: Create all build steps
         for drv_path, info in dependency_map.items():
-            # Get canonical input hash for the derivation
             canonical = get_canonical_derivation(drv_path)
             input_hash = compute_sha256_base64(canonical)
 
@@ -134,58 +121,62 @@ class SignatureVerifier:
         # Second pass: Set up dependency relationships
         for drv_path, info in dependency_map.items():
             current_step = self.build_steps[drv_path]
-            # For each input derivation, add this step as dependent
             for input_drv in info.input_derivations:
                 self.build_steps[input_drv].dependent_steps.add(drv_path)
 
-    def get_signatures_from_cache(self, input_hash: str, cache_url: str) -> List[dict]:
-        """Fetch signatures for a given input hash from a specific cache"""
-        try:
-            s3_info = get_s3_client(cache_url, anon=True)
-            s3_client = s3_info['client']
-            bucket = s3_info['bucket']
-            key = f"traces/{input_hash}"
-
+    def get_signatures(self, input_hash: str) -> List[dict]:
+        """Fetch signatures for a given input hash from all configured caches"""
+        all_signatures = []
+        for cache_url in self.caches:
             try:
-                response = s3_client.get_object(Bucket=bucket, Key=key)
-                content = json.loads(response['Body'].read())
-                return content.get("signatures", [])
-            except s3_client.exceptions.NoSuchKey:
-                return []
+                s3_info = get_s3_client(cache_url, anon=True)
+                s3_client = s3_info['client']
+                bucket = s3_info['bucket']
+                key = f"traces/{input_hash}"
 
-        except Exception as e:
-            debug_print(f"Error fetching signatures from {cache_url}: {str(e)}")
-            return []
+                debug_print(f"Attempting to fetch from bucket: {bucket}, key: {key}")
+
+                try:
+                    response = s3_client.get_object(Bucket=bucket, Key=key)
+                    debug_print(f"S3 response status: {response['ResponseMetadata']['HTTPStatusCode']}")
+
+                    content = response['Body'].read()
+                    debug_print(f"Received content length: {len(content)}")
+                    debug_print(f"Raw content: {content[:200]}...")  # Print first 200 chars
+
+                    if content:
+                        parsed_content = json.loads(content)
+                        all_signatures.extend(parsed_content.get("signatures", []))
+
+                except s3_client.exceptions.NoSuchKey:
+                    debug_print(f"No object found at {key}")
+                    continue
+
+            except Exception as e:
+                debug_print(f"Error fetching signatures from {cache_url}: {str(e)}")
+                continue
+
+        return all_signatures
 
     def filter_valid_signatures(self, signatures: List[dict]) -> List[dict]:
         """Filter signatures based on trusted keys and other criteria"""
         # TODO: Implement actual signature validation
-        # For now, just return all signatures
         return signatures
 
     def resolve_step(self, step: BuildStep) -> bool:
-        """
-        Attempt to resolve a build step by finding and validating signatures
-        Returns True if successfully resolved
-        """
-        all_signatures = []
+        """Attempt to resolve a build step by finding and validating signatures"""
+        signatures = self.get_signatures(step.input_hash)
 
-        # Collect signatures from all caches
-        for cache_url in self.caches:
-            signatures = self.get_signatures_from_cache(step.input_hash, cache_url)
-            all_signatures.extend(signatures)
-
-        if not all_signatures:
+        if not signatures:
             debug_print(f"No signatures found for {step.drv_path}")
             return False
 
-        valid_signatures = self.filter_valid_signatures(all_signatures)
+        valid_signatures = self.filter_valid_signatures(signatures)
         if not valid_signatures:
             debug_print(f"No valid signatures found for {step.drv_path}")
             return False
 
         # For now, just take the first valid signature
-        # TODO: Handle multiple valid signatures and non-deterministic builds
         signature = valid_signatures[0]
         step.output_hash = signature["out"]
 
@@ -201,10 +192,7 @@ class SignatureVerifier:
         return True
 
     def verify(self, target_drv: str) -> bool:
-        """
-        Verify the complete dependency chain starting from target_drv
-        Returns True if verification succeeds
-        """
+        """Verify the complete dependency chain"""
         while True:
             # Find steps with no unresolved dependencies
             ready_steps = [
@@ -231,7 +219,8 @@ class SignatureVerifier:
 
 def verify_signatures(drv_path: str, caches: List[str] = None, trusted_keys: Set[str] = None) -> bool:
     """Main verification entry point"""
-    #if caches is []:
+    #if caches is None:
+    # set caches here manually for easier debuging
     caches = ["s3://binary-cache?endpoint=http://localhost:9000&region=eu-west-1"]
     if trusted_keys is None:
         trusted_keys = set()
