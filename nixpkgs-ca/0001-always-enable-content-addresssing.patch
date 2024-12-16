@@ -1,0 +1,26 @@
+From 042d8b82982a392994d65a1de6086e1f57a6cf65 Mon Sep 17 00:00:00 2001
+From: Martin Schwaighofer <mschwaig@users.noreply.github.com>
+Date: Sun, 15 Dec 2024 16:15:34 +0100
+Subject: [PATCH] always enable content addresssing
+
+---
+ pkgs/stdenv/generic/check-meta.nix | 4 ++--
+ pkgs/stdenv/generic/default.nix    | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/pkgs/stdenv/generic/default.nix b/pkgs/stdenv/generic/default.nix
+index 2cbd2636a463..939d67121514 100644
+--- a/pkgs/stdenv/generic/default.nix
++++ b/pkgs/stdenv/generic/default.nix
+@@ -84,7 +84,7 @@ let
+       allowedRequisites = allowedRequisites
+         ++ defaultNativeBuildInputs ++ defaultBuildInputs;
+     }
+-    // lib.optionalAttrs config.contentAddressedByDefault {
++    // lib.optionalAttrs true {
+       __contentAddressed = true;
+       outputHashAlgo = "sha256";
+       outputHashMode = "recursive";
+-- 
+2.47.0
+

@@ -221,7 +221,7 @@ def verify_signatures(drv_path: str, caches: List[str] = None, trusted_keys: Set
     """Main verification entry point"""
     #if caches is None:
     # set caches here manually for easier debuging
-    caches = ["s3://binary-cache?endpoint=http://localhost:9000&region=eu-west-1"]
+    #caches = ["s3://binary-cache?endpoint=http://localhost:9000&region=eu-west-1"]
     if trusted_keys is None:
         trusted_keys = set()
 

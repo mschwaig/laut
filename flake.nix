@@ -15,6 +15,12 @@
             contentAddressedByDefault = true;
           };
         };
+        nixpkgs-ca = (import nixpkgs { inherit system; }).applyPatches {
+          name = "nixpkgs-always-apply-ca";
+          src = nixpkgs;
+          patches = [ ./nixpkgs-ca/0001-always-enable-content-addresssing.patch ];
+        };
+
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ contentAddressedOverlay ];
@@ -56,7 +62,7 @@
         checks = let
             system = "x86_64-linux";
             in import ./test.nix {
-                inherit pkgs nix-vsbom inputs contentAddressedOverlay trace-signatures;
+                inherit pkgs nix-vsbom inputs contentAddressedOverlay trace-signatures nixpkgs-ca;
             };
 
         devShell = let

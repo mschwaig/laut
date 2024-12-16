@@ -1,4 +1,4 @@
-{ pkgs, nix-vsbom, trace-signatures, inputs, contentAddressedOverlay, ... }:
+{ pkgs, nix-vsbom, trace-signatures, inputs, nixpkgs-ca, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
@@ -18,7 +18,7 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
-  trivialPackage = "nixpkgs/4633a7c72337ea8fd23a4f2ba3972865e3ec685d#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
+  trivialPackageCa = "nixpkgs-ca#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
 
   cache = { ... }: {
       virtualisation.writableStore = true;
@@ -61,11 +61,17 @@ let
 
       virtualisation.additionalPaths = [ pkgA ];
 
-      nixpkgs.overlays = [ contentAddressedOverlay ];
       nix = {
-        registry.nixpkgs.flake = inputs.nixpkgs;
-        extraOptions = ''
-        experimental-features = nix-command flakes ca-derivations
+        registry = {
+          nixpkgs-ca.flake = nixpkgs-ca;
+          nixpkgs.flake = inputs.nixpkgs;
+        };
+        extraOptions =
+        let
+          emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
+        in ''
+          experimental-features = nix-command flakes ca-derivations
+          flake-registry = ${emptyRegistry}
         '';
         settings = {
           trusted-substituters = [ ];
@@ -128,13 +134,28 @@ let
       ${name} = { ... }: {
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
+          virtualisation.diskSize = 4096;
+          virtualisation.writableStore = true;
+          virtualisation.useNixStoreImage = true;
+          systemd.services.nix-daemon.enable = true;
+          virtualisation.mountHostNixStore = false;
 
-          nix.registry.nixpkgs.flake = inputs.nixpkgs;
-          nixpkgs.overlays = [ contentAddressedOverlay ];
+          nix.registry = {
+            nixpkgs-ca.flake = nixpkgs-ca;
+            nixpkgs.flake = inputs.nixpkgs;
+          };
+          nix.extraOptions =
+          let
+            emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
+          in ''
+            experimental-features = nix-command flakes ca-derivations
+            flake-registry = ${emptyRegistry}
+          '';
 
           environment.systemPackages = with pkgs; [
             nix
             git
+            trace-signatures
           ];
       } // extraConfig;
     };
@@ -163,7 +184,7 @@ let
     # configure cache
     cache.succeed("mc config host add minio http://cache:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
     cache.succeed("mc mb minio/binary-cache")
-    cache.succeed("mc policy set download minio/binary-cache") # allow public read
+    cache.succeed("mc anonymous set download minio/binary-cache") # allow public read
 
     @run_in_background
     def boot_and_configure(builder):
@@ -171,9 +192,6 @@ let
       builder.wait_for_unit("network.target")
 
       builder.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
-
-      builder.succeed("mkdir -p ~/.config/nixpkgs")
-      builder.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
 
       builder.wait_for_unit("default.target")
 
@@ -185,18 +203,22 @@ let
     @run_in_background
     def build_and_upload(builder):
       builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-      builder.succeed("nix build --impure ${trivialPackage} --secret-key-files \"/etc/nix/private-key\"")
+      builder.succeed("nix build ${trivialPackageCa} --secret-key-files \"/etc/nix/private-key\"")
 
     t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
 
     t1.join()
     t2.join()
 
-    builderA.shutdown()
-    builderB.shutdown()
+    #builderA.shutdown()
+    #builderB.shutdown()
 
-    # ${name}.start()
-    # ${name}.wait_for_unit("network.target")
+    ${name}.start()
+    ${name}.wait_for_unit("network.target")
+
+    ${name}.succeed("mkdir -p ~/.config/nixpkgs")
+    ${name}.succeed("trace-signatures.py verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
+
     # ${name}.fail("nix path-info ${pkgA}")
     # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
     # ${name}.succeed("nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
@@ -214,13 +236,14 @@ let
 in {
   # Full local reproducibility model - trusts only itself
   fullReproVM = makeTest "full_local_repro" {
-    extraConfig.nix = {
-      extraOptions = "experimental-features = nix-command flakes";
-      settings = {
-          substituters = [ ];
-          trusted-public-keys = [ ];
-      };
-    };
+    extraConfig = {};
+   # extraConfig.nix = {
+   #   extraOptions = "experimental-features = nix-command flakes";
+   #   settings = {
+   #       substituters = [ ];
+   #       trusted-public-keys = [ ];
+   #   };
+   # };
     #  trust_model = Builder(self())
   };
 
