@@ -364,7 +364,7 @@ class SignatureVerifier:
                         'nix',
                         'path-info',
                         '--json',
-                        '--substituters', 'https://cache.nixos.org',
+                        '--store', 'https://cache.nixos.org',
                         f'{drv_path}^*'
                     ],
                     capture_output=True,
