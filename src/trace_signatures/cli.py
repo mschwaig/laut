@@ -6,14 +6,14 @@ import subprocess
 from .utils import (
     get_output_path,
     get_output_hash,
-    create_trace_signature,
     compute_derivation_input_hash,
     parse_nix_public_key,
     parse_nix_private_key,
-    upload_signature,
-    verify_signatures,
     debug_print,
 )
+from .storage import upload_signature
+from .signing import create_trace_signature
+from .verification import verify_signatures
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
