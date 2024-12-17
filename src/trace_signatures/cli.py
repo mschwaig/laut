@@ -14,6 +14,9 @@ from .utils import (
     verify_signatures,
     debug_print,
 )
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PublicKey
+)
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """
@@ -41,13 +44,10 @@ def is_flake_reference(ref: str) -> bool:
     """Check if the given string looks like a flake reference"""
     return "#" in ref
 
-def read_public_key(key_path: str) -> str:
+def read_public_key(key_path: str) -> tuple[str, Ed25519PublicKey]:
     """Read and validate a public key file"""
     try:
-        name, public_key = parse_nix_public_key(key_path)
-        # Return the original formatted string since verify_signatures expects it
-        with open(key_path, 'r') as f:
-            return f.read().strip()
+        return parse_nix_public_key(key_path)
     except Exception as e:
         raise click.BadParameter(f"Error reading public key file {key_path}: {str(e)}")
 
@@ -66,13 +66,18 @@ def cli():
 def sign(drv_path, secret_key_file, to):
     """Sign a derivation and upload the signature"""
     try:
+        # Read private key and get key name
+        with open(secret_key_file[0], 'r') as f:
+            content = f.read().strip()
+        key_name = content.split(':', 1)[0]
+
         private_key = parse_nix_private_key(secret_key_file[0])
-        input_hash = compute_derivation_input_hash(drv_path)  # Use central function
+        input_hash = compute_derivation_input_hash(drv_path)
 
         output_path = get_output_path(drv_path)
         output_hash = get_output_hash(output_path)
 
-        jws_token = create_trace_signature(input_hash, output_hash, private_key)
+        jws_token = create_trace_signature(input_hash, output_hash, private_key, key_name)
         print(jws_token)
 
         upload_signature(to, input_hash, jws_token)
@@ -116,10 +121,10 @@ def verify(target, cache, trusted_key):
     """
     try:
         # Read and validate trusted keys
-        trusted_keys = set()
+        trusted_keys = {}  # Dict[str, Ed25519PublicKey]
         for key_path in trusted_key:
-            key = read_public_key(key_path)
-            trusted_keys.add(key)
+            name, public_key = read_public_key(key_path)
+            trusted_keys[name] = public_key
             debug_print(f"Added trusted key from {key_path}")
 
         # Convert target to derivation path if needed
@@ -137,7 +142,7 @@ def verify(target, cache, trusted_key):
                 "or a flake reference (e.g., nixpkgs#hello)"
             )
 
-        # Run verification
+        # Run verification with the parsed keys
         success = verify_signatures(drv_path, caches=list(cache), trusted_keys=trusted_keys)
 
         if success:

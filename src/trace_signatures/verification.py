@@ -13,6 +13,9 @@ from .utils import (
     get_output_path
 )
 from .storage import get_s3_client
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PublicKey
+)
 
 @dataclass(frozen=True)
 class DerivationInput:
@@ -185,7 +188,7 @@ def get_fixed_output_hashes(drv_info: DerivationInfo) -> Dict[str, str]:
 class SignatureVerifier:
     """Main verification class for build traces"""
 
-    def __init__(self, caches: List[str], trusted_keys: Set[str]):
+    def __init__(self, caches: List[str], trusted_keys: Dict[str, Ed25519PublicKey]):
         self.caches = caches
         self.trusted_keys = trusted_keys
 
@@ -214,47 +217,43 @@ class SignatureVerifier:
 
         return all_signatures
 
-    def verify_signature(self, signature: str, trusted_keys: Set[str]) -> Optional[dict]:
+    def verify_signature(self, signature: str, trusted_keys: Dict[str, Ed25519PublicKey]) -> Optional[dict]:
         """Verify a JWS signature against trusted keys"""
         try:
-            # Try each trusted key
-            for key in trusted_keys:
-                try:
-                    name, key_data = key.split(':', 1)
-                    # Verify with EdDSA algorithm
-                    payload = jwt.decode(
-                        signature,
-                        key=key_data,
-                        algorithms=["EdDSA"],
-                        verify=True
-                    )
-                    return payload
-                except jwt.InvalidSignatureError:
-                    continue
-                except Exception as e:
-                    debug_print(f"Error verifying with key {name}: {str(e)}")
-                    continue
-            return None
+            # Extract header without verification to get key ID
+            header = jwt.get_unverified_header(signature)
+            if 'kid' not in header:
+                debug_print("No key ID in signature header")
+                return None
+
+            key_name = header['kid']
+            if key_name not in trusted_keys:
+                debug_print(f"Key {key_name} not in trusted keys")
+                return None
+
+            try:
+                # Verify with EdDSA algorithm
+                payload = jwt.decode(
+                    signature,
+                    key=trusted_keys[key_name],
+                    algorithms=["EdDSA"]
+                )
+                return payload
+            except jwt.InvalidSignatureError:
+                debug_print(f"Invalid signature for key {key_name}")
+                return None
+            except Exception as e:
+                debug_print(f"Error verifying with key {key_name}: {str(e)}")
+                return None
+
         except Exception as e:
             debug_print(f"Error verifying signature: {str(e)}")
             return None
 
-    def verify_signatures(self, signatures: List[dict], input_hash: str) -> Set[Dict[str, str]]:
-        """Verify signatures and collect valid output hashes"""
-        valid_output_hashes = set()
-
-        for sig in signatures:
-            payload = self.verify_signature(sig, self.trusted_keys)
-            if payload and payload.get("in") == input_hash:
-                output_hashes = payload.get("out")
-                if isinstance(output_hashes, dict):
-                    # Convert to immutable for set inclusion
-                    valid_output_hashes.add(
-                        tuple(sorted(output_hashes.items()))
-                    )
-
-        # Convert back to dicts
-        return {dict(items) for items in valid_output_hashes}
+    def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, Ed25519PublicKey]) -> bool:
+        """Main verification entry point for external use"""
+        verifier = SignatureVerifier(caches, trusted_keys)
+        return verifier.verify(drv_path)
 
     def build_derivation_tree(self, target_drv: str) -> DerivationInfo:
         """Build the complete dependency tree"""
