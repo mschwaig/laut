@@ -1,4 +1,4 @@
-from .signing import create_trace_signature, parse_nix_key_file
+from .signing import create_trace_signature
 from .verification import verify_signatures
 from .storage import upload_signature
 from .utils import (
@@ -6,7 +6,9 @@ from .utils import (
     get_content_hash,
     get_output_hash,
     get_output_path,
-    compute_sha256_base64
+    compute_sha256_base64,
+    parse_nix_private_key,
+    parse_nix_public_key
 )
 
 __all__ = [
