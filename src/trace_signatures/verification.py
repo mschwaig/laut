@@ -37,15 +37,7 @@ class DerivationInfo:
     inputs: Set[DerivationInput] = field(default_factory=set)
     is_fixed_output: bool = False
     is_content_addressed: bool = False
-    resolutions: Set[ResolvedDerivationInfo] = field(default_factory=set)
-
-    def __hash__(self):
-        return hash(self.drv_path)
-
-    def __eq__(self, other):
-        if not isinstance(other, DerivationInfo):
-            return False
-        return self.drv_path == other.drv_path
+    resolutions: Set['ResolvedDerivationInfo'] = field(default_factory=set)
 
     def __hash__(self):
         return hash(self.drv_path)
@@ -101,12 +93,10 @@ class ResolvedDerivationInfo:
     """Represents a verified resolution of a derivation"""
     resolved_input_hash: str
     output_hashes: Dict[str, str]  # output name -> hash
-    input_resolutions: Set[ResolvedInput] = field(default_factory=set)
+    input_resolutions: Set['ResolvedInput'] = field(default_factory=set)
 
     def __hash__(self):
-        # Convert dict to tuple of tuples for hashing
         output_hashes_tuple = tuple(sorted(self.output_hashes.items()))
-        # Convert set to frozenset for hashing
         input_resolutions_frozen = frozenset(self.input_resolutions)
         return hash((self.resolved_input_hash, output_hashes_tuple, input_resolutions_frozen))
 
