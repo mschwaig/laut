@@ -339,30 +339,69 @@ class SignatureVerifier:
 
         return [set(combo) for combo in itertools.product(*input_resolution_options)]
 
-    def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
-        """Attempt to resolve a derivation"""
-        if drv_info.is_resolved():
-            return True
+def check_nixos_cache(drv_path: str) -> bool:
+    """Check if a derivation exists in the official nixos cache"""
+    try:
+        result = subprocess.run(
+            ['nix', 'path-info', '--store', 'https://cache.nixos.org', drv_path],
+            capture_output=True,
+            text=True
+        )
+        return result.returncode == 0
+    except Exception as e:
+        debug_print(f"Error checking nixos cache: {str(e)}")
+        return False
 
-        if drv_info.is_fixed_output:
-            return self.resolve_fixed_output(drv_info)
+def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
+    """Attempt to resolve a derivation"""
+    if drv_info.is_resolved():
+        return True
 
-        success = False
-        for input_resolutions in self.get_input_resolution_combinations(drv_info):
-            resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
-            signatures = self.get_signatures(resolved_input_hash)
-            valid_output_hashes = self.verify_signatures(signatures, resolved_input_hash)
+    if drv_info.is_fixed_output:
+        return self.resolve_fixed_output(drv_info)
 
-            for output_hashes in valid_output_hashes:
+    # For input-addressed derivations, check nixos cache
+    # this bypasses our regular requirements for verification
+    # and it does not properly verify the legacy signature format yet,
+    # so we will need to do this differently in the future and for stricter
+    # turst models which do not trust those signatures
+    if not drv_info.is_content_addressed:
+        if check_nixos_cache(drv_info.drv_path):
+            # Create a resolution for cache-validated derivation
+            try:
+                # Get output hashes from the local store
+                output_hashes = {}
+                for output_name in get_output_names(drv_info.drv_path):
+                    output_path = get_output_path(f"{drv_info.drv_path}#{output_name}")
+                    output_hashes[output_name] = get_output_hash(output_path)
+
                 resolution = ResolvedDerivationInfo(
-                    resolved_input_hash=resolved_input_hash,
+                    resolved_input_hash=drv_info.unresolved_input_hash,
                     output_hashes=output_hashes,
-                    input_resolutions=input_resolutions
+                    input_resolutions=set()  # No input resolutions needed for cache hits
                 )
                 drv_info.resolutions.add(resolution)
-                success = True
+                return True
+            except Exception as e:
+                debug_print(f"Error creating resolution for cache hit: {str(e)}")
+                return False
 
-        return success
+    success = False
+    for input_resolutions in self.get_input_resolution_combinations(drv_info):
+        resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
+        signatures = self.get_signatures(resolved_input_hash)
+        valid_output_hashes = self.verify_signatures(signatures, resolved_input_hash)
+
+        for output_hashes in valid_output_hashes:
+            resolution = ResolvedDerivationInfo(
+                resolved_input_hash=resolved_input_hash,
+                output_hashes=output_hashes,
+                input_resolutions=input_resolutions
+            )
+            drv_info.resolutions.add(resolution)
+            success = True
+
+    return success
 
     def verify(self, target_drv: str) -> bool:
         """Main verification entry point"""
