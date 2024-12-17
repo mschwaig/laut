@@ -5,16 +5,14 @@ import traceback
 import subprocess
 from pathlib import Path
 from . import (
-    get_canonical_derivation,
     get_output_path,
     get_output_hash,
-    compute_sha256_base64,
     create_trace_signature,
     parse_nix_key_file,
     upload_signature,
     verify_signatures
 )
-from .utils import debug_print
+from .utils import compute_derivation_input_hash, debug_print
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """
@@ -71,8 +69,7 @@ def sign(drv_path, secret_key_file, to):
     """Sign a derivation and upload the signature"""
     try:
         private_key = parse_nix_key_file(secret_key_file[0])
-        canonical = get_canonical_derivation(drv_path)
-        input_hash = compute_sha256_base64(canonical)
+        input_hash = compute_derivation_input_hash(drv_path)  # Use central function
 
         output_path = get_output_path(drv_path)
         output_hash = get_output_hash(output_path)

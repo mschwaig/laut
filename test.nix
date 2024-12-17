@@ -78,7 +78,13 @@ let
           post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
             set -eux
             set -f # disable globbing
-            #exec > >(tee -a $HOME/hooklog) 2>&1
+
+            # Create a sanitized filename from the derivation path
+            SAFE_DRV_NAME=$(basename "$DRV_PATH" | tr -dc '[:alnum:].-')
+            LOG_FILE="$HOME/hooklog-$SAFE_DRV_NAME"
+
+            # Redirect all output to both the console and the derivation-specific log file
+            exec > >(tee -a "$LOG_FILE") 2>&1
 
             [ -n "$OUT_PATHS" ]
             [ -n "$DRV_PATH" ]

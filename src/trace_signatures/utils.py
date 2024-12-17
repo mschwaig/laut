@@ -83,7 +83,19 @@ def get_output_hash(path):
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Error getting output hash for {path}: {e.stderr}")
 
-def compute_sha256_base64(data):
+def compute_sha256_base64(data: bytes):
     """Compute SHA-256 hash and return URL-safe base64 encoded"""
+    debug_print(f"Input type: {type(data)}")
+    debug_print(f"Input data: {data}...")
     hash_bytes = hashlib.sha256(data).digest()
-    return base64.urlsafe_b64encode(hash_bytes).decode('ascii').rstrip('=')
+    result = base64.urlsafe_b64encode(hash_bytes).decode('ascii').rstrip('=')
+    debug_print(f"Computed hash: {result}")
+    return result
+
+def compute_derivation_input_hash(drv_path: str) -> str:
+    """
+    Compute the input hash for a derivation path.
+    This is the central function that should be used by both signing and verification.
+    """
+    canonical = get_canonical_derivation(drv_path)
+    return compute_sha256_base64(canonical)
