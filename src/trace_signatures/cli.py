@@ -3,16 +3,17 @@ import os
 import click
 import traceback
 import subprocess
-from pathlib import Path
-from . import (
+from .utils import (
     get_output_path,
     get_output_hash,
     create_trace_signature,
-    parse_nix_key_file,
+    compute_derivation_input_hash,
+    parse_nix_public_key,
+    parse_nix_private_key,
     upload_signature,
-    verify_signatures
+    verify_signatures,
+    debug_print,
 )
-from .utils import compute_derivation_input_hash, debug_print
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """
@@ -68,7 +69,7 @@ def cli():
 def sign(drv_path, secret_key_file, to):
     """Sign a derivation and upload the signature"""
     try:
-        private_key = parse_nix_key_file(secret_key_file[0])
+        private_key = parse_nix_private_key(secret_key_file[0])
         input_hash = compute_derivation_input_hash(drv_path)  # Use central function
 
         output_path = get_output_path(drv_path)

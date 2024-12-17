@@ -11,7 +11,8 @@ from .utils import (
 
 __all__ = [
     'create_trace_signature',
-    'parse_nix_key_file',
+    'parse_nix_private_key',
+    'parse_nix_public_key',
     'verify_signatures',
     'upload_signature',
     'get_canonical_derivation',
@@ -19,4 +20,5 @@ __all__ = [
     'get_output_hash',
     'get_output_path',
     'compute_sha256_base64',
+    'debug_print',
 ]
