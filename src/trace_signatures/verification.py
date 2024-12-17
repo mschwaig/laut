@@ -339,7 +339,7 @@ class SignatureVerifier:
 
         return [set(combo) for combo in itertools.product(*input_resolution_options)]
 
-    def check_nixos_cache(drv_path: str) -> bool:
+    def check_nixos_cache(self, drv_path: str) -> bool:
         """Check if a derivation exists in the official nixos cache"""
         try:
             result = subprocess.run(
@@ -366,7 +366,7 @@ class SignatureVerifier:
         # so we will need to do this differently in the future and for stricter
         # turst models which do not trust those particular le
         if not drv_info.is_content_addressed:
-            if check_nixos_cache(drv_info.drv_path):
+            if self.check_nixos_cache(drv_info.drv_path):
                 # Create a resolution for cache-validated derivation
                 try:
                     # Get output hashes from the local store
