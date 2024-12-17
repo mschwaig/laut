@@ -14,11 +14,20 @@ from .utils import (
 )
 from .storage import get_s3_client
 
-@dataclass
+@dataclass(frozen=True)
 class DerivationInput:
     """Represents an input dependency with its specific output"""
     derivation: 'DerivationInfo'
     output_name: str
+
+    def __hash__(self):
+        return hash((self.derivation.drv_path, self.output_name))
+
+    def __eq__(self, other):
+        if not isinstance(other, DerivationInput):
+            return False
+        return (self.derivation.drv_path == other.derivation.drv_path and 
+                self.output_name == other.output_name)
 
 @dataclass
 class DerivationInfo:
@@ -29,6 +38,14 @@ class DerivationInfo:
     is_fixed_output: bool = False
     is_content_addressed: bool = False
     resolutions: Set['ResolvedDerivationInfo'] = field(default_factory=set)
+
+    def __hash__(self):
+        return hash(self.drv_path)
+
+    def __eq__(self, other):
+        if not isinstance(other, DerivationInfo):
+            return False
+        return self.drv_path == other.drv_path
 
     def is_resolved(self) -> bool:
         return len(self.resolutions) > 0
