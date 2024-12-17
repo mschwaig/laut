@@ -26,7 +26,7 @@ class DerivationInput:
     def __eq__(self, other):
         if not isinstance(other, DerivationInput):
             return False
-        return (self.derivation.drv_path == other.derivation.drv_path and 
+        return (self.derivation.drv_path == other.derivation.drv_path and
                 self.output_name == other.output_name)
 
 @dataclass
@@ -37,7 +37,15 @@ class DerivationInfo:
     inputs: Set[DerivationInput] = field(default_factory=set)
     is_fixed_output: bool = False
     is_content_addressed: bool = False
-    resolutions: Set['ResolvedDerivationInfo'] = field(default_factory=set)
+    resolutions: Set[ResolvedDerivationInfo] = field(default_factory=set)
+
+    def __hash__(self):
+        return hash(self.drv_path)
+
+    def __eq__(self, other):
+        if not isinstance(other, DerivationInfo):
+            return False
+        return self.drv_path == other.drv_path
 
     def __hash__(self):
         return hash(self.drv_path)
@@ -73,18 +81,41 @@ class DerivationInfo:
         }
         return compute_sha256_base64(json.dumps(resolution_data).encode())
 
-@dataclass
+@dataclass(frozen=True)
 class ResolvedInput:
     """Represents a resolved input with its specific output"""
     resolution: 'ResolvedDerivationInfo'
     output_name: str
 
-@dataclass
+    def __hash__(self):
+        return hash((self.resolution.resolved_input_hash, self.output_name))
+
+    def __eq__(self, other):
+        if not isinstance(other, ResolvedInput):
+            return False
+        return (self.resolution.resolved_input_hash == other.resolution.resolved_input_hash and
+                self.output_name == other.output_name)
+
+@dataclass(frozen=True)
 class ResolvedDerivationInfo:
     """Represents a verified resolution of a derivation"""
     resolved_input_hash: str
     output_hashes: Dict[str, str]  # output name -> hash
     input_resolutions: Set[ResolvedInput] = field(default_factory=set)
+
+    def __hash__(self):
+        # Convert dict to tuple of tuples for hashing
+        output_hashes_tuple = tuple(sorted(self.output_hashes.items()))
+        # Convert set to frozenset for hashing
+        input_resolutions_frozen = frozenset(self.input_resolutions)
+        return hash((self.resolved_input_hash, output_hashes_tuple, input_resolutions_frozen))
+
+    def __eq__(self, other):
+        if not isinstance(other, ResolvedDerivationInfo):
+            return False
+        return (self.resolved_input_hash == other.resolved_input_hash and
+                self.output_hashes == other.output_hashes and
+                self.input_resolutions == other.input_resolutions)
 
 def get_derivation_type(drv_path: str) -> tuple[bool, bool]:
     """Determine if a derivation is fixed-output and/or content-addressed"""
