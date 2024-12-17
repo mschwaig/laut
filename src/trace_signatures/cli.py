@@ -44,13 +44,10 @@ def is_flake_reference(ref: str) -> bool:
 def read_public_key(key_path: str) -> str:
     """Read and validate a public key file"""
     try:
+        name, public_key = parse_nix_public_key(key_path)
+        # Return the original formatted string since verify_signatures expects it
         with open(key_path, 'r') as f:
-            key = f.read().strip()
-            if ':' not in key:
-                raise click.BadParameter(f"Invalid public key format in {key_path}")
-            return key
-    except FileNotFoundError:
-        raise click.BadParameter(f"Public key file not found: {key_path}")
+            return f.read().strip()
     except Exception as e:
         raise click.BadParameter(f"Error reading public key file {key_path}: {str(e)}")
 
