@@ -352,6 +352,62 @@ class SignatureVerifier:
             debug_print(f"Error checking nixos cache: {str(e)}")
             return False
 
+    def get_output_info_from_cache(self, drv_path: str) -> Dict[str, Dict[str, str]]:
+            """
+            Get output path and hash information from the nixos cache.
+            Returns a dictionary mapping output names to their hashes.
+            """
+            try:
+                result = subprocess.run(
+                    [
+                        'nix',
+                        'path-info',
+                        '--json',
+                        '--substituters', 'https://cache.nixos.org',
+                        f'{drv_path}^*'
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+
+                outputs_info = json.loads(result.stdout)
+                output_hashes = {}
+
+                # Process each output path
+                for path, info in outputs_info.items():
+                    if info is None:
+                        continue
+
+                    # TODO: This assumes the output name can be derived from the path suffix
+                    # We might need a more robust way to map outputs to their names
+                    if path.endswith("-man"):
+                        output_name = "man"
+                    elif path.endswith("-dev"):
+                        output_name = "dev"
+                    elif path.endswith("-doc"):
+                        output_name = "doc"
+                    else:
+                        output_name = "out"  # Assume default output is called "out"
+
+                    if "narHash" in info:
+                        output_hashes[output_name] = info["narHash"]
+
+                if not output_hashes:
+                    raise ValueError("No valid outputs found")
+
+                return output_hashes
+
+            except subprocess.CalledProcessError as e:
+                debug_print(f"Error running nix path-info: {e.stderr}")
+                raise
+            except json.JSONDecodeError as e:
+                debug_print(f"Error parsing JSON output: {str(e)}")
+                raise
+            except Exception as e:
+                debug_print(f"Unexpected error getting output info: {str(e)}")
+                raise
+
     def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
         """Attempt to resolve a derivation"""
         if drv_info.is_resolved():
@@ -369,11 +425,7 @@ class SignatureVerifier:
             if self.check_nixos_cache(drv_info.drv_path):
                 # Create a resolution for cache-validated derivation
                 try:
-                    # Get output hashes from the local store
-                    output_hashes = {}
-                    for output_name in get_output_names(drv_info.drv_path):
-                        output_path = get_output_path(f"{drv_info.drv_path}#{output_name}")
-                        output_hashes[output_name] = get_output_hash(output_path)
+                    output_hashes = self.get_output_info_from_cache(drv_info.drv_path)
 
                     resolution = ResolvedDerivationInfo(
                         resolved_input_hash=drv_info.unresolved_input_hash,
