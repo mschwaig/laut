@@ -358,6 +358,7 @@ class SignatureVerifier:
             Returns a dictionary mapping output names to their hashes.
             """
             try:
+                debug_print(f"Fetching info for {drv_path} from nixos cache")
                 result = subprocess.run(
                     [
                         'nix',
@@ -372,11 +373,29 @@ class SignatureVerifier:
                 )
 
                 outputs_info = json.loads(result.stdout)
+                debug_print(f"Raw output info: {json.dumps(outputs_info, indent=2)}")
+
                 output_hashes = {}
 
                 # Process each output path
                 for path, info in outputs_info.items():
+                    debug_print(f"Processing output path: {path}")
                     if info is None:
+                        debug_print(f"Skipping {path}: info is None")
+                        continue
+
+                    # Check for valid nixos cache signature
+                    signatures = info.get("signatures", [])
+                    debug_print(f"Found signatures: {signatures}")
+                    has_valid_sig = any(sig.startswith("cache.nixos.org-1:") for sig in signatures)
+                    if not has_valid_sig:
+                        debug_print(f"Skipping {path}: no valid nixos cache signature")
+                        continue
+
+                    # Get narHash
+                    nar_hash = info.get("narHash")
+                    if not nar_hash:
+                        debug_print(f"Skipping {path}: no narHash")
                         continue
 
                     # TODO: This assumes the output name can be derived from the path suffix
@@ -390,12 +409,13 @@ class SignatureVerifier:
                     else:
                         output_name = "out"  # Assume default output is called "out"
 
-                    if "narHash" in info:
-                        output_hashes[output_name] = info["narHash"]
+                    debug_print(f"Adding output {output_name} with hash {nar_hash}")
+                    output_hashes[output_name] = nar_hash
 
                 if not output_hashes:
-                    raise ValueError("No valid outputs found")
+                    raise ValueError(f"No valid signed outputs found for {drv_path}")
 
+                debug_print(f"Final output hashes: {output_hashes}")
                 return output_hashes
 
             except subprocess.CalledProcessError as e:
