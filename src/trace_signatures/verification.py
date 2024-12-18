@@ -51,10 +51,7 @@ class DerivationInfo:
         return self.drv_path == other.drv_path
 
     def is_resolved(self) -> bool:
-        return (len(self.resolutions) > 0) or (
-        # we have to be lenient on legacy signatuers
-        # whenever we even allow them in the first place
-        self.resolved_input_hash == None)
+        return len(self.resolutions) > 0
 
     def can_resolve(self) -> bool:
         return all(input_drv.derivation.is_resolved() for input_drv in self.inputs)
