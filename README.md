@@ -19,3 +19,7 @@ TODOs/next steps:
 
 convert signature format code to python
 write verification code
+
+RECOMMENDATIONS by numinit
+https://www.usenix.org/system/files/1401_08-12_mickens.pdf
+https://fidoalliance.org/wp-content/uploads/2024/06/EDWG_Attestation-White-Paper_2024-1.pdf
