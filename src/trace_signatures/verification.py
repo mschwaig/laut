@@ -217,6 +217,7 @@ class SignatureVerifier:
             except Exception as e:
                 debug_print(f"Error fetching signatures from {cache_url}: {str(e)}")
                 continue
+        debug_print(f"Signatures found for input hash {input_hash}: {all_signatures}")
 
         return all_signatures
 
@@ -241,6 +242,7 @@ class SignatureVerifier:
                     key=self.trusted_keys[key_name],
                     algorithms=["EdDSA"]
                 )
+                debug_print(f"Signature {signature} is valid.")
                 return payload
             except jwt.InvalidSignatureError:
                 debug_print(f"Invalid signature for key {key_name}")
