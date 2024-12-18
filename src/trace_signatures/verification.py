@@ -217,7 +217,7 @@ class SignatureVerifier:
 
         return all_signatures
 
-    def verify_signature(self, signature: str, trusted_keys: Dict[str, Ed25519PublicKey]) -> Optional[dict]:
+    def verify_signature_payload(self, signature: str) -> Optional[dict]:
         """Verify a JWS signature against trusted keys"""
         try:
             # Extract header without verification to get key ID
@@ -227,7 +227,7 @@ class SignatureVerifier:
                 return None
 
             key_name = header['kid']
-            if key_name not in trusted_keys:
+            if key_name not in self.trusted_keys:
                 debug_print(f"Key {key_name} not in trusted keys")
                 return None
 
@@ -235,7 +235,7 @@ class SignatureVerifier:
                 # Verify with EdDSA algorithm
                 payload = jwt.decode(
                     signature,
-                    key=trusted_keys[key_name],
+                    key=self.trusted_keys[key_name],
                     algorithms=["EdDSA"]
                 )
                 return payload
@@ -250,10 +250,22 @@ class SignatureVerifier:
             debug_print(f"Error verifying signature: {str(e)}")
             return None
 
-    def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, Ed25519PublicKey]) -> bool:
-        """Main verification entry point for external use"""
-        verifier = SignatureVerifier(caches, trusted_keys)
-        return verifier.verify(drv_path)
+    def verify_trace_signatures(self, signatures: List[str], input_hash: str) -> Set[Dict[str, str]]:
+        """Verify signatures and collect valid output hashes"""
+        valid_output_hashes = set()
+
+        for sig in signatures:
+            payload = self.verify_signature_payload(sig)
+            if payload and payload.get("in") == input_hash:
+                output_hashes = payload.get("out")
+                if isinstance(output_hashes, dict):
+                    # Convert to immutable for set inclusion
+                    valid_output_hashes.add(
+                        tuple(sorted(output_hashes.items()))
+                    )
+
+        # Convert back to dicts
+        return {dict(items) for items in valid_output_hashes}
 
     def build_derivation_tree(self, target_drv: str) -> DerivationInfo:
         """Build the complete dependency tree"""
@@ -461,7 +473,7 @@ class SignatureVerifier:
         for input_resolutions in self.get_input_resolution_combinations(drv_info):
             resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
             signatures = self.get_signatures(resolved_input_hash)
-            valid_output_hashes = self.verify_signatures(signatures, resolved_input_hash)
+            valid_output_hashes = self.verify_trace_signatures(signatures, resolved_input_hash)
 
             for output_hashes in valid_output_hashes:
                 resolution = ResolvedDerivationInfo(
@@ -502,7 +514,7 @@ class SignatureVerifier:
             result.update(self._collect_all_derivations(input_drv.derivation))
         return result
 
-def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Set[str]) -> bool:
+def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, Ed25519PublicKey]) -> bool:
     """Main verification entry point for external use"""
     verifier = SignatureVerifier(caches, trusted_keys)
     return verifier.verify(drv_path)
