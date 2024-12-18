@@ -94,7 +94,7 @@ class ResolvedInput:
 @dataclass(frozen=True)
 class ResolvedDerivationInfo:
     """Represents a verified resolution of a derivation"""
-    resolved_input_hash: str
+    resolved_input_hash: Optional[str]
     output_hashes: Dict[str, str]  # output name -> hash
     input_resolutions: Set['ResolvedInput'] = field(default_factory=set)
 
@@ -459,7 +459,7 @@ class SignatureVerifier:
                     output_hashes = self.get_output_info_from_cache(drv_info.drv_path)
 
                     resolution = ResolvedDerivationInfo(
-                        resolved_input_hash=drv_info.unresolved_input_hash,
+                        resolved_input_hash=None, # we cannot track specifc dependencies for legacy sigantures
                         output_hashes=output_hashes,
                         input_resolutions=set()  # No input resolutions needed for cache hits
                     )
