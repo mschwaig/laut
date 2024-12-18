@@ -493,7 +493,7 @@ def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
     # If we get here, we failed to resolve with content-addressed method
     debug_print("\nTrying nixos cache fallback")
     if not drv_info.is_content_addressed:
-        debug_print("Derivation is input-addressed, checking nixos cache")
+        debug_print("Derivation is input-addressed, checking nixos cache as well")
         if self.check_nixos_cache(drv_info.drv_path):
             try:
                 output_hashes = self.get_output_info_from_cache(drv_info.drv_path)
@@ -522,24 +522,6 @@ def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
         # and it does not properly verify the legacy signature format yet,
         # so we will need to do this differently in the future and for stricter
         # turst models which do not trust those particular le
-        if not drv_info.is_content_addressed:
-            if self.check_nixos_cache(drv_info.drv_path):
-                # Create a resolution for cache-validated derivation
-                try:
-                    output_hashes = self.get_output_info_from_cache(drv_info.drv_path)
-
-                    resolution = ResolvedDerivationInfo(
-                        resolved_input_hash=None, # we cannot track specifc dependencies for legacy sigantures
-                        has_unknown_inputs=True,
-                        output_hashes=output_hashes,
-                        input_resolutions=set()  # No input resolutions needed for cache hits
-                    )
-                    drv_info.resolutions.add(resolution)
-                    return True
-                except Exception as e:
-                    debug_print(f"Error creating resolution for cache hit: {str(e)}")
-                    return False
-
     def verify(self, target_drv: str) -> bool:
         """Main verification entry point"""
         root = self.build_derivation_tree(target_drv)
