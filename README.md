@@ -18,7 +18,6 @@ Of course in reality they could be disagreeing now, but this ugliness will disap
 TODOs/next steps:
 
 * figure out if legacy signatures should be allowed closer to the root of the dependency tree than regular signatures or not
-* try resovling with proper signatues first and then fall back to the legacy ones, so we have the best possible guarantee
 
 RECOMMENDATIONS by numinit
 https://www.usenix.org/system/files/1401_08-12_mickens.pdf

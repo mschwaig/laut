@@ -450,6 +450,23 @@ class SignatureVerifier:
         if drv_info.is_fixed_output:
             return self.resolve_fixed_output(drv_info)
 
+        success = False
+        for input_resolutions in self.get_input_resolution_combinations(drv_info):
+            resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
+            signatures = self.get_signatures(resolved_input_hash)
+            valid_output_hashes = self.verify_trace_signatures(signatures, resolved_input_hash)
+
+            for output_hashes in valid_output_hashes:
+                resolution = ResolvedDerivationInfo(
+                    resolved_input_hash=resolved_input_hash,
+                    output_hashes=output_hashes,
+                    input_resolutions=input_resolutions
+                )
+                drv_info.resolutions.add(resolution)
+                success = True
+        if success:
+            return success
+
         # For input-addressed derivations, check nixos cache
         # this bypasses our regular requirements for verification
         # and it does not properly verify the legacy signature format yet,
@@ -472,23 +489,6 @@ class SignatureVerifier:
                 except Exception as e:
                     debug_print(f"Error creating resolution for cache hit: {str(e)}")
                     return False
-
-        success = False
-        for input_resolutions in self.get_input_resolution_combinations(drv_info):
-            resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
-            signatures = self.get_signatures(resolved_input_hash)
-            valid_output_hashes = self.verify_trace_signatures(signatures, resolved_input_hash)
-
-            for output_hashes in valid_output_hashes:
-                resolution = ResolvedDerivationInfo(
-                    resolved_input_hash=resolved_input_hash,
-                    output_hashes=output_hashes,
-                    input_resolutions=input_resolutions
-                )
-                drv_info.resolutions.add(resolution)
-                success = True
-
-        return success
 
     def verify(self, target_drv: str) -> bool:
         """Main verification entry point"""
