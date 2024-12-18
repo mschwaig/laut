@@ -99,7 +99,7 @@ class ResolvedDerivationInfo:
     resolved_input_hash: Optional[str]
     output_hashes: Dict[str, str]  # output name -> hash
     input_resolutions: Set['ResolvedInput'] = field(default_factory=set)
-    has_unknown_inputs = False
+    has_unknown_inputs: bool = field(default=False)
 
     def __hash__(self):
         output_hashes_tuple = tuple(sorted(self.output_hashes.items()))
