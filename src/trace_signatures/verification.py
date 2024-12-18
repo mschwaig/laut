@@ -54,7 +54,9 @@ class DerivationInfo:
         return len(self.resolutions) > 0
 
     def can_resolve(self) -> bool:
-        return all(input_drv.derivation.is_resolved() for input_drv in self.inputs)
+        return all(input_drv.derivation.is_resolved() for input_drv in self.inputs) or (
+            any(resolution.has_unknown_inputs for resolution in self.resolutions)
+        )
 
     def compute_resolved_input_hash(self, input_resolutions: Set['ResolvedInput']) -> str:
         """
@@ -97,6 +99,7 @@ class ResolvedDerivationInfo:
     resolved_input_hash: Optional[str]
     output_hashes: Dict[str, str]  # output name -> hash
     input_resolutions: Set['ResolvedInput'] = field(default_factory=set)
+    has_unknown_inputs = False
 
     def __hash__(self):
         output_hashes_tuple = tuple(sorted(self.output_hashes.items()))
@@ -460,6 +463,7 @@ class SignatureVerifier:
 
                     resolution = ResolvedDerivationInfo(
                         resolved_input_hash=None, # we cannot track specifc dependencies for legacy sigantures
+                        has_unknown_inputs=True,
                         output_hashes=output_hashes,
                         input_resolutions=set()  # No input resolutions needed for cache hits
                     )
@@ -499,10 +503,14 @@ class SignatureVerifier:
 
             for drv_info in resolvable:
                 if self.resolve_derivation(drv_info):
+                    debug_print(f"Resolved {drv_info.drv_path} with outputs: {
+                        [resolution.output_hashes for resolution in drv_info.resolutions]
+                    }")
                     del unresolved[drv_info.drv_path]
                     progress = True
 
             if not progress and unresolved:
+                debug_print(f"Failed to resolve: {', '.join(drv_path for drv_path in unresolved.keys())}")
                 return False
 
         return root.is_resolved()
