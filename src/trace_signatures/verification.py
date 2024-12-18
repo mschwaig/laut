@@ -444,30 +444,78 @@ class SignatureVerifier:
                 debug_print(f"Unexpected error getting output info: {str(e)}")
                 raise
 
-    def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
-        """Attempt to resolve a derivation"""
-        if drv_info.is_resolved():
-            return True
+def resolve_derivation(self, drv_info: DerivationInfo) -> bool:
+    """Attempt to resolve a derivation"""
+    debug_print(f"\nAttempting to resolve: {drv_info.drv_path}")
+    debug_print(f"Is content-addressed: {drv_info.is_content_addressed}")
 
-        if drv_info.is_fixed_output:
-            return self.resolve_fixed_output(drv_info)
+    if drv_info.is_resolved():
+        debug_print("Already resolved, returning True")
+        return True
 
-        success = False
-        for input_resolutions in self.get_input_resolution_combinations(drv_info):
-            resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
-            signatures = self.get_signatures(resolved_input_hash)
-            valid_output_hashes = self.verify_trace_signatures(signatures, resolved_input_hash)
+    if drv_info.is_fixed_output:
+        debug_print("Fixed output derivation, using resolve_fixed_output")
+        return self.resolve_fixed_output(drv_info)
 
-            for output_hashes in valid_output_hashes:
+    success = False
+    input_resolution_combinations = list(self.get_input_resolution_combinations(drv_info))
+    debug_print(f"Found {len(input_resolution_combinations)} input resolution combinations")
+
+    for input_resolutions in input_resolution_combinations:
+        debug_print(f"\nTrying input resolution combination:")
+        for res in input_resolutions:
+            debug_print(f"  - {res.resolution.resolved_input_hash} ({res.output_name})")
+
+        resolved_input_hash = drv_info.compute_resolved_input_hash(input_resolutions)
+        debug_print(f"Computed resolved input hash: {resolved_input_hash}")
+
+        signatures = self.get_signatures(resolved_input_hash)
+        debug_print(f"Found {len(signatures)} signatures")
+
+        valid_output_hashes = self.verify_trace_signatures(signatures, resolved_input_hash)
+        debug_print(f"Valid output hashes: {valid_output_hashes}")
+
+        for output_hashes in valid_output_hashes:
+            debug_print(f"Creating resolution with output hashes: {output_hashes}")
+            resolution = ResolvedDerivationInfo(
+                resolved_input_hash=resolved_input_hash,
+                output_hashes=output_hashes,
+                input_resolutions=input_resolutions
+            )
+            debug_print("Adding resolution to drv_info")
+            drv_info.resolutions.add(resolution)
+            success = True
+
+    if success:
+        debug_print("Successfully resolved with content-addressed method")
+        return success
+
+    # If we get here, we failed to resolve with content-addressed method
+    debug_print("\nTrying nixos cache fallback")
+    if not drv_info.is_content_addressed:
+        debug_print("Derivation is input-addressed, checking nixos cache")
+        if self.check_nixos_cache(drv_info.drv_path):
+            try:
+                output_hashes = self.get_output_info_from_cache(drv_info.drv_path)
+                debug_print(f"Got output hashes from cache: {output_hashes}")
+
                 resolution = ResolvedDerivationInfo(
-                    resolved_input_hash=resolved_input_hash,
+                    resolved_input_hash=None,
+                    has_unknown_inputs=True,
                     output_hashes=output_hashes,
-                    input_resolutions=input_resolutions
+                    input_resolutions=set()
                 )
+                debug_print("Adding cache-based resolution to drv_info")
                 drv_info.resolutions.add(resolution)
-                success = True
-        if success:
-            return success
+                return True
+            except Exception as e:
+                debug_print(f"Error creating resolution for cache hit: {str(e)}")
+                return False
+    else:
+        debug_print("Derivation is content-addressed, skipping nixos cache")
+
+    debug_print("Failed to resolve derivation")
+    return False
 
         # For input-addressed derivations, check nixos cache
         # this bypasses our regular requirements for verification
