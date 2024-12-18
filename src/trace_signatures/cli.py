@@ -63,18 +63,55 @@ def cli():
               help='Path to the secret key file', multiple=True)
 @click.option('--to', required=True,
               help='URL of the target store (e.g., s3://bucket-name)')
-def sign(drv_path, secret_key_file, to):
+@click.option('--out-paths', help='Comma-separated list of output paths (default: check $OUT_PATHS env var)',
+              default=None)
+def sign(drv_path, secret_key_file, to, out_paths):
     """Sign a derivation and upload the signature"""
     try:
-        # Read private key and get key name
+        # Get output names from derivation
+        result = subprocess.run(
+            ['nix', 'derivation', 'show', drv_path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        deriv_json = json.loads(result.stdout)
+        output_names = list(deriv_json[drv_path].get("outputs", {}).keys())
+        debug_print(f"Output names from derivation: {output_names}")
+
+        # Get output paths
+        if out_paths is None:
+            out_paths = os.environ.get('OUT_PATHS', '')
+        paths = [p for p in out_paths.split(',') if p]
+
+        if not paths:
+            debug_print("No output paths provided, using get_output_path()")
+            paths = [get_output_path(drv_path)]
+
+        debug_print(f"Output paths: {paths}")
+
+        # Map output paths to their names using path suffixes
+        output_hashes = {}
+        for path in paths:
+            # Extract the output name from path suffix
+            for name in output_names:
+                if path.endswith(f"-{name}") or (name == "out" and not any(path.endswith(f"-{n}") for n in output_names)):
+                    output_hashes[name] = get_output_hash(path)
+                    break
+            else:
+                debug_print(f"Could not determine output name for path: {path}")
+                raise ValueError(f"Could not map path to output name: {path}")
+
+        debug_print(f"Output name to hash mapping: {output_hashes}")
+
+        # Read key and create signature
         with open(secret_key_file[0], 'r') as f:
             content = f.read().strip()
         key_name = content.split(':', 1)[0]
-
         private_key = parse_nix_private_key(secret_key_file[0])
-        input_hash = compute_derivation_input_hash(drv_path)
 
-        jws_token = create_trace_signature(input_hash, drv_path, private_key, key_name)
+        input_hash = compute_derivation_input_hash(drv_path)
+        jws_token = create_trace_signature(input_hash, output_hashes, private_key, key_name)
         print(jws_token)
 
         upload_signature(to, input_hash, jws_token)
