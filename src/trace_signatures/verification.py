@@ -255,22 +255,28 @@ class SignatureVerifier:
             debug_print(f"Error verifying signature: {str(e)}")
             return None
 
-    def verify_trace_signatures(self, signatures: List[str], input_hash: str) -> Set[Dict[str, str]]:
-        """Verify signatures and collect valid output hashes"""
-        valid_output_hashes = set()
+    def verify_trace_signatures(self, signatures: List[str], input_hash: str) -> List[Dict[str, str]]:
+        """
+        Verify signatures and collect valid output hashes
+
+        Args:
+            signatures: List of JWS signature tokens to verify
+            input_hash: Expected input hash to validate against
+
+        Returns:
+            List[Dict[str, str]]: List of valid output hash mappings
+        """
+        valid_output_hashes = []
 
         for sig in signatures:
             payload = self.verify_signature_payload(sig)
             if payload and payload.get("in") == input_hash:
                 output_hashes = payload.get("out")
                 if isinstance(output_hashes, dict):
-                    # Convert to immutable for set inclusion
-                    valid_output_hashes.add(
-                        tuple(sorted(output_hashes.items()))
-                    )
+                    valid_output_hashes.append(output_hashes)
 
-        # Convert back to dicts
-        return {dict(items) for items in valid_output_hashes}
+        debug_print(f"Found {len(valid_output_hashes)} valid output hash mappings")
+        return valid_output_hashes
 
     def build_derivation_tree(self, target_drv: str) -> DerivationInfo:
         """Build the complete dependency tree"""
