@@ -499,6 +499,12 @@ class SignatureVerifier:
                      for drv_info in self._collect_all_derivations(root)}
 
         while unresolved:
+            for drv_path, drv_info in unresolved.items():
+                debug_print(f"Drv {drv_path}:")
+                debug_print(f"  is_resolved: {drv_info.is_resolved()}")
+                debug_print(f"  can_resolve: {drv_info.can_resolve()}")
+                debug_print(f"  input states: {[(i.derivation.drv_path, i.derivation.is_resolved()) for i in drv_info.inputs]}")
+                debug_print(f"  resolutions: {drv_info.resolutions}")
             progress = False
             resolvable = [drv_info for drv_info in unresolved.values()
                          if drv_info.can_resolve()]
@@ -513,6 +519,12 @@ class SignatureVerifier:
 
             if not progress and unresolved:
                 debug_print(f"Failed to resolve: {', '.join(drv_path for drv_path in unresolved.keys())}")
+                for drv_path, drv_info in unresolved.items():
+                    debug_print(f"Drv {drv_path}:")
+                    debug_print(f"  is_resolved: {drv_info.is_resolved()}")
+                    debug_print(f"  can_resolve: {drv_info.can_resolve()}")
+                    debug_print(f"  input states: {[(i.derivation.drv_path, i.derivation.is_resolved()) for i in drv_info.inputs]}")
+                    debug_print(f"  resolutions: {drv_info.resolutions}")
                 return False
 
         return root.is_resolved()
