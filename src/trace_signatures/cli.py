@@ -74,10 +74,7 @@ def sign(drv_path, secret_key_file, to):
         private_key = parse_nix_private_key(secret_key_file[0])
         input_hash = compute_derivation_input_hash(drv_path)
 
-        output_path = get_output_path(drv_path)
-        output_hash = get_output_hash(output_path)
-
-        jws_token = create_trace_signature(input_hash, output_hash, private_key, key_name)
+        jws_token = create_trace_signature(input_hash, drv_path, private_key, key_name)
         print(jws_token)
 
         upload_signature(to, input_hash, jws_token)
