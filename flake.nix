@@ -48,6 +48,7 @@
             cryptography
             boto3
             click
+            loguru
           ];
 
           pythonImportsCheck = [ "trace_signatures" ];
@@ -67,11 +68,12 @@
 
         devShell = let
           pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            rfc8785 
-            pyjwt 
+            rfc8785
+            pyjwt
             cryptography
             boto3
             click
+            loguru
           ]);
         in pkgs.mkShell {
           buildInputs = [

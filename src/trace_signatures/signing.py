@@ -3,7 +3,7 @@ from typing import Dict
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
 )
-from .utils import debug_print
+from loguru import logger
 
 def create_trace_signature(input_hash: str, output_hashes: Dict[str, str], 
                          private_key: Ed25519PrivateKey, key_name: str) -> str:
@@ -26,7 +26,7 @@ def create_trace_signature(input_hash: str, output_hashes: Dict[str, str],
         "kid": key_name
     }
 
-    debug_print(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")
+    logger.debug(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")
 
     payload = {
         "in": input_hash,

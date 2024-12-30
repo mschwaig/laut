@@ -4,7 +4,7 @@ from botocore import UNSIGNED
 from botocore.config import Config
 import botocore
 import json
-from .utils import debug_print
+from loguru import logger
 
 def get_s3_client(store_url, anon=False):
     """
@@ -14,7 +14,7 @@ def get_s3_client(store_url, anon=False):
         store_url (str): The S3 store URL
         anon (bool): If True, use anonymous access without credentials
     """
-    debug_print(f"Creating S3 client for URL: {store_url}")
+    logger.debug(f"Creating S3 client for URL: {store_url}")
     try:
         parsed_url = urlparse(store_url)
         if not parsed_url.scheme.startswith('s3'):
@@ -28,13 +28,13 @@ def get_s3_client(store_url, anon=False):
         endpoint_url = query_params.get('endpoint', [None])[0]
 
         if anon:
-            debug_print("Using anonymous access (unsigned requests)")
+            logger.debug("Using anonymous access (unsigned requests)")
             config = Config(
                 signature_version=UNSIGNED,
                 s3={'addressing_style': 'path'}
             )
         else:
-            debug_print("Using default credential chain")
+            logger.debug("Using default credential chain")
             config = Config(s3={'addressing_style': 'path'})
 
         return {
@@ -45,8 +45,8 @@ def get_s3_client(store_url, anon=False):
             ),
             'bucket': bucket
         }
-    except Exception as e:
-        debug_print(f"Error creating S3 client: {str(e)}")
+    except Exception:
+        logger.exception("error creating S3 client")
         raise
 
 def get_existing_signatures(s3_client, bucket: str, key: str):
@@ -60,8 +60,8 @@ def get_existing_signatures(s3_client, bucket: str, key: str):
         if err.response['Error']['Code'] == 'NoSuchKey':
             return None, None
         raise
-    except Exception as e:
-        debug_print(f"Error fetching existing signatures: {str(e)}")
+    except Exception:
+        logger.exception("error fetching existing signatures")
         raise
 
 def upload_signature(store_url, input_hash, signature):
@@ -110,7 +110,7 @@ def upload_signature(store_url, input_hash, signature):
                             continue
                         raise
                 else:
-                    debug_print("Signature already exists")
+                    logger.debug("Signature already exists")
                     break
 
             except Exception as e:
@@ -120,5 +120,5 @@ def upload_signature(store_url, input_hash, signature):
                 continue
 
     except Exception as e:
-        debug_print(f"Error uploading signature: {str(e)}")
+        logger.exception("error uploading signature")
         raise

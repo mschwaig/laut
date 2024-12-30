@@ -4,19 +4,16 @@ import sys
 import hashlib
 import base64
 import rfc8785
+from loguru import logger
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, 
     Ed25519PublicKey
 )
 
-def debug_print(msg):
-    """Print debug message to stderr"""
-    print(f"DEBUG: {msg}", file=sys.stderr)
-
 def get_output_path(drv_path):
     """Get the output path for a derivation"""
-    debug_print(f"Getting output path for derivation: {drv_path}")
+    logger.debug(f"Getting output path for derivation: {drv_path}")
     try:
         result = subprocess.run(
             ['nix', 'path-info', f'{drv_path}^*'],
@@ -26,29 +23,29 @@ def get_output_path(drv_path):
         )
         outputs = result.stdout.strip().split('\n')
         if outputs and outputs[0]:
-            debug_print(f"Found CA derivation output: {outputs[0]}")
+            logger.debug(f"Found CA derivation output: {outputs[0]}")
             return outputs[0]
 
         canonical = get_canonical_derivation(drv_path)
         deriv_json = json.loads(canonical.decode('utf-8'))
-        debug_print(f"Derivation JSON structure: {json.dumps(deriv_json, indent=2)}")
+        logger.debug(f"Derivation JSON structure: {json.dumps(deriv_json, indent=2)}")
 
         drv_data = deriv_json[drv_path]
         if 'outputs' in drv_data and 'out' in drv_data['outputs']:
             output_data = drv_data['outputs']['out']
             if isinstance(output_data, dict) and 'path' in output_data:
-                debug_print(f"Found input-addressed output path: {output_data['path']}")
+                logger.debug(f"Found input-addressed output path: {output_data['path']}")
                 return output_data['path']
 
         raise ValueError("Could not determine output path")
-    except Exception as e:
-        debug_print(f"Error getting output path: {str(e)}")
+    except Exception:
+        logger.exception(f"error getting output path")
         raise
 
 def get_canonical_derivation(path):
     """Get canonicalized JSON representation of a Nix derivation"""
     try:
-        debug_print(f"Running nix derivation show for: {path}")
+        logger.debug(f"Running nix derivation show for: {path}")
         result = subprocess.run(
             ['nix', 'derivation', 'show', path],
             capture_output=True,
@@ -56,10 +53,10 @@ def get_canonical_derivation(path):
             check=True
         )
         deriv_json = json.loads(result.stdout)
-        debug_print("Successfully parsed derivation JSON")
+        logger.debug("Successfully parsed derivation JSON")
         return rfc8785.dumps(deriv_json)
     except Exception as e:
-        debug_print(f"Error in get_canonical_derivation: {str(e)}")
+        logger.exception("error in get_canonical_derivation")
         raise
 
 def get_content_hash(drv_path):
@@ -90,11 +87,11 @@ def get_output_hash(path):
 
 def compute_sha256_base64(data: bytes):
     """Compute SHA-256 hash and return URL-safe base64 encoded"""
-    debug_print(f"Input type: {type(data)}")
-    debug_print(f"Input data: {data}...")
+    logger.debug(f"Input type: {type(data)}")
+    logger.debug(f"Input data: {data}...")
     hash_bytes = hashlib.sha256(data).digest()
     result = base64.urlsafe_b64encode(hash_bytes).decode('ascii').rstrip('=')
-    debug_print(f"Computed hash: {result}")
+    logger.debug(f"Computed hash: {result}")
     return result
 
 def compute_derivation_input_hash(drv_path: str) -> str:
@@ -156,4 +153,5 @@ def parse_nix_public_key(key_path: str) -> tuple[str, Ed25519PublicKey]:
         public_key = Ed25519PublicKey.from_public_bytes(key_bytes)
         return name, public_key
     except Exception as e:
+        logger.exception("failed to parse public key file {key_path}")
         raise ValueError(f"Failed to parse public key file {key_path}: {str(e)}")
