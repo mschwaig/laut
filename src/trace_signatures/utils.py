@@ -1,6 +1,5 @@
 import subprocess
 import json
-import sys
 import hashlib
 import base64
 import rfc8785

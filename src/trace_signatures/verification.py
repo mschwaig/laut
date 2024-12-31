@@ -8,8 +8,6 @@ import jwt
 from .utils import (
     get_canonical_derivation,
     compute_sha256_base64,
-    get_output_hash,
-    get_output_path
 )
 from .storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
