@@ -10,32 +10,6 @@ def get_canonical_derivation(path):
     deriv_json = get_derivation(path)
     return rfc8785.dumps(deriv_json)
 
-def get_content_hash(drv_path):
-    """Get content hash for a derivation"""
-    try:
-        result = subprocess.run(
-            ['nix-store', '--query', '--hash', drv_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Error getting hash for {drv_path}: {e.stderr}")
-
-def get_output_hash(path):
-    """Get content hash of the built output"""
-    try:
-        result = subprocess.run(
-            ['nix-store', '--query', '--hash', path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Error getting output hash for {path}: {e.stderr}")
-
 def compute_sha256_base64(data: bytes):
     """Compute SHA-256 hash and return URL-safe base64 encoded"""
     logger.debug(f"Input type: {type(data)}")

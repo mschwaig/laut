@@ -12,7 +12,12 @@ from .nix.keyfiles import (
 from .nix.commands import (
     get_output_path,
     get_output_hash,
+)
+from .nix.constructive_trace import (
     compute_derivation_input_hash,
+)
+from .nix.commands import (
+    get_derivation
 )
 from loguru import logger
 import subprocess
@@ -20,14 +25,8 @@ import subprocess
 
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     # Get output names from derivation
-    result = subprocess.run(
-        ['nix', 'derivation', 'show', drv_path],
-        capture_output=True,
-        text=True,
-        check=True
-    )
-    deriv_json = json.loads(result.stdout)
-    output_names = list(deriv_json[drv_path].get("outputs", {}).keys())
+    drv_data = get_derivation(drv_path)
+    output_names = list(drv_data.get("outputs", {}).keys())
     logger.debug(f"Output names from derivation: {output_names}")
 
     # Get output paths

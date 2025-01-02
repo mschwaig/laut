@@ -5,7 +5,9 @@ import json
 import itertools
 import jwt
 from .nix.commands import (
-    get_canonical_derivation,
+    get_derivation,
+    check_nixos_cache,
+    get_from_nixos_cache,
 )
 from .nix.constructive_trace import (
     compute_sha256_base64,
@@ -115,14 +117,7 @@ class ResolvedDerivationInfo:
 def get_derivation_type(drv_path: str) -> tuple[bool, bool]:
     """Determine if a derivation is fixed-output and/or content-addressed"""
     try:
-        result = subprocess.run(
-            ['nix', 'derivation', 'show', drv_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        deriv_json = json.loads(result.stdout)
-        drv_data = deriv_json[drv_path]
+        drv_data = get_derivation(drv_path)
 
         # Check for fixed-output
         env = drv_data.get("env", {})
@@ -139,14 +134,7 @@ def get_derivation_type(drv_path: str) -> tuple[bool, bool]:
 def get_output_names(drv_path: str) -> Set[str]:
     """Get all output names for a derivation"""
     try:
-        result = subprocess.run(
-            ['nix', 'derivation', 'show', drv_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        deriv_json = json.loads(result.stdout)
-        drv_data = deriv_json[drv_path]
+        drv_data = get_derivation(drv_path)
         return set(drv_data.get("outputs", {}).keys())
     except Exception as e:
         logger.exception("Error getting output names")
@@ -155,14 +143,7 @@ def get_output_names(drv_path: str) -> Set[str]:
 def get_fixed_output_hashes(drv_info: DerivationInfo) -> Dict[str, str]:
     """Get predefined output hashes for a fixed-output derivation"""
     try:
-        result = subprocess.run(
-            ['nix', 'derivation', 'show', drv_info.drv_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        deriv_json = json.loads(result.stdout)
-        drv_data = deriv_json[drv_info.drv_path]
+        drv_data = get_derivation(drv_info.drv_path)
 
         output_hashes = {}
         env = drv_data.get("env", {})
@@ -312,14 +293,7 @@ class SignatureVerifier:
     def get_derivation_inputs(self, drv_path: str) -> List[tuple[str, str]]:
         """Get all inputs and their output names for a derivation"""
         try:
-            result = subprocess.run(
-                ['nix', 'derivation', 'show', drv_path],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            deriv_json = json.loads(result.stdout)
-            drv_data = deriv_json[drv_path]
+            drv_data = get_derivation(drv_path)
 
             inputs = []
             if "inputDrvs" in drv_data:
@@ -360,41 +334,13 @@ class SignatureVerifier:
 
         return [set(combo) for combo in itertools.product(*input_resolution_options)]
 
-    def check_nixos_cache(self, drv_path: str) -> bool:
-        """Check if a derivation exists in the official nixos cache"""
-        try:
-            result = subprocess.run(
-                ['nix', 'path-info', '--store', 'https://cache.nixos.org', drv_path],
-                capture_output=True,
-                text=True
-            )
-            return result.returncode == 0
-        except Exception:
-            logger.exception("error checking nixos cache")
-            return False
-
     def get_output_info_from_cache(self, drv_path: str) -> Dict[str, Dict[str, str]]:
             """
             Get output path and hash information from the nixos cache.
             Returns a dictionary mapping output names to their hashes.
             """
             try:
-                logger.debug(f"Fetching info for {drv_path} from nixos cache")
-                result = subprocess.run(
-                    [
-                        'nix',
-                        'path-info',
-                        '--json',
-                        '--store', 'https://cache.nixos.org',
-                        f'{drv_path}^*'
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-
-                outputs_info = json.loads(result.stdout)
-                logger.debug(f"Raw output info: {json.dumps(outputs_info, indent=2)}")
+                outputs_info = get_from_nixos_cache(drv_path)
 
                 output_hashes = {}
 
@@ -505,7 +451,7 @@ class SignatureVerifier:
         logger.debug("\nTrying nixos cache fallback")
         if not drv_info.is_content_addressed:
             logger.debug("Derivation is input-addressed, checking nixos cache as well")
-            if self.check_nixos_cache(drv_info.drv_path):
+            if check_nixos_cache(drv_info.drv_path):
                 try:
                     output_hashes = self.get_output_info_from_cache(drv_info.drv_path)
                     logger.debug(f"Got output hashes from cache: {output_hashes}")
