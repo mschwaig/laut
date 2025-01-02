@@ -43,7 +43,7 @@ def get_derivation(drv_path):
         logger.debug("Successfully parsed derivation JSON")
         return drv_dict[drv_path]
     except Exception as e:
-        logger.exception("error in get_canonical_derivation")
+        logger.exception("error in get_derivation")
         raise
 
 def get_output_hash(path):
