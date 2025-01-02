@@ -6,6 +6,8 @@ import itertools
 import jwt
 from .nix.commands import (
     get_canonical_derivation,
+)
+from .nix.constructive_trace import (
     compute_sha256_base64,
 )
 from .storage import get_s3_client
