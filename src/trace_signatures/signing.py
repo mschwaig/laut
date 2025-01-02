@@ -1,7 +1,8 @@
 import jwt
 from typing import Dict
+import json
+import os
 from .storage import upload_signature
-from .signing import create_trace_signature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
 )
@@ -12,6 +13,7 @@ from .utils import (
     parse_nix_private_key,
 )
 from loguru import logger
+import subprocess
 
 
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
