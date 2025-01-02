@@ -1,6 +1,5 @@
 import subprocess
 import json
-import rfc8785
 from loguru import logger
 
 def get_output_path(drv_path):
@@ -34,8 +33,8 @@ def get_output_path(drv_path):
         logger.exception(f"error getting output path")
         raise
 
-def get_canonical_derivation(path):
-    """Get canonicalized JSON representation of a Nix derivation"""
+def get_derivation(path):
+    """Get Nix derivation data as dict"""
     try:
         logger.debug(f"Running nix derivation show for: {path}")
         result = subprocess.run(
@@ -44,9 +43,9 @@ def get_canonical_derivation(path):
             text=True,
             check=True
         )
-        deriv_json = json.loads(result.stdout)
+        drv_dict = json.loads(result.stdout)
         logger.debug("Successfully parsed derivation JSON")
-        return rfc8785.dumps(deriv_json)
+        return drv_dict
     except Exception as e:
         logger.exception("error in get_canonical_derivation")
         raise

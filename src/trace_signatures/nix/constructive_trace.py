@@ -2,7 +2,13 @@ import subprocess
 import hashlib
 import base64
 from loguru import logger
-from .commands import get_canonical_derivation
+from .commands import get_derivation
+import rfc8785
+
+def get_canonical_derivation(path):
+    """Get canonicalized JSON representation of a Nix derivation"""
+    deriv_json = get_derivation(path)
+    return rfc8785.dumps(deriv_json)
 
 def get_content_hash(drv_path):
     """Get content hash for a derivation"""
