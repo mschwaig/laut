@@ -2,7 +2,7 @@ import sys
 import os
 import click
 import subprocess
-from .utils import parse_nix_public_key
+from .nix.keyfiles import parse_nix_public_key
 from .verification import verify_signatures
 from .signing import sign_and_upload
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (

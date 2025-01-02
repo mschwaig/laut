@@ -6,11 +6,13 @@ from .storage import upload_signature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
 )
-from .utils import (
+from .nix.keyfiles import (
+    parse_nix_private_key,
+)
+from .nix.commands import (
     get_output_path,
     get_output_hash,
     compute_derivation_input_hash,
-    parse_nix_private_key,
 )
 from loguru import logger
 import subprocess

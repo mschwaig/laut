@@ -1,11 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Dict, Set, Optional, List
-from pathlib import Path
 import subprocess
 import json
 import itertools
 import jwt
-from .utils import (
+from .nix.commands import (
     get_canonical_derivation,
     compute_sha256_base64,
 )
