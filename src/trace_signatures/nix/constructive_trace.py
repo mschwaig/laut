@@ -41,7 +41,7 @@ def resolve_dependencies(drv_data, resolutions):
 
     # Get content hash for each input derivation and add to inputSrcs
     if resolutions:
-        resolved_srcs.append(resolutions)
+        resolved_srcs + resolutions
     else:
         for drv in input_drvs:
             hash_path = get_output_hash(drv)
@@ -53,7 +53,7 @@ def resolve_dependencies(drv_data, resolutions):
     modified_drv['inputDrvs'] = {}
 
     return modified_drv
-f
+
 def compute_derivation_input_hash(drv_path: str, resolutions) -> str:
     """
     Compute the input hash for a derivation path.
