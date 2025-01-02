@@ -11,6 +11,7 @@ from .nix.commands import (
 )
 from .nix.constructive_trace import (
     compute_sha256_base64,
+    get_canonical_derivation
 )
 from .storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
