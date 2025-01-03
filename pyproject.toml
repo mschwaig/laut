@@ -14,6 +14,8 @@ dependencies = [
     "cryptography",
     "boto3",
     "click",
+    "pytest",
+    "pytest-cov",
 ]
 
 [project.scripts]
@@ -25,3 +27,12 @@ package-dir = {"" = "src"}
 packages = ["trace_signatures"]
 
 [tool.setuptools_scm]
+
+#[tool.pytest.ini_options]
+#testpaths = ["tests"]
+#python_files = ["test_*.py", "*_test.py"]
+#addopts = "-ra -q"
+
+[tool.coverage.run]
+source = ["trace_signatures"]
+branch = true

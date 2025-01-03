@@ -61,6 +61,7 @@ def get_output_hash(path):
 
 def check_nixos_cache(drv_path: str) -> bool:
     """Check if a derivation exists in the official nixos cache"""
+    """TODO: this only works if Nix knows how to build drv_path, so we should think of something else"""
     try:
         result = subprocess.run(
             ['nix', 'path-info', '--store', 'https://cache.nixos.org', drv_path],

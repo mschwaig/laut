@@ -15,11 +15,18 @@ from .nix.constructive_trace import (
 from .nix.deep_constructive_trace import (
     get_DCT_input_hash,
 )
+from .nix.types import (
+    UnresolvedDerivation
+)
 from .storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
 from loguru import logger
+
+DerivationInfo = str
+ResolvedDerivationInfo = str
+ResolvedInput = str
 
 @dataclass(frozen=True)
 class DerivationInput:
@@ -35,77 +42,6 @@ class DerivationInput:
             return False
         return (self.derivation.drv_path == other.derivation.drv_path and
                 self.output_name == other.output_name)
-
-@dataclass
-class DerivationInfo:
-    """Base information about a derivation"""
-    drv_path: str
-    unresolved_input_hash: str
-    inputs: Set[DerivationInput] = field(default_factory=set)
-    is_fixed_output: bool = False
-    is_content_addressed: bool = False
-    resolutions: Set['ResolvedDerivationInfo'] = field(default_factory=set)
-
-    def __hash__(self):
-        return hash(self.drv_path)
-
-    def __eq__(self, other):
-        if not isinstance(other, DerivationInfo):
-            return False
-        return self.drv_path == other.drv_path
-
-    def is_resolved(self) -> bool:
-        return len(self.resolutions) > 0
-
-    def can_resolve(self) -> bool:
-        return all(input_drv.derivation.is_resolved() for input_drv in self.inputs) or (
-            any(resolution.has_unknown_inputs for resolution in self.resolutions)
-        )
-
-    def compute_resolved_input_hash(self, input_resolutions: Set['ResolvedInput']) -> str:
-        """
-        Compute the input hash for this derivation with specific input resolutions.
-        """
-        # transform input resolutions to content hashes
-        # in same order as original derivation
-        resolutions = list(map(lambda x: x.resolution.output_hashes[x.output_name], input_resolutions))
-        resolved_input_hash = compute_CT_input_hash(self.drv_path, resolutions)
-        return resolved_input_hash
-
-@dataclass(frozen=True)
-class ResolvedInput:
-    """Represents a resolved input with its specific output"""
-    resolution: 'ResolvedDerivationInfo'
-    output_name: str
-
-    def __hash__(self):
-        return hash((self.resolution.resolved_input_hash, self.output_name))
-
-    def __eq__(self, other):
-        if not isinstance(other, ResolvedInput):
-            return False
-        return (self.resolution.resolved_input_hash == other.resolution.resolved_input_hash and
-                self.output_name == other.output_name)
-
-@dataclass(frozen=True)
-class ResolvedDerivationInfo:
-    """Represents a verified resolution of a derivation"""
-    resolved_input_hash: Optional[str]
-    output_hashes: Dict[str, str]  # output name -> hash
-    input_resolutions: Set['ResolvedInput'] = field(default_factory=set)
-    has_unknown_inputs: bool = field(default=False)
-
-    def __hash__(self):
-        output_hashes_tuple = tuple(sorted(self.output_hashes.items()))
-        input_resolutions_frozen = frozenset(self.input_resolutions)
-        return hash((self.resolved_input_hash, output_hashes_tuple, input_resolutions_frozen))
-
-    def __eq__(self, other):
-        if not isinstance(other, ResolvedDerivationInfo):
-            return False
-        return (self.resolved_input_hash == other.resolved_input_hash and
-                self.output_hashes == other.output_hashes and
-                self.input_resolutions == other.input_resolutions)
 
 def get_derivation_type(drv_path: str) -> tuple[bool, bool]:
     """Determine if a derivation is fixed-output and/or content-addressed"""
@@ -514,3 +450,32 @@ def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, 
     """Main verification entry point for external use"""
     verifier = SignatureVerifier(caches, trusted_keys)
     return verifier.verify_derivation_tree(drv_path)
+
+
+### --- new hand-written, unit-tested stuff after this line ---
+
+
+def get_initial_required_outputs(node_drv_path: str, json: dict) -> List[str]:
+    outputs = map(lambda x: (x.key, x.value), json[node_drv_path]["outputs"])
+
+    # TODO: transform this
+    return outputs
+
+def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
+    get_initial_required_outputs = get_initial_required_outputs(node_drv_path, json)
+    return build_unresolved_tree_rec(node_drv_path, json, get_initial_required_outputs)
+
+def build_unresolved_tree_rec(node_drv_path: str, json: dict, outputs: List[str]) -> UnresolvedDerivation:
+    inputs = json[node_drv_path]["inputDrvs"]
+
+    input_drvs = map(lambda x: (x, build_unresolved_tree_rec(x, json)), inputs.keys)
+    # TODO construct relevant outputs
+    input_outputs = input_drvs
+    is_fixed_output, is_content_addressed = get_derivation_type(node_drv_path)
+    return UnresolvedDerivation(
+        input_hash=get_DCT_input_hash(node_drv_path),
+        inputs=input_outputs,
+        outputs=outputs,
+        is_content_addressed=is_content_addressed,
+        is_fixed_output=is_fixed_output,
+    )

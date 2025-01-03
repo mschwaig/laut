@@ -42,6 +42,12 @@
             setuptools-scm
           ];
 
+          checkPhase = "pytest";
+          nativeCheckInputs = with pkgs.python3.pkgs; [
+            pytest
+            pytest-cov
+          ];
+
           propagatedBuildInputs = with pkgs.python3.pkgs; [
             rfc8785
             pyjwt
@@ -74,6 +80,8 @@
             boto3
             click
             loguru
+            pytest
+            pytest-cov
           ]);
         in pkgs.mkShell {
           buildInputs = [
