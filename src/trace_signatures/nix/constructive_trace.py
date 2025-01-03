@@ -54,7 +54,7 @@ def resolve_dependencies(drv_data, resolutions):
 
     return modified_drv
 
-def compute_derivation_input_hash(drv_path: str, resolutions) -> str:
+def compute_CT_input_hash(drv_path: str, resolutions) -> str:
     """
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.

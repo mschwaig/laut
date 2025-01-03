@@ -10,8 +10,10 @@ from .nix.commands import (
     get_from_nixos_cache,
 )
 from .nix.constructive_trace import (
-    compute_sha256_base64,
-    get_canonical_derivation
+    compute_CT_input_hash,
+)
+from .nix.deep_constructive_trace import (
+    get_DCT_input_hash,
 )
 from .storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -63,22 +65,12 @@ class DerivationInfo:
     def compute_resolved_input_hash(self, input_resolutions: Set['ResolvedInput']) -> str:
         """
         Compute the input hash for this derivation with specific input resolutions.
-        For content-addressed derivations, this incorporates the input hashes.
-        For input-addressed derivations, this uses the original unresolved hash.
         """
-        if not self.is_content_addressed:
-            return self.unresolved_input_hash
-
-        # For content-addressed derivations, include input resolution hashes
-        canonical = get_canonical_derivation(self.drv_path)
-        resolution_data = {
-            "canonical": canonical,
-            "input_resolutions": {
-                str(res.resolution.resolved_input_hash): res.output_name
-                for res in input_resolutions
-            }
-        }
-        return compute_sha256_base64(json.dumps(resolution_data).encode())
+        # transform input resolutions to content hashes
+        # in same order as original derivation
+        resolutions = list(map(lambda x: x.resolution.output_hashes[x.output_name], input_resolutions))
+        resolved_input_hash = compute_CT_input_hash(self.drv_path, resolutions)
+        return resolved_input_hash
 
 @dataclass(frozen=True)
 class ResolvedInput:
@@ -268,12 +260,11 @@ class SignatureVerifier:
                 return processed_drvs[drv_path]
 
             is_fixed_output, is_content_addressed = get_derivation_type(drv_path)
-            canonical = get_canonical_derivation(drv_path)
-            unresolved_hash = compute_sha256_base64(canonical)
+            unresolved_input_hash = get_DCT_input_hash(drv_path)
 
             drv_info = DerivationInfo(
                 drv_path=drv_path,
-                unresolved_input_hash=unresolved_hash,
+                unresolved_input_hash=unresolved_input_hash,
                 is_fixed_output=is_fixed_output,
                 is_content_addressed=is_content_addressed
             )
