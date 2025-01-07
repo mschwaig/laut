@@ -17,7 +17,6 @@ class UnresolvedDerivation:
     json_attrs: Dict
     input_hash: UnresolvedInputHash
     inputs: Set['UnresolvedOutput']
-    outputs: Set['UnresolvedOutput']
     is_fixed_output: bool = False
     is_content_addressed: bool = False
 
@@ -67,6 +66,7 @@ class UnresolvedOutput:
     """For trustlessly resolved derivations we verify on the derivation level and go by that"""
     output_name: str
     input_hash: UnresolvedInputHash
+    of: 'ResolvedDerivation'
 
     def __hash__(self):
         return hash((self.input_hash, self.input_hash))

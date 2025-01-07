@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cProfile",
+            "args": [
+                "-o", "profile",
+                "-m", "pytest",
+                "-v",
+                "--no-cov",
+                "--pdb"
+                //"${file}"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PATH": "${env:PATH}",
+                "PYTHONPATH": "${env:PYTHONPATH}"
+            },
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

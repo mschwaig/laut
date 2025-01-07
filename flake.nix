@@ -42,10 +42,10 @@
             setuptools-scm
           ];
 
-          #checkPhase = "pytest";
-          #pytestCheckHook = ''
-          #  export PATH=${nix}/bin,$PATH
-          #'';
+          checkPhase = "pytest";
+          pytestCheckHook = ''
+            export PATH=${nix}/bin,$PATH
+          '';
 
           nativeCheckInputs = with pkgs.python3.pkgs; [
             pytest
@@ -87,10 +87,10 @@
             loguru
             pytest
             pytest-cov
-            trace-signatures
           ]);
         in pkgs.mkShell {
-          PYTHONPATH = "${./src}:$PYTHONPATH";
+          PYTHONPATH = "./src";
+          PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
             pythonEnv
           ];
