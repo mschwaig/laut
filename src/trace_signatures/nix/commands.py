@@ -34,7 +34,7 @@ def get_derivation(drv_path):
     try:
         logger.debug(f"Running nix derivation show for: {drv_path}")
         result = subprocess.run(
-            ['nix', 'derivation', 'show', drv_path],
+            ['nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', drv_path],
             capture_output=True,
             text=True,
             check=True

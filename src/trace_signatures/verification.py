@@ -456,26 +456,47 @@ def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, 
 
 
 def get_initial_required_outputs(node_drv_path: str, json: dict) -> List[str]:
-    outputs = map(lambda x: (x.key, x.value), json[node_drv_path]["outputs"])
+    output_json = json[node_drv_path]["outputs"]
+    logger.debug(f"output_json: {output_json}")
+    outputs = map(lambda x: (x.key, x.value), output_json)
 
     # TODO: transform this
     return outputs
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
-    get_initial_required_outputs = get_initial_required_outputs(node_drv_path, json)
-    return build_unresolved_tree_rec(node_drv_path, json, get_initial_required_outputs)
+    initial_required_outputs = get_initial_required_outputs(node_drv_path, json)
+    return build_unresolved_tree_rec(node_drv_path, json, initial_required_outputs)
 
 def build_unresolved_tree_rec(node_drv_path: str, json: dict, outputs: List[str]) -> UnresolvedDerivation:
-    inputs = json[node_drv_path]["inputDrvs"]
+    # TODO: canonicalize
+    json_attrs = json[node_drv_path]
+    inputs = json_attrs["inputDrvs"]
 
-    input_drvs = map(lambda x: (x, build_unresolved_tree_rec(x, json)), inputs.keys)
+    def process_outputs(drv_path, outputs):
+        json_attrs = json[drv_path]
+        # something like this should work for IA derivations
+        # not sure if we should make up an output hash for CA derivations or not
+        # not sure if there is one either
+        output_set = {json_attrs["outputs"][output]["path"] for output in outputs}
+        logger.debug(f"output_set: {output_set}")
+        return output_set
+
+    input_drvs = { process_outputs(drv_path, drv_json["outputs"]) for drv_path, drv_json in inputs}
+
+    map(lambda x: (x, build_unresolved_tree_rec(x, json, outputs)), inputs.keys())
     # TODO construct relevant outputs
     input_outputs = input_drvs
     is_fixed_output, is_content_addressed = get_derivation_type(node_drv_path)
-    return UnresolvedDerivation(
+    unresolved_derivation = UnresolvedDerivation(
+        drv_path=node_drv_path,
+        json_attrs=json_attrs,
         input_hash=get_DCT_input_hash(node_drv_path),
         inputs=input_outputs,
         outputs=outputs,
         is_content_addressed=is_content_addressed,
         is_fixed_output=is_fixed_output,
     )
+    #logger.debug(f"{unresolved_derivation}")
+    logger.debug(f"{list(unresolved_derivation.inputs)}")
+    logger.debug(f"{list(unresolved_derivation.outputs)}")
+    return unresolved_derivation
