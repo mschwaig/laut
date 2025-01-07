@@ -44,11 +44,9 @@ class DerivationInput:
         return (self.derivation.drv_path == other.derivation.drv_path and
                 self.output_name == other.output_name)
 
-def get_derivation_type(drv_path: str) -> tuple[bool, bool]:
+def get_derivation_type(drv_data) -> tuple[bool, bool]:
     """Determine if a derivation is fixed-output and/or content-addressed"""
     try:
-        drv_data = get_derivation(drv_path)
-
         # Check for fixed-output
         env = drv_data.get("env", {})
         is_fixed_output = bool(env.get("outputHash", ""))
@@ -485,7 +483,7 @@ def build_unresolved_tree_rec(node_drv_path: str, json: dict, output_strs: List[
         logger.debug(f"output_set: {output_set}")
         return output_set
     
-    is_fixed_output, is_content_addressed = get_derivation_type(node_drv_path)
+    is_fixed_output, is_content_addressed = get_derivation_type(json_attrs)
 
     logger.debug(f"inputs: {inputs}")
     if is_fixed_output:
