@@ -457,9 +457,9 @@ def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, 
 
 def get_all_outputs_of_drv(node_drv_path: str, json: dict) -> List[str]:
     output_json = json[node_drv_path]["outputs"]
-    logger.debug(f"output_json: {output_json}")
+    #logger.debug(f"output_json: {output_json}")
     outputs = list(output_json.keys())
-    logger.debug(f"outputs: {outputs}")
+    #logger.debug(f"outputs: {outputs}")
     return outputs
 
 _json = None
@@ -502,6 +502,6 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
         is_fixed_output=is_fixed_output,
     )
     #logger.debug(f"{unresolved_derivation}")
-    logger.debug(f"{list(unresolved_derivation.inputs)}")
-
+    #logger.debug(f"{list(unresolved_derivation.inputs)}")
+    #logger.debug(f"{list(outputs)}")
     return unresolved_derivation
