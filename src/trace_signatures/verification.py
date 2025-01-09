@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, Set, Optional, List
+from functools import cache
 import subprocess
 import json
 import itertools
@@ -454,36 +455,32 @@ def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, 
 ### --- new hand-written, unit-tested stuff after this line ---
 
 
-def get_initial_required_outputs(node_drv_path: str, json: dict) -> List[str]:
+def get_all_outputs_of_drv(node_drv_path: str, json: dict) -> List[str]:
     output_json = json[node_drv_path]["outputs"]
     logger.debug(f"output_json: {output_json}")
     outputs = list(output_json.keys())
     logger.debug(f"outputs: {outputs}")
     return outputs
 
-def build_unresolved_tree(node_drv_path: str, json: dict) -> Set['UnresolvedOutput']:
-    initial_required_outputs = get_initial_required_outputs(node_drv_path, json)
-    return build_unresolved_tree_rec(node_drv_path, json, initial_required_outputs)
+_json = None
 
-def build_unresolved_tree_rec(node_drv_path: str, json: dict, output_strs: List[str]) -> Set['UnresolvedOutput']:
+def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
+    global _json
+    _json = json
+    root_node = build_unresolved_tree_rec(node_drv_path)
+    cache_info = build_unresolved_tree_rec.cache_info()
+    print(cache_info)
+    return root_node
+
+@cache
+def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
+    global _json
     # TODO: canonicalize
-    json_attrs = json[node_drv_path]
+    json_attrs = _json[node_drv_path]
     inputs = json_attrs["inputDrvs"]
 
-    def process_outputs(drv_path, drv, outputs):
-        json_attrs = json[drv_path]
-        # something like this should work for IA derivations
-        # not sure if we should make up an output hash for CA derivations or not
-        # not sure if there is one either
-        output_set = {UnresolvedOutput(
-                output_name=output_name,
-                of=drv,
-                input_hash=json_attrs["outputs"][output_name]["path"]
-            ) for output_name in outputs}
-        logger.debug(f"output_set: {output_set}")
-        return output_set
-    
     is_fixed_output, is_content_addressed = get_derivation_type(json_attrs)
+    outputs = get_all_outputs_of_drv(node_drv_path, _json)
 
     logger.debug(f"inputs: {inputs}")
     if is_fixed_output:
@@ -491,23 +488,20 @@ def build_unresolved_tree_rec(node_drv_path: str, json: dict, output_strs: List[
     else:
         input_outputs = [
             build_unresolved_tree_rec(
-                drv_path,
-                json,
-                drv_json["outputs"]
+                drv_path
             ) for drv_path, drv_json in inputs.items() ]
+    # TODO: add relevent outputs to data structure
 
     unresolved_derivation = UnresolvedDerivation(
         drv_path=node_drv_path,
         json_attrs=json_attrs,
         input_hash=get_DCT_input_hash(node_drv_path),
         inputs=input_outputs,
+        outputs=outputs,
         is_content_addressed=is_content_addressed,
         is_fixed_output=is_fixed_output,
     )
     #logger.debug(f"{unresolved_derivation}")
     logger.debug(f"{list(unresolved_derivation.inputs)}")
 
-    outputs = process_outputs(node_drv_path, unresolved_derivation, output_strs)
-
-    logger.debug(f"{list(outputs)}")
-    return outputs
+    return unresolved_derivation
