@@ -44,3 +44,6 @@ pythonpath = [
 addopts = [
     "--import-mode=importlib",
 ]
+
+[tool.pyright]
+typeCheckingMode = "basic"

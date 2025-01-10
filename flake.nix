@@ -87,6 +87,8 @@
             loguru
             pytest
             pytest-cov
+          ] ++ [
+          pkgs.pyright
           ]);
         in pkgs.mkShell {
           PYTHONPATH = "./src";

@@ -16,8 +16,8 @@ class UnresolvedDerivation:
     drv_path: DrvPath
     json_attrs: Dict
     input_hash: UnresolvedInputHash
-    inputs: Set['UnresolvedOutput']
-    outputs: Set['UnresolvedOutput']
+    inputs: Set['UnresolvedReferencedInputs']
+    outputs: Dict[str, 'UnresolvedOutput']
     is_fixed_output: bool = False
     is_content_addressed: bool = False
 
@@ -29,6 +29,20 @@ class UnresolvedDerivation:
             return False
         return self.input_hash == other.input_hash
 
+@dataclass(frozen=True)
+class UnresolvedReferencedInputs:
+    derivation: UnresolvedDerivation
+    inputs: Dict[str, 'UnresolvedOutput']
+
+    def __hash__(self):
+         # TODO: not sure if the .values() is ok here
+        return hash((self.derivation, self.inputs.values()))
+
+    def __eq__(self, other):
+        if not isinstance(other, UnresolvedReferencedInputs):
+            return False
+        return (self.derivation == other.derivation) and (
+            self.inputs == other.inputs)
 
 @dataclass(frozen=True)
 class TrustlesslyResolvedDerivation:

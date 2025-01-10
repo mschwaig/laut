@@ -18,7 +18,8 @@ from .nix.deep_constructive_trace import (
 )
 from .nix.types import (
     UnresolvedDerivation,
-    UnresolvedOutput
+    UnresolvedOutput,
+    UnresolvedReferencedInputs
 )
 from .storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -455,14 +456,25 @@ def verify_signatures(drv_path: str, caches: List[str], trusted_keys: Dict[str, 
 ### --- new hand-written, unit-tested stuff after this line ---
 
 
-def get_all_outputs_of_drv(node_drv_path: str, json: dict) -> List[str]:
-    output_json = json[node_drv_path]["outputs"]
+def get_all_outputs_of_drv(node_drv_path: str) -> Dict[str, UnresolvedOutput]:
+    global _json
+    output_json = _json[node_drv_path]["outputs"]
     #logger.debug(f"output_json: {output_json}")
-    outputs = list(output_json.keys())
+    outputs = {k: UnresolvedOutput(
+        output_name=k,
+        input_hash=get_DCT_input_hash(v["path"])
+    ) for k, v in output_json.items()}
     #logger.debug(f"outputs: {outputs}")
     return outputs
 
-_json = None
+def get_referenced_outputs_of_drv(depender: str, dedpendee_obj: UnresolvedDerivation) -> UnresolvedReferencedInputs:
+    global _json
+    referenced_str = _json[depender]["inputDrvs"][dedpendee_obj.drv_path]["outputs"]
+    referenced_dict = { dedpendee_obj.outputs[r].output_name: dedpendee_obj.outputs[r] for r in referenced_str }
+    referenced_obj = UnresolvedReferencedInputs(derivation=dedpendee_obj, inputs=referenced_dict)
+    return referenced_obj
+
+_json : Dict = {}
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
@@ -480,17 +492,21 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     inputs = json_attrs["inputDrvs"]
 
     is_fixed_output, is_content_addressed = get_derivation_type(json_attrs)
-    outputs = get_all_outputs_of_drv(node_drv_path, _json)
+    outputs = get_all_outputs_of_drv(node_drv_path)
 
     logger.debug(f"inputs: {inputs}")
     if is_fixed_output:
-        input_outputs = []
+        input_outputs : Set[UnresolvedReferencedInputs] = set()
     else:
-        input_outputs = [
-            build_unresolved_tree_rec(
-                drv_path
-            ) for drv_path, drv_json in inputs.items() ]
-    # TODO: add relevent outputs to data structure
+        input_outputs = {
+            get_referenced_outputs_of_drv(
+                node_drv_path,
+                build_unresolved_tree_rec(
+                    drv_path
+                )
+            )
+            for drv_path in inputs.keys()
+        }
 
     unresolved_derivation = UnresolvedDerivation(
         drv_path=node_drv_path,
