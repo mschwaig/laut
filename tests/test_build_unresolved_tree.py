@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from trace_signatures.verification import build_unresolved_tree, verify_tree
+from trace_signatures.verification.verification import build_unresolved_tree, verify_tree
 
 def test_small():
    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
