@@ -28,7 +28,7 @@ from ..storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
-from verification.trust_model import TrustModel
+from .trust_model import TrustModel
 from loguru import logger
 
 def get_derivation_type(drv_data) -> tuple[bool, bool]:
