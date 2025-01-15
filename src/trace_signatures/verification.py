@@ -19,12 +19,16 @@ from .nix.deep_constructive_trace import (
 from .nix.types import (
     UnresolvedDerivation,
     UnresolvedOutput,
-    UnresolvedReferencedInputs
+    UnresolvedReferencedInputs,
+    UnresolvedInputHash,
+    ResolvedInputHash,
+    ResolvedDerivation
 )
 from .storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
+from verification.trust_model import TrustModel
 from loguru import logger
 
 DerivationInfo = str
@@ -521,3 +525,54 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     #logger.debug(f"{list(unresolved_derivation.inputs)}")
     #logger.debug(f"{list(outputs)}")
     return unresolved_derivation
+
+# We might want to track UnresolvedReferencedInputs here,
+# to deal with DCTs
+# This cannot be replaced with memoization, because we only
+# want to produce results a limited number of times.
+_visited: set[UnresolvedDerivation] = set()
+
+
+def _fetch_ct_signatures(input_hash: ResolvedInputHash):
+    return
+def _fetch_dct_signatures(input_hash: UnresolvedInputHash):
+    return
+
+# TODO: get rid of this duplication by getting back
+# UnresolvedReferencedInputs from build_unresolved_tree
+def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> tuple[Set[ResolvedDerivation], List[str]]:
+    global _visited
+    if derivation in _visited:
+        return tuple( set(), list() )
+    else:
+        _visited.add(derivation)
+    input_result = [ result for i in derivation.inputs for result in verify_tree_rec(i, trust_model) ]
+    return tuple(set(), input_result + [ f"visited {derivation.drv_path}" ] )
+
+def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel) -> tuple[Set[ResolvedDerivation], List[str]]:
+    global _visited
+    if inputs.derivation in _visited:
+        return (set(), [])
+    else:
+        _visited.add(inputs.derivation)
+    # use allowed DCT input hashes for verification before recursive descent
+    # then check if result is sufficient so you can skip recursing
+    dct_signatures = _fetch_dct_signatures(inputs.derivation.input_hash)
+    valid = trust_model.dct_verify(inputs.derivation.input_hash, dct_signatures)
+    if valid:
+        return tuple( valid, [ f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" ] )
+    # TODO: consider different outputs
+    input_result = [ result for i in inputs.derivation.inputs for result in verify_tree_rec(i, trust_model) ]
+
+    ct_signatures = _fetch_ct_signatures(inputs.derivation.input_hash)
+
+    valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
+    if valid:
+        return tuple( valid, input_result + [ f"CT makes {inputs.derivation.drv_path} valid" ] )
+    else:
+        return tuple( set(), [ f"{inputs.derivation.drv_path} is not valid" ] )
+    # we're on the way back down the tree now
+    # use CT input hashes to check properly check chains
+    # we need to do this using all possible resolved dependency trees now
+
+    # for each node we should be able to make a determination if it was sufficiently verified

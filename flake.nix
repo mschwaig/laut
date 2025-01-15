@@ -87,6 +87,7 @@
             loguru
             pytest
             pytest-cov
+            debugpy
           ] ++ [
           pkgs.pyright
           ]);
