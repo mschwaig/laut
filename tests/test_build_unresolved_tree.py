@@ -40,4 +40,4 @@ def test_verify_large():
    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
    drv = build_unresolved_tree("/nix/store/lrrywp3k594k3295lh92lm7a387wk0j9-hello-2.12.1.drv", hello_recursive)
    list = verify_tree(drv, trust_model)
-   print(list)
+   print("\n".join(list[1]))

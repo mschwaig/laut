@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 
 UnresolvedInputHash = str
 ResolvedInputHash = str
 DrvPath = str
 ContentHash = str
 
-PossibleInputResolutions = Dict['UnresolvedDerivation', Set['ResolvedDerivation']]
+PossibleInputResolutions = Set[Tuple['ResolvedDerivation', str]]
 
 InputResolutions = Dict['UnresolvedDerivation', 'ResolvedDerivation']
 

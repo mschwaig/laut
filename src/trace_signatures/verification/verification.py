@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Set, Optional, List
+from typing import Dict, Iterator, Set, Optional, List, Tuple
 from functools import cache
 import subprocess
 import json
@@ -22,7 +22,8 @@ from ..nix.types import (
     UnresolvedReferencedInputs,
     UnresolvedInputHash,
     ResolvedInputHash,
-    ResolvedDerivation
+    ResolvedDerivation,
+    PossibleInputResolutions
 )
 from ..storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -112,15 +113,18 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     #logger.debug(f"{list(outputs)}")
     return unresolved_derivation
 
-# We might want to track UnresolvedReferencedInputs here,
-# to deal with DCTs
-# This cannot be replaced with memoization, because we only
-# want to produce results a limited number of times.
-_visited: set[UnresolvedDerivation] = set()
+def _get_resolution_combinations(input_resolutions: dict[UnresolvedDerivation, PossibleInputResolutions]) -> Iterator[dict[UnresolvedDerivation, ResolvedDerivation]]:
+    resolution_lists = [
+        list(map(lambda x: x[0], list(resolutions)))
+       #list(resolutions)
+        for resolutions in input_resolutions.values()
+    ]
 
+    for combination in itertools.product(*resolution_lists):
+        yield dict(zip(input_resolutions.keys(),combination))
 
 def _fetch_ct_signatures(input_hash: ResolvedInputHash):
-    return
+    return True
 def _fetch_dct_signatures(input_hash: UnresolvedInputHash):
     return
 
@@ -132,14 +136,12 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
 def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> tuple[Set[ResolvedDerivation], List[str]]:
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
+    # TODO: return root and content of momoization cache here, since
+    #       the content of the memoization cache has a "log entry" for each build step
     return verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), trust_model)
 
-def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel) -> tuple[Set[ResolvedDerivation], List[str]]:
-    global _visited
-    if inputs.derivation in _visited:
-        return (set(), [])
-    else:
-        _visited.add(inputs.derivation)
+@cache
+def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel) -> PossibleInputResolutions:
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
     # TODO: re-enable DCT verification
@@ -147,29 +149,22 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
     #valid = trust_model.dct_verify(inputs.derivation.input_hash, dct_signatures)
     valid = False
     if valid:
-        return ( valid, [ f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" ] )
+        return {( valid, f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" )}
     # TODO: consider different outputs
-    result: tuple[Set[ResolvedDerivation], List[str]] = (set(),[])
+    step_result: dict[UnresolvedDerivation, PossibleInputResolutions] = dict()
     for i in inputs.derivation.inputs:
-        result_i = verify_tree_rec(i, trust_model)
-        result = (result[0].union(result_i[0]), result[1] + result_i[1])
+        step_result[inputs.derivation] = verify_tree_rec(i, trust_model)
 
-    # TODO: construct all possible resoled derivations and try fetching signatures for Pthem
-    ct_signatures = _fetch_ct_signatures(inputs.derivation.input_hash)
+    valid_resolutions: PossibleInputResolutions = set()
+    for resolution in _get_resolution_combinations(step_result):
+        # TODO: generate input hash
+        # TODO: construct resolved derivation
+        ct_signatures = _fetch_ct_signatures(resolution)
+        if ct_signatures:
+            valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
+            if valid:
+                valid_resolutions.add((resolution, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
+            else:
+                print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
-    valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
-    result_message: str
-    if valid:
-        result_message = f"CT makes {inputs.derivation.drv_path} valid"
-        result = (result[0].union(valid), result[1] + [  ])
-    else:
-        result_message = f"CT makes {inputs.derivation.drv_path} valid"
-
-    result = (result[0].union(valid), result[1] + [ result_message ])
-
-    return result
-    # we're on the way back down the tree now
-    # use CT input hashes to check properly check chains
-    # we need to do this using all possible resolved dependency trees now
-
-    # for each node we should be able to make a determination if it was sufficiently verified
+    return valid_resolutions
