@@ -3,11 +3,11 @@ import os
 import click
 import subprocess
 from .nix.keyfiles import parse_nix_public_key
-from .verification import verify_signatures
 from .signing import sign_and_upload
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
+from .verification.trust_model import TrustedKey
 from loguru import logger
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
@@ -36,7 +36,7 @@ def is_flake_reference(ref: str) -> bool:
     """Check if the given string looks like a flake reference"""
     return "#" in ref
 
-def read_public_key(key_path: str) -> tuple[str, Ed25519PublicKey]:
+def read_public_key(key_path: str) -> TrustedKey:
     """Read and validate a public key file"""
     try:
         return parse_nix_public_key(key_path)

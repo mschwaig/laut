@@ -1,10 +1,10 @@
 import base64
 from loguru import logger
-
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, 
     Ed25519PublicKey
 )
+from ..verification.trust_model import TrustedKey
 
 def parse_nix_private_key(key_path: str) -> Ed25519PrivateKey:
     """
@@ -30,7 +30,7 @@ def parse_nix_private_key(key_path: str) -> Ed25519PrivateKey:
     except Exception as e:
         raise ValueError(f"Failed to parse private key file {key_path}: {str(e)}")
 
-def parse_nix_public_key(key_path: str) -> tuple[str, Ed25519PublicKey]:
+def parse_nix_public_key(key_path: str) -> TrustedKey:
     """
     Parse a Nix public key file
     
@@ -55,7 +55,7 @@ def parse_nix_public_key(key_path: str) -> tuple[str, Ed25519PublicKey]:
             raise ValueError("Invalid public key length")
             
         public_key = Ed25519PublicKey.from_public_bytes(key_bytes)
-        return name, public_key
+        return TrustedKey(name=name, key=public_key)
     except Exception as e:
         logger.exception("failed to parse public key file {key_path}")
         raise ValueError(f"Failed to parse public key file {key_path}: {str(e)}")

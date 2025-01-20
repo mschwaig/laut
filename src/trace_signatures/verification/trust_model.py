@@ -9,13 +9,15 @@ from ..nix.types import (
     TrustlesslyResolvedDerivation
 )
 
-KeyFingerprint = str
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PublicKey
+)
 
 @dataclass(frozen=True)
 class TrustedKey:
-    fingerprint: KeyFingerprint
+    key: Ed25519PublicKey
     name: str
-    isLegacy: bool
+    #isLegacy: bool
 
     #def contains_legacy_keys(self):
     #    return self.isLegacy
@@ -24,9 +26,9 @@ class TrustedKey:
         # TODO: verify
         return set()
 
-    def dct_verify(self, dct_input_hash: UnresolvedInputHash, dct_signatures) -> Set[ResolvedDerivation]:
+    #def dct_verify(self, dct_input_hash: UnresolvedInputHash, dct_signatures) -> Set[ResolvedDerivation]:
         # TODO: verify
-        return set()
+    #    return set()
 
     def __hash__(self):
         return hash((self.fingerprint, self.isLegacy, self.name))

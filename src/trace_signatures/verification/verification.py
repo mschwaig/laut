@@ -142,8 +142,10 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
         _visited.add(inputs.derivation)
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
-    dct_signatures = _fetch_dct_signatures(inputs.derivation.input_hash)
-    valid = trust_model.dct_verify(inputs.derivation.input_hash, dct_signatures)
+    # TODO: re-enable DCT verification
+    #dct_signatures = _fetch_dct_signatures(inputs.derivation.input_hash)
+    #valid = trust_model.dct_verify(inputs.derivation.input_hash, dct_signatures)
+    valid = False
     if valid:
         return ( valid, [ f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" ] )
     # TODO: consider different outputs
@@ -152,6 +154,7 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
         result_i = verify_tree_rec(i, trust_model)
         result = (result[0].union(result_i[0]), result[1] + result_i[1])
 
+    # TODO: construct all possible resoled derivations and try fetching signatures for Pthem
     ct_signatures = _fetch_ct_signatures(inputs.derivation.input_hash)
 
     valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
