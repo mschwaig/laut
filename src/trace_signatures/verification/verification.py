@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, Iterator, Set, Optional, List, Tuple
-from functools import cache
+from functools import wraps, cache
 import subprocess
 import json
 import itertools
@@ -134,14 +134,27 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> PossibleInputResolutions:
+def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> Tuple[PossibleInputResolutions, dict]:
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
-    return verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), trust_model)
+    root_result = verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), trust_model)
 
-@cache
+    return (root_result,  verify_tree_rec.__wrapped__.cache)
+
+def remember_steps(func):
+    func.cache = dict()
+    @wraps(func)
+    def wrap_verify_tree_rec(*args):
+        try:
+            return func.cache[args]
+        except KeyError:
+            func.cache[args] = result = func(*args)
+            return result   
+    return wrap_verify_tree_rec
+
+@remember_steps
 def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel) -> PossibleInputResolutions:
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
@@ -165,7 +178,6 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
             input_hash=ct_input_hash,
             inputs=resolution,
         )
-        # TODO: construct resolved derivation
         ct_signatures = _fetch_ct_signatures(ct_input_hash)
         if ct_signatures:
             valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
