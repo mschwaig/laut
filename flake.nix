@@ -88,11 +88,12 @@
             pytest
             pytest-cov
             debugpy
+            memory_profiler
           ] ++ [
           pkgs.pyright
           ]);
         in pkgs.mkShell {
-          PYTHONPATH = "./src";
+          PYTHONPATH = "${pythonEnv}/${pythonEnv.sitePackages}";
           PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
             pythonEnv

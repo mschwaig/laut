@@ -5,20 +5,19 @@
             "name": "Python: Debug Tests",
             "type": "debugpy",
             "request": "launch",
-            "module": "cProfile",
+            "module": "pytest",
             "args": [
-                "-o", "profile",
-                "-m", "pytest",
                 "-v",
                 "--no-cov",
-                "--pdb"
+                "--pdb",
                 //"${file}"
+                "tests"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {
                 "PATH": "${env:PATH}",
-                "PYTHONPATH": "${env:PYTHONPATH}"
+                "PYTHONPATH": "${workspaceFolder}/src:${env:PYTHONPATH}"
             },
             "cwd": "${workspaceFolder}"
         }
