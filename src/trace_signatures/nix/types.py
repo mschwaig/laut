@@ -49,7 +49,7 @@ class TrustlesslyResolvedDerivation:
     """Base information about a derivation"""
     resolves: UnresolvedDerivation
     input_hash: ResolvedInputHash
-    inputs: Dict[UnresolvedDerivation, 'TrustlesslyResolvedDerivation']
+    inputs: Dict[UnresolvedDerivation, 'ResolvedDerivation']
 
     def __hash__(self):
         return hash(self.input_hash)

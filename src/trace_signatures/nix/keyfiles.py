@@ -55,7 +55,7 @@ def parse_nix_public_key(key_path: str) -> TrustedKey:
             raise ValueError("Invalid public key length")
             
         public_key = Ed25519PublicKey.from_public_bytes(key_bytes)
-        return TrustedKey(name=name, key=public_key)
+        return TrustedKey(name=name, key_bytes=bytes(public_key.public_bytes_raw()))
     except Exception as e:
         logger.exception("failed to parse public key file {key_path}")
         raise ValueError(f"Failed to parse public key file {key_path}: {str(e)}")

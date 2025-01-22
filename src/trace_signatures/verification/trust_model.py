@@ -9,13 +9,9 @@ from ..nix.types import (
     TrustlesslyResolvedDerivation
 )
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PublicKey
-)
-
-@dataclass(frozen=True)
+@dataclass (frozen=True)
 class TrustedKey:
-    key: Ed25519PublicKey
+    key_bytes: bytes
     name: str
     #isLegacy: bool
 
@@ -30,14 +26,14 @@ class TrustedKey:
         # TODO: verify
     #    return set()
 
-    def __hash__(self):
-        return hash((self.fingerprint, self.isLegacy, self.name))
+    #def __hash__(self):
+        return hash((self.key.public_bytes_raw(), self.name)) # isLegacy
 
     def __eq__(self, other):
         if not isinstance(other, TrustedKey):
             return False
-        return (self.fingerprint == other.fingerprint) and (
-            self.isLegacy == other.isLegacy) and (
+        return (self.key_bytes == other.key_bytes) and (
+            # self.str == other.isLegacy) and (
             self.name == other.name
         )
 

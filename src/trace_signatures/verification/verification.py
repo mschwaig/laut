@@ -23,7 +23,8 @@ from ..nix.types import (
     UnresolvedInputHash,
     ResolvedInputHash,
     ResolvedDerivation,
-    PossibleInputResolutions
+    PossibleInputResolutions,
+    TrustlesslyResolvedDerivation
 )
 from ..storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -133,7 +134,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> tuple[Set[ResolvedDerivation], List[str]]:
+def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> PossibleInputResolutions:
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
@@ -157,13 +158,19 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
 
     valid_resolutions: PossibleInputResolutions = set()
     for resolution in _get_resolution_combinations(step_result):
-        # TODO: generate input hash
+
+        ct_input_hash = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
+        resolved_derivation = TrustlesslyResolvedDerivation(
+            resolves=inputs.derivation,
+            input_hash=ct_input_hash,
+            inputs=resolution,
+        )
         # TODO: construct resolved derivation
-        ct_signatures = _fetch_ct_signatures(resolution)
+        ct_signatures = _fetch_ct_signatures(ct_input_hash)
         if ct_signatures:
             valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
             if valid:
-                valid_resolutions.add((resolution, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
+                valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
             else:
                 print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
