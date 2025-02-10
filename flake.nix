@@ -93,7 +93,7 @@
           pkgs.pyright
           ]);
         in pkgs.mkShell {
-          PYTHONPATH = "${pythonEnv}/${pythonEnv.sitePackages}";
+          PYTHONPATH = "./src:${pythonEnv}/${pythonEnv.sitePackages}";
           PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
             pythonEnv
