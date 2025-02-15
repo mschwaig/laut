@@ -151,7 +151,7 @@ def remember_steps(func):
             return func.cache[args]
         except KeyError:
             func.cache[args] = result = func(*args)
-            return result   
+            return result
     return wrap_verify_tree_rec
 
 @remember_steps
@@ -164,7 +164,7 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
     valid = False
     if valid:
         return {( valid, f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" )}
-    # TODO: consider different outputs
+    # TODO: consider different outputs (only relevant for DCT)
     step_result: dict[UnresolvedDerivation, PossibleInputResolutions] = dict()
     for i in inputs.derivation.inputs:
         step_result[inputs.derivation] = verify_tree_rec(i, trust_model)
