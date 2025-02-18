@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
 from .trust_model import TrustModel
+from .fetch_signatures import fetch_ct_signatures
 from loguru import logger
 
 def get_derivation_type(drv_data) -> tuple[bool, bool]:
@@ -124,11 +125,6 @@ def _get_resolution_combinations(input_resolutions: dict[UnresolvedDerivation, P
     for combination in itertools.product(*resolution_lists):
         yield dict(zip(input_resolutions.keys(),combination))
 
-def _fetch_ct_signatures(input_hash: ResolvedInputHash):
-    return True
-def _fetch_dct_signatures(input_hash: UnresolvedInputHash):
-    return
-
 def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
     for x in derivation.inputs:
         reject_input_addressed_derivations(x.derivation)
@@ -170,6 +166,7 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
         step_result[inputs.derivation] = verify_tree_rec(i, trust_model)
 
     valid_resolutions: PossibleInputResolutions = set()
+    ct_signatures = list()
     for resolution in _get_resolution_combinations(step_result):
 
         ct_input_hash = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
@@ -178,12 +175,12 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
             input_hash=ct_input_hash,
             inputs=resolution,
         )
-        ct_signatures = _fetch_ct_signatures(ct_input_hash)
-        if ct_signatures:
-            valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
-            if valid:
-                valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
-            else:
-                print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
+        ct_signatures += fetch_ct_signatures(ct_input_hash)
+
+        valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
+        if valid:
+            valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
+        else:
+            print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
     return valid_resolutions

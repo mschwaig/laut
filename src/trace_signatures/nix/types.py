@@ -67,7 +67,7 @@ class TrustfullyResolvedDerivation:
     resolves: UnresolvedDerivation
 
     def __hash__(self):
-        return hash(self.resolves, 'TrustfullyResolvedDerivation')
+        return hash(self.resolves)
 
     def __eq__(self, other):
         if not isinstance(other, TrustfullyResolvedDerivation):
@@ -89,7 +89,8 @@ class UnresolvedOutput:
         if not isinstance(other, UnresolvedOutput):
             return False
         # the input hash already depends on the output name
-        return (self.resolution.input_hash == other.resolution.input_hash)
+        return (self.output_name == other.output_name and
+            self.input_hash == other.input_hash)
 
 @dataclass(frozen=True)
 class ResolvedOutput:
@@ -101,13 +102,15 @@ class ResolvedOutput:
     output_hash: ContentHash
 
     def __hash__(self):
-        return hash((self.output_hash, self.output_name))
+        return hash((self.resolution, self.resolves, self.output_hash))
 
     def __eq__(self, other):
         if not isinstance(other, ResolvedOutput):
             return False
-        return (self.resolution.output_hash == other.resolution.output_hash and
-                self.output_name == other.output_name)
+        return (self.resolution == other.resolution and
+                self.resolves == other.resolves and
+                self.output_hash == other.output_hash
+                )
 
 ResolvedDerivation = TrustlesslyResolvedDerivation | TrustfullyResolvedDerivation
 
