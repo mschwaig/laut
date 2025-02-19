@@ -6,7 +6,29 @@ ResolvedInputHash = str
 DrvPath = str
 ContentHash = str
 
-PossibleInputResolutions = Set[Tuple['ResolvedDerivation', str]]
+# all this input resolution stuff is pretty half-baked
+# maybe this should be the big typed thing that return from
+# recursing through the build-time closure
+# so it woudl have a couple of things
+#class InputResolution:
+# some way to understand what a specific unresovled derivation resolves to
+# but we also may need to tie this intermediary result to a specific 'part'
+# of the trust model somehow
+# grouping resolved derivations in key-specific subsets could work
+# for not counting keys twice, which produced two different resolutions
+#    {{resolved_drv1, reolved_drv2}, {resolved_drv3}}
+# while if we want to support constructing trust models via nesting,
+# which might make sense and would be very elegant, because we can build a lot
+# up that way starting from the threshold function that is kind of outlined
+# in the comments that are part of the VM tests
+# we could address those subgroups using hashes of the set of keys they countain, merkle-style
+# sadly that does not necessarily give good answers about what should come out of the lookup
+# for subgroups ... the set of keys? or the set of resolved derivations?
+# set of keys seems to make sense, but not sure
+# this needs more thought
+#    (subgroup_key) -> list [subgroup_key | resolved_drv]
+
+PossibleInputResolutions = Set[Set[Tuple['ResolvedDerivation', str]]]
 
 InputResolutions = Dict['UnresolvedDerivation', 'ResolvedDerivation']
 
@@ -50,6 +72,7 @@ class TrustlesslyResolvedDerivation:
     resolves: UnresolvedDerivation
     input_hash: ResolvedInputHash
     inputs: Dict[UnresolvedDerivation, 'ResolvedDerivation']
+    outputs: Dict['UnresolvedOutput', ContentHash]
 
     def __hash__(self):
         return hash(self.input_hash)
@@ -58,21 +81,6 @@ class TrustlesslyResolvedDerivation:
         if not isinstance(other, TrustlesslyResolvedDerivation):
             return False
         return self.input_hash == other.input_hash
-
-@dataclass(frozen=True)
-class TrustfullyResolvedDerivation:
-    """Base information about a derivation"""
-    """TODO: the signature checks happen on the ResolvedOutput level for this"""
-    """while for trustlessly resolved derivations we do it on this level"""
-    resolves: UnresolvedDerivation
-
-    def __hash__(self):
-        return hash(self.resolves)
-
-    def __eq__(self, other):
-        if not isinstance(other, TrustfullyResolvedDerivation):
-            return False
-        return self.resolves == other.resolves
 
 @dataclass(frozen=True)
 class UnresolvedOutput:
@@ -92,40 +100,4 @@ class UnresolvedOutput:
         return (self.output_name == other.output_name and
             self.input_hash == other.input_hash)
 
-@dataclass(frozen=True)
-class ResolvedOutput:
-    """Represents a resolved input with its specific output"""
-    """For trustfully resolved derivations we should verify signatures on the output level"""
-    """For trustlessly resolved derivations we verify on the derivation level and go by that"""
-    resolution: 'ResolvedDerivation'
-    resolves: 'UnresolvedOutput'
-    output_hash: ContentHash
-
-    def __hash__(self):
-        return hash((self.resolution, self.resolves, self.output_hash))
-
-    def __eq__(self, other):
-        if not isinstance(other, ResolvedOutput):
-            return False
-        return (self.resolution == other.resolution and
-                self.resolves == other.resolves and
-                self.output_hash == other.output_hash
-                )
-
-ResolvedDerivation = TrustlesslyResolvedDerivation | TrustfullyResolvedDerivation
-
-def compute_resolved_input_hash(drv: UnresolvedDerivation, input_resolutions: InputResolutions) -> TrustlesslyResolvedDerivation:
-    """
-    Compute the input hash for this derivation with specific input resolutions.
-    """
-    # transform input resolutions to content hashes
-    # in same order as original derivation
-    resolutions = list(map(lambda x: x.resolution.output_hashes[x.output_name], input_resolutions))
-    resolved_input_hash = compute_CT_input_hash(drv.drv_path, resolutions)
-    return TrustlesslyResolvedDerivation(drv, resolved_input_hash, input_resolutions)
-
-#  I think we should not need this method anymore, because we should get this by construction
-def _can_resolve(self) -> bool:
-    return all(input_drv.derivation.is_resolved() for input_drv in self.inputs) or (
-        any(resolution.has_unknown_inputs for resolution in self.resolutions)
-    )
+ResolvedDerivation = TrustlesslyResolvedDerivation
