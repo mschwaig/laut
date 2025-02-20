@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 UnresolvedInputHash = str
 ResolvedInputHash = str
@@ -88,7 +88,7 @@ class UnresolvedOutput:
     """For trustfully resolved derivations we should verify signatures on the output level"""
     """For trustlessly resolved derivations we verify on the derivation level and go by that"""
     output_name: str
-    input_hash: UnresolvedInputHash
+    input_hash: Optional[UnresolvedInputHash] # this only exists for input addressed derivations
 
     def __hash__(self):
         return hash((self.input_hash, self.input_hash))

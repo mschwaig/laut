@@ -60,3 +60,8 @@ Maybe we can re-use the same primitive to reason about trivial differences in st
 RECOMMENDATIONS by numinit
 https://www.usenix.org/system/files/1401_08-12_mickens.pdf
 https://fidoalliance.org/wp-content/uploads/2024/06/EDWG_Attestation-White-Paper_2024-1.pdf
+
+
+This is an educational POC which might or might not be turned into a reference implementation at some point.
+
+It would be nice to demonstrate, that it works with Nix, Lix and Guix.

@@ -23,12 +23,15 @@
 
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ contentAddressedOverlay ];
         };
         nix = pkgs.nix;
         nix-vsbom = bombon.lib.${system}.buildBom nix {
           includeBuildtimeDependencies = true;
         };
+
+        test-drv-json = pkgs.writeShellScriptBin "examine-derivation" ''
+          nix derivation show --recursive ${nixpkgs-ca}#hello
+        '';
 
         trace-signatures = pkgs.python3.pkgs.buildPythonApplication {
           pname = "trace-signatures";
@@ -67,7 +70,7 @@
 
     in {
         packages = {
-          inherit nix nix-vsbom trace-signatures;
+          inherit nix nix-vsbom trace-signatures test-drv-json;
           default = trace-signatures;
         };
 

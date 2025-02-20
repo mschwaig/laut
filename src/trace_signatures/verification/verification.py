@@ -30,7 +30,7 @@ from ..storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
-from .trust_model import TrustModel
+from .trust_model import TrustedKey
 from .fetch_signatures import fetch_ct_signatures
 from loguru import logger
 
@@ -49,15 +49,19 @@ def get_derivation_type(drv_data) -> tuple[bool, bool]:
         logger.exception("error determining derivation type")
         raise
 
-def get_all_outputs_of_drv(node_drv_path: str) -> Dict[str, UnresolvedOutput]:
+def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed: bool) -> Dict[str, UnresolvedOutput]:
     global _json
     output_json = _json[node_drv_path]["outputs"]
-    #logger.debug(f"output_json: {output_json}")
-    outputs = {k: UnresolvedOutput(
-        output_name=k,
-        input_hash=get_DCT_input_hash(v["path"])
-    ) for k, v in output_json.items()}
-    #logger.debug(f"outputs: {outputs}")
+    if is_content_addressed:
+        outputs = {k: UnresolvedOutput(
+            output_name=k,
+            input_hash= None
+        ) for k, v in output_json.items()}
+    else:
+        outputs = {k: UnresolvedOutput(
+            output_name=k,
+            input_hash= get_DCT_input_hash(v["path"])
+        ) for k, v in output_json.items()}
     return outputs
 
 def get_referenced_outputs_of_drv(depender: str, dedpendee_obj: UnresolvedDerivation) -> UnresolvedReferencedInputs:
@@ -85,7 +89,7 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     inputs = json_attrs["inputDrvs"]
 
     is_fixed_output, is_content_addressed = get_derivation_type(json_attrs)
-    outputs = get_all_outputs_of_drv(node_drv_path)
+    outputs = get_all_outputs_of_drv(node_drv_path, is_content_addressed)
 
     logger.debug(f"inputs: {inputs}")
     if is_fixed_output:
@@ -130,7 +134,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustModel) -> Tuple[PossibleInputResolutions, dict]:
+def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[PossibleInputResolutions, dict]:
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
@@ -151,15 +155,15 @@ def remember_steps(func):
     return wrap_verify_tree_rec
 
 @remember_steps
-def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel) -> PossibleInputResolutions:
+def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustedKey) -> PossibleInputResolutions:
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
     # TODO: re-enable DCT verification
     #dct_signatures = _fetch_dct_signatures(inputs.derivation.input_hash)
     #valid = trust_model.dct_verify(inputs.derivation.input_hash, dct_signatures)
     valid = False
-    if valid:
-        return {( valid, f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" )}
+    #if valid:
+    #    return {( valid, f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" )}
     # TODO: consider different outputs (only relevant for DCT)
     step_result: dict[UnresolvedDerivation, PossibleInputResolutions] = dict()
     for i in inputs.derivation.inputs:
@@ -170,16 +174,12 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustModel)
     for resolution in _get_resolution_combinations(step_result):
 
         ct_input_hash = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
-        resolved_derivation = TrustlesslyResolvedDerivation(
-            resolves=inputs.derivation,
-            input_hash=ct_input_hash,
-            inputs=resolution,
-        )
         ct_signatures += fetch_ct_signatures(ct_input_hash)
 
-        valid = trust_model.ct_verify(inputs.derivation.input_hash, ct_signatures)
+        valid = trust_model.ct_verify(inputs.derivation, ct_input_hash, resolution, ct_signatures)
         if valid:
-            valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
+            print("vaildated {resolution} for {inputs.derivation.drv_path}")
+    #        valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
         else:
             print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 

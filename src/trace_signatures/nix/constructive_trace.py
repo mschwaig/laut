@@ -2,6 +2,11 @@ import subprocess
 import hashlib
 import base64
 from loguru import logger
+from trace_signatures.nix.types import (
+    UnresolvedDerivation,
+    ResolvedDerivation,
+    ResolvedInputHash
+)
 from .commands import (
     get_derivation,
     get_output_hash
@@ -40,12 +45,15 @@ def resolve_dependencies(drv_data, resolutions):
     input_drvs = drv_data.get('inputDrvs', {}).keys()
 
     # Get content hash for each input derivation and add to inputSrcs
-    if resolutions:
-        resolved_srcs + resolutions
-    else:
-        for drv in input_drvs:
+    for drv in input_drvs:
+        # TODO: make sure we are considering different outputs per derivation in both code paths here
+        if resolutions:
+            # if we cannot resolve something
+            # we should make sure to throw an exception here
+            hash_path = resolutions[drv]
+        else:
             hash_path = get_output_hash(drv)
-            resolved_srcs.append(hash_path)
+        resolved_srcs.append(hash_path)
 
     # Create modified derivation with resolved dependencies
     modified_drv = drv_data.copy()
@@ -54,7 +62,7 @@ def resolve_dependencies(drv_data, resolutions):
 
     return modified_drv
 
-def compute_CT_input_hash(drv_path: str, resolutions) -> str:
+def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation, ResolvedDerivation]) -> ResolvedInputHash:
     """
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.

@@ -35,43 +35,50 @@ def display_top(snapshot, key_type='lineno', limit=10):
     total = sum(stat.size for stat in top_stats)
     print("Total allocated size: %.1f KiB" % (total / 1024))
 
-def test_small():
-    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
+def test_ia_drv_tree_small():
+    data_file = Path(__file__).parent / "data" / "hello-ia-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
     drv = build_unresolved_tree("/nix/store/fxz942i5pzia8cgha06swhq216l01p8d-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
-def test_large():
-    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
+def test_ca_drv_tree_small():
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
-    drv = build_unresolved_tree("/nix/store/lrrywp3k594k3295lh92lm7a387wk0j9-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/xjdqlsw518crs3g0f5lw0kklf1gkwfg8-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+
+def test_ca_large():
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+    with open(data_file) as f:
+        hello_recursive = json.load(f)
+
+    drv = build_unresolved_tree("/nix/store/bc6ylmfbnx9glxqj8lz5nh2ghcqpzwc5-hello-2.12.1.drv", hello_recursive)
 
 def test_loadKey():
     key = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
     print(key)
 
-def test_verify_small():
-    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
+def test_verify_ca_drv_small():
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    drv = build_unresolved_tree("/nix/store/fxz942i5pzia8cgha06swhq216l01p8d-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/xjdqlsw518crs3g0f5lw0kklf1gkwfg8-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
     list = verify_tree(drv, trust_model)
     #tracemalloc.start()
     #snapshot = tracemalloc.take_snapshot()
     #display_top(snapshot)
 
-def test_verify_large():
-    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
-    with open(data_file) as f:
-        hello_recursive = json.load(f)
-    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    drv = build_unresolved_tree("/nix/store/lrrywp3k594k3295lh92lm7a387wk0j9-hello-2.12.1.drv", hello_recursive)
+#def test_verify_ca_drv_large():
+#    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
+#    with open(data_file) as f:
+#        hello_recursive = json.load(f)
+#    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
+#    drv = build_unresolved_tree("/nix/store/bc6ylmfbnx9glxqj8lz5nh2ghcqpzwc5-hello-2.12.1.drv", hello_recursive)
     #tracemalloc.start()
-    list = verify_tree(drv, trust_model)
+#    list = verify_tree(drv, trust_model)
     #snapshot = tracemalloc.take_snapshot()
     #display_top(snapshot)
