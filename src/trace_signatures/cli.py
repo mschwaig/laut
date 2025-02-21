@@ -101,7 +101,7 @@ def verify(target, cache, trusted_key):
     try:
         # Read and validate trusted keys
         trusted_keys = {}  # Dict[str, Ed25519PublicKey]
-        for key_path in trusted_key:
+        for key_path in trusted_keys:
             name, public_key = read_public_key(key_path)
             trusted_keys[name] = public_key
             logger.debug(f"Added trusted key from {key_path}")

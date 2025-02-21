@@ -37,22 +37,22 @@ from loguru import logger
 def get_derivation_type(drv_data) -> tuple[bool, bool]:
     """Determine if a derivation is fixed-output and/or content-addressed"""
     try:
-        # Check for fixed-output
-        env = drv_data.get("env", {})
-        is_fixed_output = bool(env.get("outputHash", ""))
+        outputs = drv_data.get("outputs", {})
+        first_output = next(iter(outputs.values()), {})
+        has_path = bool(first_output.get("path", False))
+        has_hash = bool(first_output.get("hash", False))
+        is_content_addressed_drv =  (not has_path) and (not has_hash)
+        is_fixed_output = has_hash
 
-        # Check for content-addressing
-        is_content_addressed = bool(drv_data.get("__contentAddressed", False))
-
-        return is_fixed_output, is_content_addressed
+        return is_fixed_output, is_content_addressed_drv
     except Exception:
         logger.exception("error determining derivation type")
         raise
 
-def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed: bool) -> Dict[str, UnresolvedOutput]:
+def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed_drv: bool) -> Dict[str, UnresolvedOutput]:
     global _json
     output_json = _json[node_drv_path]["outputs"]
-    if is_content_addressed:
+    if is_content_addressed_drv:
         outputs = {k: UnresolvedOutput(
             output_name=k,
             input_hash= None
@@ -88,8 +88,8 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     json_attrs = _json[node_drv_path]
     inputs = json_attrs["inputDrvs"]
 
-    is_fixed_output, is_content_addressed = get_derivation_type(json_attrs)
-    outputs = get_all_outputs_of_drv(node_drv_path, is_content_addressed)
+    is_fixed_output, is_content_addressed_drv = get_derivation_type(json_attrs)
+    outputs = get_all_outputs_of_drv(node_drv_path, is_content_addressed_drv)
 
     logger.debug(f"inputs: {inputs}")
     if is_fixed_output:
@@ -111,7 +111,7 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
         input_hash=get_DCT_input_hash(node_drv_path),
         inputs=input_outputs,
         outputs=outputs,
-        is_content_addressed=is_content_addressed,
+        is_content_addressed=is_content_addressed_drv, # this field shold not really mater for FODs because they are leafs in the tree
         is_fixed_output=is_fixed_output,
     )
     #logger.debug(f"{unresolved_derivation}")
@@ -177,10 +177,10 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustedKey)
         ct_signatures += fetch_ct_signatures(ct_input_hash)
 
         valid = trust_model.ct_verify(inputs.derivation, ct_input_hash, resolution, ct_signatures)
-        if valid:
-            print("vaildated {resolution} for {inputs.derivation.drv_path}")
+    #    if valid:
+    #        print("vaildated {resolution} for {inputs.derivation.drv_path}")
     #        valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
-        else:
-            print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
+    #    else:
+    #        print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
     return valid_resolutions

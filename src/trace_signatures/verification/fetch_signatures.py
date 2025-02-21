@@ -6,7 +6,7 @@ from typing import Dict, Set, Optional, List
 def fetch_ct_signatures(input_hash: str) -> List[dict]:
     """Fetch and parse signatures from all configured caches"""
     all_signatures = []
-    for cache_url in [ "https://cache.nixos.org" ]:
+    for cache_url in []: # [ "https://cache.nixos.org" ]:
         try:
             s3_info = get_s3_client(cache_url, anon=True)
             s3_client = s3_info['client']
@@ -25,7 +25,7 @@ def fetch_ct_signatures(input_hash: str) -> List[dict]:
         except Exception:
             logger.exception(f"error fetching signatures from {cache_url}")
             continue
-    logger.debug("Signatures found for input hash {input_hash}: {all_signatures}")
+    logger.debug(f"{len(all_signatures)} signatures found for input hash {input_hash}: {all_signatures}")
 
     return all_signatures
 
