@@ -132,16 +132,16 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1732521221,
-        "narHash": "sha256-2ThgXBUXAE1oFsVATK1ZX9IjPcS4nKFOAjhPNKuiMn0=",
-        "owner": "NixOS",
+        "lastModified": 1740499587,
+        "narHash": "sha256-BePtPXUseDvQH2Q2X3YMljEs7/E9LXzYuRPBs4WgOFo=",
+        "owner": "mschwaig",
         "repo": "nixpkgs",
-        "rev": "4633a7c72337ea8fd23a4f2ba3972865e3ec685d",
+        "rev": "6902f39b9b318b57951442f44ccec46bde56a043",
         "type": "github"
       },
       "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
+        "owner": "mschwaig",
+        "ref": "fix-swig-option-for-souffle-before-rebase",
         "repo": "nixpkgs",
         "type": "github"
       }

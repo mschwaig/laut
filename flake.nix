@@ -2,7 +2,7 @@
   description = "Verifiable SBOM VM Tests";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:mschwaig/nixpkgs/fix-swig-option-for-souffle-before-rebase";
     bombon.url = "github:nikstur/bombon";
     flake-utils.url = "github:numtide/flake-utils";
   };
@@ -63,7 +63,10 @@
             boto3
             click
             loguru
-          ];
+          ] ++ (with pkgs; [
+            souffle
+            swig
+          ]);
 
           pythonImportsCheck = [ "trace_signatures" ];
         };
@@ -100,6 +103,7 @@
           PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
             pythonEnv
+            pkgs.souffle
           ];
         };
     });
