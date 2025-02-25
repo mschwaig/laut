@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nix-verify-souffle"
+version = "0.1.0"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nix-verify-souffle"]
+
+[tool.hatch.build.targets.wheel.sources]
+"nix-verify-souffle" = ["nix-verify-souffle.so"]
