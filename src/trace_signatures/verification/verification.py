@@ -5,6 +5,8 @@ import subprocess
 import json
 import itertools
 import jwt
+from nix_verify_souffle import SwigInterface
+
 from ..nix.commands import (
     get_derivation,
     check_nixos_cache,
@@ -139,6 +141,9 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
+
+    p = SwigInterface.newInstance("nix_verify")
+
     root_result = verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), trust_model)
 
     return (root_result,  verify_tree_rec.__wrapped__.cache)

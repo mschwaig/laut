@@ -29,7 +29,7 @@
         '';
 
         nix-verify-souffle = pkgs.python3.pkgs.buildPythonApplication {
-          pname = "nix-verify-souffle";
+          pname = "nix_verify_souffle";
           version = "0.1.0";
 
           src = ./datalog;
@@ -42,20 +42,21 @@
             souffle
           ];
 
-          pythonImportsCheck = [ "nix-verify-souffle" ];
+          pythonImportsCheck = [ "nix_verify_souffle" ];
           doCheck = false;
 
           buildPhase = ''
-            souffle -o nix-verify-souffle $src/nix-verify.dl
-            souffle -s python $src/nix-verify.dl
+            souffle -o nix_verify_souffle $src/nix_verify.dl
+            souffle -s python $src/nix_verify.dl
           '';
 
           installPhase = ''
-            PKGS_PATH=$out/${pkgs.python3.sitePackages}/nix-verify-souffle
+            PKGS_PATH=$out/${pkgs.python3.sitePackages}/nix_verify_souffle
             mkdir -p $out/bin $PKGS_PATH
-            cp nix-verify-souffle $out/bin/
-            cp SwigInterface.py $PKGS_PATH/nix-verify-souffle.py
-            cp _SwigInterface.so $PKGS_PATH/nix-verify-souffle.so
+            cp nix_verify_souffle $out/bin/
+            touch $PKGS_PATH/__init__.py
+            cp SwigInterface.py $PKGS_PATH/SwigInterface.py
+            cp _SwigInterface.so $PKGS_PATH/_SwigInterface.so
           '';
         };
 
@@ -120,7 +121,9 @@
             debugpy
             memory_profiler
           ] ++ [
-          pkgs.pyright
+            pkgs.pyright
+          ] ++ [
+            nix-verify-souffle
           ]);
         in pkgs.mkShell {
           PYTHONPATH = "./src:${pythonEnv}/${pythonEnv.sitePackages}";
@@ -128,6 +131,7 @@
           buildInputs = [
             pythonEnv
             pkgs.souffle
+            nix-verify-souffle
           ];
         };
     });
