@@ -196,7 +196,7 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
 
     valid_resolutions: PossibleInputResolutions = set()
     for resolution in _get_resolution_combinations(step_result):
-        ct_input_hash = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
+        ct_input_hash, ct_input_data = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
 
         drv_resolutions.write(f"{inputs.derivation.drv_path}\t{ct_input_hash}\n")
         for r in resolution.values():

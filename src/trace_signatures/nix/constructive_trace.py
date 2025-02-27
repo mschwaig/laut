@@ -62,7 +62,7 @@ def resolve_dependencies(drv_data, resolutions):
 
     return modified_drv
 
-def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation, ResolvedDerivation]) -> ResolvedInputHash:
+def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation, ResolvedDerivation]) -> tuple[ResolvedInputHash, str]:
     """
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.
@@ -71,8 +71,9 @@ def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation,
     resolved_drv_json = resolve_dependencies(unresolved_drv_json, resolutions)
     resolved_canonical = rfc8785.dumps(resolved_drv_json)
     resolved_input_hash = compute_sha256_base64(resolved_canonical)
+    hash_input = resolved_canonical.decode('utf-8')
 
-    print(f"Resolved JSON: {resolved_canonical.decode('utf-8')}")
+    print(f"Resolved JSON: {hash_input}")
     print(f"Final SHA-256 (base64): {resolved_input_hash}")
 
-    return resolved_input_hash
+    return resolved_input_hash, hash_input
