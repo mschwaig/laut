@@ -72,13 +72,13 @@ def test_verify_ca_drv_small():
     #snapshot = tracemalloc.take_snapshot()
     #display_top(snapshot)
 
-#def test_verify_ca_drv_large():
-#    data_file = Path(__file__).parent / "data" / "hello-recursive.drv"
-#    with open(data_file) as f:
-#        hello_recursive = json.load(f)
-#    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-#    drv = build_unresolved_tree("/nix/store/bc6ylmfbnx9glxqj8lz5nh2ghcqpzwc5-hello-2.12.1.drv", hello_recursive)
+def test_verify_ca_drv_large():
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+    with open(data_file) as f:
+        hello_recursive = json.load(f)
+    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
+    drv = build_unresolved_tree("/nix/store/bc6ylmfbnx9glxqj8lz5nh2ghcqpzwc5-hello-2.12.1.drv", hello_recursive)
     #tracemalloc.start()
-#    list = verify_tree(drv, trust_model)
+    list = verify_tree(drv, trust_model)
     #snapshot = tracemalloc.take_snapshot()
     #display_top(snapshot)
