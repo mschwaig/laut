@@ -7,6 +7,9 @@ import itertools
 import jwt
 from nix_verify_souffle import SwigInterface
 
+import os
+import tempfile
+
 from ..nix.commands import (
     get_derivation,
     check_nixos_cache,
@@ -143,24 +146,40 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
     #       the content of the memoization cache has a "log entry" for each build step
 
     p = SwigInterface.newInstance("nix_verify")
+    with tempfile.TemporaryDirectory() as temp_dir:
 
-    root_result = verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), trust_model)
+        unresolved_deps_file = open(os.path.join(temp_dir, 'unresolved_deps.facts'), 'w')
+        drv_resolutions_file = open(os.path.join(temp_dir, 'drv_resolutions.facts'), 'w')
+        resolved_deps_file = open(os.path.join(temp_dir, 'resolved_deps.facts'), 'w')
+        builds_file = open(os.path.join(temp_dir, 'builds.facts'), 'w')
+        
+        root_result = verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
 
-    return (root_result,  verify_tree_rec.__wrapped__.cache)
+        unresolved_deps_file.close()
+        resolved_deps_file.close()
+        builds_file.close()
+
+        p.loadAll(temp_dir)
+        p.run()
+
+        p.dumpInputs()
+        p.dumpOutputs()
+
+        return (root_result,  verify_tree_rec.__wrapped__.cache)
 
 def remember_steps(func):
     func.cache = dict()
     @wraps(func)
     def wrap_verify_tree_rec(*args):
         try:
-            return func.cache[args]
+            return func.cache[args[0]]
         except KeyError:
-            func.cache[args] = result = func(*args)
+            func.cache[args[0]] = result = func(*args)
             return result
     return wrap_verify_tree_rec
 
 @remember_steps
-def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustedKey) -> PossibleInputResolutions:
+def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, drv_resolutions, resolved_deps_file, builds_file) -> PossibleInputResolutions:
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
     # TODO: re-enable DCT verification
@@ -172,16 +191,21 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, trust_model: TrustedKey)
     # TODO: consider different outputs (only relevant for DCT)
     step_result: dict[UnresolvedDerivation, PossibleInputResolutions] = dict()
     for i in inputs.derivation.inputs:
-        step_result[inputs.derivation] = verify_tree_rec(i, trust_model)
+        unresolved_deps_file.write(f"{inputs.derivation.drv_path}\t{i.derivation.drv_path}\n")
+        step_result[inputs.derivation] = verify_tree_rec(i, unresolved_deps_file, drv_resolutions, resolved_deps_file, builds_file)
 
     valid_resolutions: PossibleInputResolutions = set()
-    ct_signatures = list()
     for resolution in _get_resolution_combinations(step_result):
-
         ct_input_hash = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
-        ct_signatures += fetch_ct_signatures(ct_input_hash)
 
-        valid = trust_model.ct_verify(inputs.derivation, ct_input_hash, resolution, ct_signatures)
+        drv_resolutions.write(f"{inputs.derivation.drv_path}\t{ct_input_hash}\n")
+        for r in resolution.values():
+            resolved_deps_file.write(f"{ct_input_hash}\t{r.resolves.drv_path}\t{r.input_hash}\n")
+        for signature in fetch_ct_signatures(ct_input_hash):
+            # TODO: verify signature
+            # TODO: consider outputs other than out
+            builds_file.write(f"{signature["in"]}\t{signature["out"]["out"]}\n")
+
     #    if valid:
     #        print("vaildated {resolution} for {inputs.derivation.drv_path}")
     #        valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
