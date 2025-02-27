@@ -1,5 +1,5 @@
-rdrv1	drv1	drv2	rdrv2
-rdrv1	drv1	drv3	rdrv3
-rdrv2	drv2	drv4	rdrv4
-rdrv3	drv3	drv4	rdrv4
-rdrv7	drv7	drv9	rdrv9
+rdrv1	drv2	rdrv2
+rdrv1	drv3	rdrv3
+rdrv2	drv4	rdrv4
+rdrv3	drv4	rdrv4
+rdrv7	drv9	rdrv9

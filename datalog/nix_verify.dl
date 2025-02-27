@@ -8,17 +8,20 @@
 .decl unresolvedDeps(unresolvedDrv: UnresolvedInputHash, dependsOn: UnresolvedInputHash)
 .input unresolvedDeps(IO="file", filename="unresolved_deps.facts")
 
-.decl resolvedDeps(resolvedDrv: ResolvedInputHash, fromUnresolved: UnresolvedInputHash, 
-                   unresolvedDep: UnresolvedInputHash, dependsOnResolved: ResolvedInputHash)
-.input resolvedDeps(IO="file", filename="resolved_deps.facts")
+// Maps unresolved to resolved derivations
+.decl derivationResolution(unresolvedDrv: UnresolvedInputHash, resolvedDrv: ResolvedInputHash)
+.input derivationResolution(IO="file", filename="drv_resolutions.facts")
+
+// Maps dependencies between resolved derivations while preserving context
+.decl resolvedDependency(resolvedDrv: ResolvedInputHash, 
+                         unresolvedDep: UnresolvedInputHash, 
+                         dependsOnResolved: ResolvedInputHash)
+.input resolvedDependency(IO="file", filename="resolved_deps.facts")
 
 .decl builds(resolvedDrv: ResolvedInputHash, outputHash: ContentHash)
 .input builds(IO="file", filename="builds.facts")
 
 // Intermediate relations
-// Track which unresolved derivations can be resolved to which resolved derivations
-.decl resolvesTo(unresolvedDrv: UnresolvedInputHash, resolvedDrv: ResolvedInputHash)
-
 // Track which resolved derivations can be built to which outputs
 .decl buildOutput(resolvedDrv: ResolvedInputHash, outputHash: ContentHash)
 
@@ -28,70 +31,63 @@
 
 // Rules
 
-// Connect unresolved derivations to their resolved versions
-resolvesTo(unresolved, resolved) :-
-    resolvedDeps(resolved, unresolved, _, _).
-
 // Connect resolved derivations to their build outputs
 buildOutput(resolved, outputHash) :-
     builds(resolved, outputHash).
 
 // Generate final output combining all information
 finalOutput(unresolved, resolved, outputHash) :-
-    resolvesTo(unresolved, resolved),
+    derivationResolution(unresolved, resolved),
     buildOutput(resolved, outputHash).
 
 // Verification Rules
 
-// Track which unresolved dependencies are handled in resolved deps
-.decl handledDependency(resolvedDrv: ResolvedInputHash, unresolvedDrv: UnresolvedInputHash, dependsOn: UnresolvedInputHash)
-handledDependency(resolvedDrv, unresolvedDrv, dependsOn) :-
-    resolvedDeps(resolvedDrv, unresolvedDrv, dependsOn, _).
+// 1. Verify that all unresolved derivations have a resolution
+.decl unresolvedDrvWithoutResolution(unresolvedDrv: UnresolvedInputHash)
+unresolvedDrvWithoutResolution(drv) :-
+    unresolvedDeps(drv, _),
+    !derivationResolution(drv, _).
 
-// 1. Verify that all dependencies are properly resolved
-// An unresolved dependency is missing if:
-// a) The dependency itself isn't resolved
-// b) And it's not handled in any resolved derivation
-.decl unresolvedDependencyMissing(unresolvedDrv: UnresolvedInputHash, dependsOn: UnresolvedInputHash)
-unresolvedDependencyMissing(drv, dep) :-
-    unresolvedDeps(drv, dep),
-    !resolvesTo(dep, _),
-    !handledDependency(_, drv, dep).
+unresolvedDrvWithoutResolution(drv) :-
+    unresolvedDeps(_, drv),
+    !derivationResolution(drv, _).
 
-// 2. Verify that all resolved dependencies have corresponding builds
+// 2. Verify that all dependencies in unresolved_deps are reflected in resolved dependencies
+.decl missingResolvedDependency(resolvedDrv: ResolvedInputHash, unresolvedDrv: UnresolvedInputHash, 
+                              unresolvedDep: UnresolvedInputHash)
+missingResolvedDependency(resolvedDrv, unresolvedDrv, unresolvedDep) :-
+    derivationResolution(unresolvedDrv, resolvedDrv),
+    unresolvedDeps(unresolvedDrv, unresolvedDep),
+    !resolvedDependency(resolvedDrv, unresolvedDep, _).
+
+// 3. Verify that all dependencies in resolved_dependencies correspond to actual unresolved dependencies
+.decl unexpectedResolvedDependency(resolvedDrv: ResolvedInputHash, unresolvedDrv: UnresolvedInputHash, 
+                                 unresolvedDep: UnresolvedInputHash)
+unexpectedResolvedDependency(resolvedDrv, unresolvedDrv, unresolvedDep) :-
+    derivationResolution(unresolvedDrv, resolvedDrv),
+    resolvedDependency(resolvedDrv, unresolvedDep, _),
+    !unresolvedDeps(unresolvedDrv, unresolvedDep).
+
+// 4. Verify that all resolved dependencies point to actual resolved derivations
+.decl invalidResolvedDependency(resolvedDrv: ResolvedInputHash, unresolvedDep: UnresolvedInputHash, 
+                              dependsOnResolved: ResolvedInputHash)
+invalidResolvedDependency(resolvedDrv, unresolvedDep, dependsOnResolved) :-
+    resolvedDependency(resolvedDrv, unresolvedDep, dependsOnResolved),
+    !derivationResolution(unresolvedDep, dependsOnResolved).
+
+// 5. Verify that all resolved derivations have builds
 .decl missingBuild(resolvedDrv: ResolvedInputHash)
-missingBuild(dependencyDrv) :-
-    resolvedDeps(_, _, _, dependencyDrv),
-    !builds(dependencyDrv, _).
+missingBuild(resolvedDrv) :-
+    derivationResolution(_, resolvedDrv),
+    !builds(resolvedDrv, _).
 
-// 3. Verify dependency satisfaction
-// A dependency mismatch occurs when:
-// a) A resolved derivation claims a dependency that wasn't in the original unresolved deps
-// b) Or when a required dependency from unresolved deps isn't handled
-.decl dependencyMismatch(resolvedDrv: ResolvedInputHash, unresolvedDrv: UnresolvedInputHash, 
-                        expectedDep: UnresolvedInputHash, actualDep: UnresolvedInputHash)
-dependencyMismatch(resolvedDrv, unresolvedDrv, expectedDep, actualDep) :-
-    resolvedDeps(resolvedDrv, unresolvedDrv, actualDep, _),
-    !unresolvedDeps(unresolvedDrv, actualDep),
-    unresolvedDeps(unresolvedDrv, expectedDep).
-
-// 4. Verify that each dependency has a corresponding resolved dependency
-.decl missingDependencyResolution(resolvedDrv: ResolvedInputHash, unresolvedDrv: UnresolvedInputHash, 
-                                 missingDep: UnresolvedInputHash)
-missingDependencyResolution(resolvedDrv, unresolvedDrv, missingDep) :-
-    resolvedDeps(resolvedDrv, unresolvedDrv, _, _),
-    unresolvedDeps(unresolvedDrv, missingDep),
-    !handledDependency(resolvedDrv, unresolvedDrv, missingDep).
-
-// 5. Verify resolved dependency outputs exist
-.decl missingDependencyOutput(resolvedDrv: ResolvedInputHash, dependencyDrv: ResolvedInputHash)
-missingDependencyOutput(resolvedDrv, dependencyDrv) :-
-    resolvedDeps(resolvedDrv, _, _, dependencyDrv),
-    !builds(dependencyDrv, _).
+missingBuild(dependsOnResolved) :-
+    resolvedDependency(_, _, dependsOnResolved),
+    !builds(dependsOnResolved, _).
 
 // Output verification relations
-.output unresolvedDependencyMissing(IO="file", filename="missing_deps.facts")
+.output unresolvedDrvWithoutResolution(IO="file", filename="unresolved_without_resolution.facts")
+.output missingResolvedDependency(IO="file", filename="missing_resolved_deps.facts")
+.output unexpectedResolvedDependency(IO="file", filename="unexpected_resolved_deps.facts")
+.output invalidResolvedDependency(IO="file", filename="invalid_resolved_deps.facts")
 .output missingBuild(IO="file", filename="missing_builds.facts")
-.output dependencyMismatch(IO="file", filename="dependency_mismatches.facts")
-.output missingDependencyResolution(IO="file", filename="missing_resolutions.facts")
-.output missingDependencyOutput(IO="file", filename="missing_dependency_outputs.facts")
