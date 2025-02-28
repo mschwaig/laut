@@ -10,7 +10,8 @@
                 "-v",
                 "--no-cov",
                 "--pdb",
-                //"${file}"
+                //"${file}",
+                //"-k", "test_verify_ca_drv_small",
                 "tests"
             ],
             "console": "integratedTerminal",

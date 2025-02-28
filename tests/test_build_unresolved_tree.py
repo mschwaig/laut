@@ -66,6 +66,8 @@ def test_verify_ca_drv_small():
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
+    #drv = build_unresolved_tree("/nix/store/6npakc9rj94rhj97n7l87m6xmha5rrfv-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
+    #drv = build_unresolved_tree("/nix/store/0m4y3j4pnivlhhpr5yqdvlly86p93fwc-busybox.drv", hello_recursive)
     drv = build_unresolved_tree("/nix/store/xjdqlsw518crs3g0f5lw0kklf1gkwfg8-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
     list = verify_tree(drv, trust_model)
     #tracemalloc.start()

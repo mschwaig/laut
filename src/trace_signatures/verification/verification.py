@@ -124,22 +124,22 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     #logger.debug(f"{list(outputs)}")
     return unresolved_derivation
 
-def _get_resolution_combinations(input_resolutions: dict[UnresolvedDerivation, PossibleInputResolutions]) -> Iterator[dict[UnresolvedDerivation, ResolvedDerivation]]:
+def _get_resolution_combinations(input_resolutions: dict[UnresolvedDerivation, set[TrustlesslyResolvedDerivation]]) -> Iterator[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]:
     resolution_lists = [
-        list(map(lambda x: x[0], list(resolutions)))
-       #list(resolutions)
+        list(map(lambda x: x, list(resolutions)))
+        #list(input_resolutions)
         for resolutions in input_resolutions.values()
     ]
 
     for combination in itertools.product(*resolution_lists):
-        yield dict(zip(input_resolutions.keys(),combination))
+        yield dict(zip(input_resolutions.keys(), combination))
 
 def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
     for x in derivation.inputs:
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[PossibleInputResolutions, dict]:
+def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[set[TrustlesslyResolvedDerivation], dict]:
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
@@ -179,7 +179,11 @@ def remember_steps(func):
     return wrap_verify_tree_rec
 
 @remember_steps
-def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, drv_resolutions, resolved_deps_file, builds_file) -> PossibleInputResolutions:
+def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> Set[TrustlesslyResolvedDerivation]:
+
+    # if we invoke this with a FOD that should probably be an error?
+    # we also should not recurse into FODs
+
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
     # TODO: re-enable DCT verification
@@ -189,22 +193,44 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
     #if valid:
     #    return {( valid, f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" )}
     # TODO: consider different outputs (only relevant for DCT)
-    step_result: dict[UnresolvedDerivation, PossibleInputResolutions] = dict()
+    step_result: dict[UnresolvedDerivation, set[TrustlesslyResolvedDerivation]] = dict()
+    failed = False
     for i in inputs.derivation.inputs:
         unresolved_deps_file.write(f"{inputs.derivation.drv_path}\t{i.derivation.drv_path}\n")
-        step_result[inputs.derivation] = verify_tree_rec(i, unresolved_deps_file, drv_resolutions, resolved_deps_file, builds_file)
+        dep_result = verify_tree_rec(i, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        if not dep_result:
+            # nope out if we cannot resolve one of our dependencies
+            failed = True
+        step_result[inputs.derivation] = dep_result
+    if failed:
+        return set()
 
-    valid_resolutions: PossibleInputResolutions = set()
-    for resolution in _get_resolution_combinations(step_result):
+    if len(step_result) == 0:
+        # nothing to resolve if all your dependencies are leafs in the tree
+        # meaning none are derivations
+        resolutions = [{}] # a list containing only an empty dictionary
+    else:
+        # otherwise we have at least one thing to resolve
+        resolutions = _get_resolution_combinations(step_result)
+
+    plausible_resolutions: set[TrustlesslyResolvedDerivation] = set()
+    for resolution in resolutions:
         ct_input_hash, ct_input_data = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
 
-        drv_resolutions.write(f"{inputs.derivation.drv_path}\t{ct_input_hash}\n")
+        drv_resolutions_file.write(f"{inputs.derivation.drv_path}\t{ct_input_hash}\n")
         for r in resolution.values():
             resolved_deps_file.write(f"{ct_input_hash}\t{r.resolves.drv_path}\t{r.input_hash}\n")
         for signature in fetch_ct_signatures(ct_input_hash):
             # TODO: verify signature
             # TODO: consider outputs other than out
             builds_file.write(f"{signature["in"]}\t{signature["out"]["out"]}\n")
+            plausible_resolutions.add(TrustlesslyResolvedDerivation(
+                   resolves = inputs.derivation,
+                    input_hash = ct_input_data,
+                    # might not have to keep track of those two in python
+                    inputs = resolution,
+                    outputs = dict() # TODO: fix or remove
+            ))
 
     #    if valid:
     #        print("vaildated {resolution} for {inputs.derivation.drv_path}")
@@ -212,4 +238,4 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
     #    else:
     #        print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
-    return valid_resolutions
+    return plausible_resolutions
