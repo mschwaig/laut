@@ -183,6 +183,15 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
 
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
+    if inputs.derivation.is_fixed_output:
+        ct_input_hash, ct_input_data = compute_CT_input_hash(inputs.derivation.drv_path, dict())
+        return {TrustlesslyResolvedDerivation(
+                resolves = inputs.derivation,
+                input_hash = ct_input_hash,
+                # might not have to keep track of those two in python
+                inputs = dict(),
+                outputs = { inputs.derivation.outputs["out"]: inputs.derivation.json_attrs["outputs"]["out"]["hash"]} # TODO: fix or remove, add algorithm
+        )}
 
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
@@ -201,7 +210,7 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
         if not dep_result:
             # nope out if we cannot resolve one of our dependencies
             failed = True
-        step_result[inputs.derivation] = dep_result
+        step_result[i.derivation] = dep_result
     if failed:
         return set()
 
@@ -211,22 +220,22 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
         resolutions = [{}] # a list containing only an empty dictionary
     else:
         # otherwise we have at least one thing to resolve
-        resolutions = _get_resolution_combinations(step_result)
+        resolutions: list[dict[UnresolvedDerivation, ResolvedDerivation]] = list(_get_resolution_combinations(step_result))
 
     plausible_resolutions: set[TrustlesslyResolvedDerivation] = set()
     for resolution in resolutions:
         ct_input_hash, ct_input_data = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
 
-        drv_resolutions_file.write(f"{inputs.derivation.drv_path}\t{ct_input_hash}\n")
+        drv_resolutions_file.write(f"{inputs.derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
-            resolved_deps_file.write(f"{ct_input_hash}\t{r.resolves.drv_path}\t{r.input_hash}\n")
+            resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
         for signature in fetch_ct_signatures(ct_input_hash):
             # TODO: verify signature
             # TODO: consider outputs other than out
-            builds_file.write(f"{signature["in"]}\t{signature["out"]["out"]}\n")
+            builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"]["out"]}\"\n")
             plausible_resolutions.add(TrustlesslyResolvedDerivation(
                    resolves = inputs.derivation,
-                    input_hash = ct_input_data,
+                    input_hash = ct_input_hash,
                     # might not have to keep track of those two in python
                     inputs = resolution,
                     outputs = dict() # TODO: fix or remove

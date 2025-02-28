@@ -27,7 +27,7 @@ def compute_sha256_base64(data: bytes):
     logger.debug(f"Computed hash: {result}")
     return result
 
-def resolve_dependencies(drv_data, resolutions):
+def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, ResolvedDerivation]):
     """
     Resolve all dependencies in a derivation by getting their content hashes
     and incorporating them into inputSrcs.
@@ -38,6 +38,9 @@ def resolve_dependencies(drv_data, resolutions):
     Returns:
         dict: Modified derivation with resolved dependencies
     """
+    # Get rid of typed keys we cannot use here
+    str_key_resolutions = {drv.drv_path: value for drv, value in resolutions.items()}
+
     # Get existing inputSrcs
     resolved_srcs = list(drv_data.get('inputSrcs', []))
 
@@ -47,10 +50,11 @@ def resolve_dependencies(drv_data, resolutions):
     # Get content hash for each input derivation and add to inputSrcs
     for drv in input_drvs:
         # TODO: make sure we are considering different outputs per derivation in both code paths here
-        if resolutions:
+        if str_key_resolutions:
             # if we cannot resolve something
             # we should make sure to throw an exception here
-            hash_path = resolutions[drv]
+            dependency_drv = str_key_resolutions[drv]
+            hash_path = dependency_drv.outputs[dependency_drv.resolves.outputs["out"]]
         else:
             hash_path = get_output_hash(drv)
         resolved_srcs.append(hash_path)
