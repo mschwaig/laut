@@ -14,13 +14,17 @@ dependencies = [
     "cryptography",
     "boto3",
     "click",
-    "pytest",
-    "pytest-cov",
 ]
 
 [project.scripts]
 trace-signatures = "trace_signatures.cli:main"
 "trace-signatures.py" = "trace_signatures.cli:main"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
