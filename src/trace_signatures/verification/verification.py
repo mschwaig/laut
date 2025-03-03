@@ -158,10 +158,7 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         unresolved_deps_file.close()
         resolved_deps_file.close()
         builds_file.close()
-
-        p.loadAll(temp_dir)
-        p.run()
-
+        p.runAll(temp_dir, "")
         p.dumpInputs()
         p.dumpOutputs()
 
