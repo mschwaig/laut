@@ -125,14 +125,15 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     return unresolved_derivation
 
 def _get_resolution_combinations(input_resolutions: dict[UnresolvedDerivation, set[TrustlesslyResolvedDerivation]]) -> Iterator[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]:
-    resolution_lists = [
-        list(map(lambda x: x, list(resolutions)))
-        #list(input_resolutions)
-        for resolutions in input_resolutions.values()
-    ]
-
+    # Get keys once to preserve order
+    keys = list(input_resolutions.keys())
+    
+    # Create lists of resolved derivations for each key
+    resolution_lists = [list(input_resolutions[key]) for key in keys]
+    
+    # Generate combinations and map them back to dictionaries
     for combination in itertools.product(*resolution_lists):
-        yield dict(zip(input_resolutions.keys(), combination))
+        yield dict(zip(keys, combination))
 
 def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
     for x in derivation.inputs:
