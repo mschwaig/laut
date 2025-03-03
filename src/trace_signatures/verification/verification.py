@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, Set, Optional, List, Tuple
+from typing import TypeVar, Dict, Iterator, Set, Iterator, Optional, List, Tuple, Hashable
+from itertools import product
 from functools import wraps, cache
 import subprocess
 import json
@@ -124,15 +125,15 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     #logger.debug(f"{list(outputs)}")
     return unresolved_derivation
 
-def _get_resolution_combinations(input_resolutions: dict[UnresolvedDerivation, set[TrustlesslyResolvedDerivation]]) -> Iterator[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]:
-    # Get keys once to preserve order
+K = TypeVar('K', bound=Hashable)  # Key must be hashable (for dict keys)
+V = TypeVar('V')
+
+def get_resolution_combinations(input_resolutions: Dict[K, Set[V]]) -> Iterator[Dict[K, V]]:
     keys = list(input_resolutions.keys())
     
-    # Create lists of resolved derivations for each key
     resolution_lists = [list(input_resolutions[key]) for key in keys]
-    
-    # Generate combinations and map them back to dictionaries
-    for combination in itertools.product(*resolution_lists):
+
+    for combination in product(*resolution_lists):
         yield dict(zip(keys, combination))
 
 def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
@@ -218,7 +219,7 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
         resolutions = [{}] # a list containing only an empty dictionary
     else:
         # otherwise we have at least one thing to resolve
-        resolutions: list[dict[UnresolvedDerivation, ResolvedDerivation]] = list(_get_resolution_combinations(step_result))
+        resolutions: list[dict[UnresolvedDerivation, ResolvedDerivation]] = list(get_resolution_combinations(step_result))
 
     plausible_resolutions: set[TrustlesslyResolvedDerivation] = set()
     for resolution in resolutions:
