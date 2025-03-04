@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional, Set, Tuple
 from types import MappingProxyType
 
@@ -37,10 +37,10 @@ InputResolutions = Dict['UnresolvedDerivation', 'ResolvedDerivation']
 class UnresolvedDerivation:
     """Base information about a derivation"""
     drv_path: DrvPath
-    json_attrs: MappingProxyType
+    json_attrs: MappingProxyType = field(repr=False)
     input_hash: UnresolvedInputHash
-    inputs: Set['UnresolvedReferencedInputs']
-    outputs: MappingProxyType[str, 'UnresolvedOutput']
+    inputs: Set['UnresolvedReferencedInputs'] = field(repr=False)
+    outputs: MappingProxyType[str, 'UnresolvedOutput'] = field(repr=False)
     is_fixed_output: bool = False
     is_content_addressed: bool = False
 
@@ -70,7 +70,7 @@ class UnresolvedReferencedInputs:
 @dataclass(frozen=True)
 class TrustlesslyResolvedDerivation:
     """Base information about a derivation"""
-    resolves: UnresolvedDerivation
+    resolves: UnresolvedDerivation = field(repr=False)
     input_hash: ResolvedInputHash
     #inputs: Dict[UnresolvedDerivation, 'ResolvedDerivation']
     outputs: MappingProxyType['UnresolvedOutput', ContentHash]
