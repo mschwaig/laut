@@ -177,7 +177,8 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         builds_file.close()
         drv_resolutions_file.close()
         logger.warning(f"EVALUATING datalog at {temp_dir}")
-        p.runAll(temp_dir, "")
+        p.loadAll(temp_dir)
+        p.run()
         p.dumpInputs()
         p.dumpOutputs()
 
