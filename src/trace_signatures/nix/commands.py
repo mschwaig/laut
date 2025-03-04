@@ -1,3 +1,4 @@
+from functools import lru_cache
 import subprocess
 import json
 from loguru import logger
@@ -29,6 +30,7 @@ def get_output_path(drv_path):
         logger.exception(f"error getting output path")
         raise
 
+@lru_cache(maxsize=None)
 def get_derivation(drv_path):
     """Get Nix derivation data as dict"""
     try:
@@ -46,18 +48,19 @@ def get_derivation(drv_path):
         logger.exception("error in get_derivation")
         raise
 
-def get_output_hash(path):
+def get_output_hash_from_disk(out_path):
     """Get content hash of the built output"""
+    # TODO: verify that this is called with an output path
     try:
         result = subprocess.run(
-            ['nix-store', '--query', '--hash', path],
+            ['nix-store', '--query', '--hash', out_path],
             capture_output=True,
             text=True,
             check=True
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Error getting output hash for {path}: {e.stderr}")
+        raise RuntimeError(f"Error getting output hash for {out_path}: {e.stderr}")
 
 def check_nixos_cache(drv_path: str) -> bool:
     """Check if a derivation exists in the official nixos cache"""

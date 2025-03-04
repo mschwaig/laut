@@ -10,7 +10,7 @@ from .nix.keyfiles import (
 )
 from .nix.commands import (
     get_output_path,
-    get_output_hash,
+    get_output_hash_from_disk,
 )
 from .nix.constructive_trace import (
     compute_CT_input_hash,
@@ -44,7 +44,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
         # Extract the output name from path suffix
         for name in output_names:
             if path.endswith(f"-{name}") or (name == "out" and not any(path.endswith(f"-{n}") for n in output_names)):
-                output_hashes[name] = get_output_hash(path)
+                output_hashes[name] = get_output_hash_from_disk(path)
                 break
         else:
             logger.error(f"Could not determine output name for path: {path}")

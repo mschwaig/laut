@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, Optional, Set, Tuple
+from types import MappingProxyType
 
 UnresolvedInputHash = str
 ResolvedInputHash = str
@@ -36,10 +37,10 @@ InputResolutions = Dict['UnresolvedDerivation', 'ResolvedDerivation']
 class UnresolvedDerivation:
     """Base information about a derivation"""
     drv_path: DrvPath
-    json_attrs: Dict
+    json_attrs: MappingProxyType
     input_hash: UnresolvedInputHash
     inputs: Set['UnresolvedReferencedInputs']
-    outputs: Dict[str, 'UnresolvedOutput']
+    outputs: MappingProxyType[str, 'UnresolvedOutput']
     is_fixed_output: bool = False
     is_content_addressed: bool = False
 
@@ -54,33 +55,34 @@ class UnresolvedDerivation:
 @dataclass(frozen=True)
 class UnresolvedReferencedInputs:
     derivation: UnresolvedDerivation
-    inputs: Dict[str, 'UnresolvedOutput']
+    inputs: MappingProxyType[str, 'UnresolvedOutput']
 
     def __hash__(self):
-         # TODO: not sure if the .values() is ok here
-        return hash((self.derivation, self.inputs.values()))
+        hashable_inputs = frozenset(self.inputs.items())
+        return hash((self.derivation, hashable_inputs))
 
     def __eq__(self, other):
         if not isinstance(other, UnresolvedReferencedInputs):
             return False
         return (self.derivation == other.derivation) and (
-            self.inputs == other.inputs)
+            frozenset(self.inputs.items()) == frozenset(other.inputs.items()))
 
 @dataclass(frozen=True)
 class TrustlesslyResolvedDerivation:
     """Base information about a derivation"""
     resolves: UnresolvedDerivation
     input_hash: ResolvedInputHash
-    inputs: Dict[UnresolvedDerivation, 'ResolvedDerivation']
-    outputs: Dict['UnresolvedOutput', ContentHash]
+    #inputs: Dict[UnresolvedDerivation, 'ResolvedDerivation']
+    outputs: MappingProxyType['UnresolvedOutput', ContentHash]
 
     def __hash__(self):
-        return hash(self.input_hash)
+        hashable_outputs = frozenset(self.outputs.items())
+        return hash((self.input_hash, hashable_outputs))
 
     def __eq__(self, other):
         if not isinstance(other, TrustlesslyResolvedDerivation):
             return False
-        return self.input_hash == other.input_hash
+        return self.input_hash == other.input_hash and frozenset(self.outputs.items()) == frozenset(other.outputs.items())
 
 @dataclass(frozen=True)
 class UnresolvedOutput:
@@ -88,16 +90,19 @@ class UnresolvedOutput:
     """For trustfully resolved derivations we should verify signatures on the output level"""
     """For trustlessly resolved derivations we verify on the derivation level and go by that"""
     output_name: str
-    input_hash: Optional[UnresolvedInputHash] # this only exists for input addressed derivations
+    drv_path: str
+    input_hash: Optional[UnresolvedInputHash]
+    unresolved_path: str # this only exists for input addressed derivations
 
     def __hash__(self):
-        return hash((self.input_hash, self.input_hash))
+        return hash((self.input_hash, self.unresolved_path, self.output_name))
 
     def __eq__(self, other):
         if not isinstance(other, UnresolvedOutput):
             return False
         # the input hash already depends on the output name
         return (self.output_name == other.output_name and
+            self.unresolved_path == self.unresolved_path and
             self.input_hash == other.input_hash)
 
 ResolvedDerivation = TrustlesslyResolvedDerivation

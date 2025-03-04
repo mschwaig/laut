@@ -39,25 +39,28 @@ def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, Resol
         dict: Modified derivation with resolved dependencies
     """
     # Get rid of typed keys we cannot use here
-    str_key_resolutions = {drv.drv_path: value for drv, value in resolutions.items()}
+    #str_key_resolutions = {output.unresolved_path: hash for output, hash in resolutions.items()}
 
     # Get existing inputSrcs
     resolved_srcs = list(drv_data.get('inputSrcs', []))
 
     #  Get all input derivations and do not sort since we assume the order is meaningful
-    input_drvs = drv_data.get('inputDrvs', {}).keys()
+    input_drvs = drv_data.get('inputDrvs', {})
 
     # Get content hash for each input derivation and add to inputSrcs
     for drv in input_drvs:
         # TODO: make sure we are considering different outputs per derivation in both code paths here
-        if str_key_resolutions:
+        if resolutions:
             # if we cannot resolve something
             # we should make sure to throw an exception here
-            dependency_drv = str_key_resolutions[drv]
-            hash_path = dependency_drv.outputs[dependency_drv.resolves.outputs["out"]]
+            derivation = _get_typed_derivation(resolutions, drv)
+            for o in input_drvs[drv]["outputs"]:
+                output_hash = _get_content_hash(derivation, o)
+                resolved_srcs.append(output_hash)
         else:
-            hash_path = get_output_hash(drv)
-        resolved_srcs.append(hash_path)
+            for o in input_drvs[drv]["outputs"]:
+                output_hash = get_output_hash_from_disk(o)
+                resolved_srcs.append(output_hash)
 
     # Create modified derivation with resolved dependencies
     modified_drv = drv_data.copy()
@@ -66,7 +69,7 @@ def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, Resol
 
     return modified_drv
 
-def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation, ResolvedDerivation]) -> tuple[ResolvedInputHash, str]:
+def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]) -> tuple[ResolvedInputHash, str]:
     """
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.
@@ -81,3 +84,8 @@ def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation,
     print(f"Final SHA-256 (base64): {resolved_input_hash}")
 
     return resolved_input_hash, hash_input
+
+@lru_cache(maxsize=None)
+def cached_compute_CT_input_hash(drv_path, resolution_tuple):
+    resolution_dict = dict(resolution_tuple)
+    return compute_CT_input_hash(drv_path, resolution_dict)

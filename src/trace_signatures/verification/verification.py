@@ -18,6 +18,7 @@ from ..nix.commands import (
 )
 from ..nix.constructive_trace import (
     compute_CT_input_hash,
+    cached_compute_CT_input_hash
 )
 from ..nix.deep_constructive_trace import (
     get_DCT_input_hash,
@@ -29,6 +30,7 @@ from ..nix.types import (
     UnresolvedInputHash,
     ResolvedInputHash,
     ResolvedDerivation,
+    ContentHash,
     PossibleInputResolutions,
     TrustlesslyResolvedDerivation
 )
@@ -61,12 +63,16 @@ def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed_drv: bool) -
     if is_content_addressed_drv:
         outputs = {k: UnresolvedOutput(
             output_name=k,
-            input_hash= None
+            input_hash= None,
+            drv_path=node_drv_path,
+            unresolved_path = node_drv_path + "$" + k
         ) for k, v in output_json.items()}
     else:
         outputs = {k: UnresolvedOutput(
             output_name=k,
-            input_hash= get_DCT_input_hash(v["path"])
+            drv_path=node_drv_path,
+            input_hash = get_DCT_input_hash(v["path"]),
+            unresolved_path = v["path"]
         ) for k, v in output_json.items()}
     return outputs
 
@@ -129,6 +135,15 @@ K = TypeVar('K', bound=Hashable)  # Key must be hashable (for dict keys)
 V = TypeVar('V')
 
 def get_resolution_combinations(input_resolutions: Dict[K, Set[V]]) -> Iterator[Dict[K, V]]:
+    if len(input_resolutions) == 0:
+        # if our dependency resoultion has no variable parts
+        # there is still one valid resolution with all of the static parts
+        # so we return an empty dictionary here
+        # this happens for sure on the outer edges of the dependency tree,
+        # where all of your inputs are source code / blobs or outputs from a FOD
+        yield {}
+        return
+
     keys = list(input_resolutions.keys())
     
     resolution_lists = [list(input_resolutions[key]) for key in keys]
@@ -155,7 +170,7 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         resolved_deps_file = open(os.path.join(temp_dir, 'resolved_deps.facts'), 'w')
         builds_file = open(os.path.join(temp_dir, 'builds.facts'), 'w')
         
-        root_result = verify_tree_rec(UnresolvedReferencedInputs(derivation=derivation, inputs=derivation.outputs), unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        root_result = verify_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
 
         unresolved_deps_file.close()
         resolved_deps_file.close()
@@ -177,19 +192,41 @@ def remember_steps(func):
             return result
     return wrap_verify_tree_rec
 
-@remember_steps
-def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> Set[TrustlesslyResolvedDerivation]:
 
+object_counts = {}
+
+# In verify_tree_rec
+def check_obj(obj, label):
+    obj_id = id(obj)
+    if obj_id not in object_counts:
+        object_counts[obj_id] = {"count": 0, "hash": hash(obj), "type": type(obj).__name__}
+    object_counts[obj_id]["count"] += 1
+    
+    if object_counts[obj_id]["count"] > 1:
+        print(f"Reusing {label} object {obj_id} (hash={object_counts[obj_id]['hash']}) for the {object_counts[obj_id]['count']}th time")
+
+#def signature_lookup(hashes, Set[ResolvedInputHash]) -> Set[ResolvedInputHash]:
+    # for now this returns the subset of hashes for which we find evidence
+
+@remember_steps
+def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
+    check_obj(unresolved_derivation, "unresolved_derivation")
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
-    if inputs.derivation.is_fixed_output:
-        ct_input_hash, ct_input_data = compute_CT_input_hash(inputs.derivation.drv_path, dict())
-        return {TrustlesslyResolvedDerivation(
-                resolves = inputs.derivation,
+
+    if unresolved_derivation.is_fixed_output:
+        
+        ct_input_hash, ct_input_data = compute_CT_input_hash(
+            unresolved_derivation.drv_path, 
+            dict() # tuple
+        )
+        # TODO: lookup expected output hash and return it
+        return {
+            TrustlesslyResolvedDerivation(
+                resolves = unresolved_derivation,
                 input_hash = ct_input_hash,
                 # might not have to keep track of those two in python
-                inputs = dict(),
-                outputs = { inputs.derivation.outputs["out"]: inputs.derivation.json_attrs["outputs"]["out"]["hash"]} # TODO: fix or remove, add algorithm
+                outputs = { unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["hash"] }
         )}
 
     # use allowed DCT input hashes for verification before recursive descent
@@ -197,48 +234,50 @@ def verify_tree_rec(inputs: UnresolvedReferencedInputs, unresolved_deps_file, dr
     # TODO: re-enable DCT verification
     #dct_signatures = _fetch_dct_signatures(inputs.derivation.input_hash)
     #valid = trust_model.dct_verify(inputs.derivation.input_hash, dct_signatures)
-    valid = False
-    #if valid:
-    #    return {( valid, f"DCT makes {inputs.derivation.drv_path} valid, not recursing further" )}
-    # TODO: consider different outputs (only relevant for DCT)
     step_result: dict[UnresolvedDerivation, set[TrustlesslyResolvedDerivation]] = dict()
     failed = False
-    for i in inputs.derivation.inputs:
-        unresolved_deps_file.write(f"{inputs.derivation.drv_path}\t{i.derivation.drv_path}\n")
-        dep_result = verify_tree_rec(i, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+    for i in unresolved_derivation.inputs:
+        unresolved_deps_file.write(f"{unresolved_derivation.drv_path}\t{i.derivation.drv_path}\n")
+        dep_result = verify_tree_rec(i.derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        # TODO: only tack outputs which we actually depend on
         if not dep_result:
             # nope out if we cannot resolve one of our dependencies
             failed = True
         step_result[i.derivation] = dep_result
     if failed:
+        # could not resolve one of our dependencies
         return set()
 
-    if len(step_result) == 0:
-        # nothing to resolve if all your dependencies are leafs in the tree
-        # meaning none are derivations
-        resolutions = [{}] # a list containing only an empty dictionary
-    else:
-        # otherwise we have at least one thing to resolve
-        resolutions: list[dict[UnresolvedDerivation, ResolvedDerivation]] = list(get_resolution_combinations(step_result))
+    resolutions: Iterator[Dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]] = get_resolution_combinations(step_result)
 
+    # we are not trying to fail early here
+    # so we just want to collect all of the resolutions that we know about
+    # and consider valid to some degree
+    # and then use constraint solving to figure out what we are missing
     plausible_resolutions: set[TrustlesslyResolvedDerivation] = set()
-    for resolution in resolutions:
-        ct_input_hash, ct_input_data = compute_CT_input_hash(inputs.derivation.drv_path, resolution)
+    for resolution in resolutions:            
+        ct_input_hash, ct_input_data = compute_CT_input_hash(
+            unresolved_derivation.drv_path, 
+            resolution
+        )
 
-        drv_resolutions_file.write(f"{inputs.derivation.drv_path}\t\"{ct_input_hash}\"\n")
+        drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
             resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
         for signature in fetch_ct_signatures(ct_input_hash):
             # TODO: verify signature
-            # TODO: consider outputs other than out
-            builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"]["out"]}\"\n")
-            plausible_resolutions.add(TrustlesslyResolvedDerivation(
-                   resolves = inputs.derivation,
-                    input_hash = ct_input_hash,
-                    # might not have to keep track of those two in python
-                    inputs = resolution,
-                    outputs = dict() # TODO: fix or remove
-            ))
+            # TODO: deduplicate signatures by (in, out) before returning them
+            outputs = signature["out"]["out"]
+            for o in signature["out"]:
+                # TODO: add output name or change data structure in some way to accomodate it
+                builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
+                outputs.add(unresolved_derivation.outputs[o], signature["out"][o])
+            resoled_drv = TrustlesslyResolvedDerivation(
+                resolves=unresolved_derivation,
+                input_hash=ct_input_hash,
+                outputs=outputs
+            )
+            plausible_resolutions.add(resoled_drv)
 
     #    if valid:
     #        print("vaildated {resolution} for {inputs.derivation.drv_path}")

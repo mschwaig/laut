@@ -1,8 +1,10 @@
+from functools import lru_cache
 from ..storage import get_s3_client
 import json
 from loguru import logger
 from typing import Dict, Set, Optional, List
 
+@lru_cache(maxsize=None)
 def fetch_ct_signatures(input_hash: str) -> List[dict]:
     """Fetch and parse signatures from all configured caches"""
     all_signatures = []
