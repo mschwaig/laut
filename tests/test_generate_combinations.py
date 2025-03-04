@@ -41,6 +41,29 @@ class TestResolutionCombinations(unittest.TestCase):
         self.assertEqual(len(result), 1, "Should generate 1 combination (empty dict) for empty input")
         self.assertEqual(result[0], {})
 
+    def test_simple_string_combinations(self):
+        """ Test with only one possible choice """
+        test_input = {"a": {"b"}}
+        expected = [{"a": "b"}]
+        
+        result = list(get_resolution_combinations(test_input))
+        self.assertEqual(len(result), 1, "Should generate 1 combinations")
+        self.assertCountEqual(result, expected)
+
+    def test_empty_input(self):
+        """ Test with only one possible choice. """
+        """ This is a really important edge case. """
+        """ We always want to return at least on result, """
+        """ because in our application there are other inputs implied, """
+        """ which we do not pass to the tested function at all. """
+        """ We therefore always want at least one valid resoluiton. """
+        test_input = {}
+        expected = [{}]
+        
+        result = list(get_resolution_combinations(test_input))
+        self.assertEqual(len(result), 1, "Should generate 1 combinations")
+        self.assertCountEqual(result, expected)
+
     def test_with_custom_objects(self):
         """Test with custom object keys and values"""
         class Key(NamedTuple):
