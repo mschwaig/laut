@@ -1,15 +1,20 @@
+from functools import lru_cache
 import subprocess
 import hashlib
 import base64
+from typing import Optional
 from loguru import logger
 from trace_signatures.nix.types import (
+    TrustlesslyResolvedDerivation,
     UnresolvedDerivation,
     ResolvedDerivation,
-    ResolvedInputHash
+    ResolvedInputHash,
+    UnresolvedOutput,
+    ContentHash
 )
 from .commands import (
     get_derivation,
-    get_output_hash
+    get_output_hash_from_disk
 )
 import rfc8785
 
@@ -27,7 +32,29 @@ def compute_sha256_base64(data: bytes):
     logger.debug(f"Computed hash: {result}")
     return result
 
-def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, ResolvedDerivation]):
+def _get_typed_derivation(dict: dict[UnresolvedDerivation, TrustlesslyResolvedDerivation], drv_path) -> TrustlesslyResolvedDerivation:
+    for entry in dict:
+        if entry.drv_path == drv_path:
+            return dict[entry]
+
+    raise KeyError("failed to find drv §{drv_path}")
+
+def _get_content_hash(drv: TrustlesslyResolvedDerivation, out) -> ContentHash:
+    for o in drv.outputs:
+        if o.output_name == out:
+            return drv.outputs[o]
+
+    raise KeyError("failed to find output §{drv_path}")
+
+def _get_output(drv: TrustlesslyResolvedDerivation, out) -> UnresolvedOutput:
+    for o in drv.outputs:
+        if o.output_name == out:
+            return o
+
+    raise KeyError("failed to find output §{drv_path}")
+
+
+def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]):
     """
     Resolve all dependencies in a derivation by getting their content hashes
     and incorporating them into inputSrcs.
@@ -38,8 +65,10 @@ def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, Resol
     Returns:
         dict: Modified derivation with resolved dependencies
     """
-    # Get rid of typed keys we cannot use here
-    #str_key_resolutions = {output.unresolved_path: hash for output, hash in resolutions.items()}
+    if (resolutions != None) and (resolutions == {}):
+        # we have a set of resolutions, so we are in verification 'mode', but
+        # all dependencies are alredy fully resolved
+        return drv_data
 
     # Get existing inputSrcs
     resolved_srcs = list(drv_data.get('inputSrcs', []))
@@ -50,7 +79,7 @@ def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, Resol
     # Get content hash for each input derivation and add to inputSrcs
     for drv in input_drvs:
         # TODO: make sure we are considering different outputs per derivation in both code paths here
-        if resolutions:
+        if resolutions != None:
             # if we cannot resolve something
             # we should make sure to throw an exception here
             derivation = _get_typed_derivation(resolutions, drv)
@@ -59,6 +88,8 @@ def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, Resol
                 resolved_srcs.append(output_hash)
         else:
             for o in input_drvs[drv]["outputs"]:
+                #unresolved_output_path = _get_output(derivation, o)
+                #output_hash = get_output_hash_from_disk(unresolved_output_path)
                 output_hash = get_output_hash_from_disk(o)
                 resolved_srcs.append(output_hash)
 
@@ -69,7 +100,7 @@ def resolve_dependencies(drv_data, resolutions: dict[UnresolvedDerivation, Resol
 
     return modified_drv
 
-def compute_CT_input_hash(drv_path: str, resolutions: dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]) -> tuple[ResolvedInputHash, str]:
+def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]) -> tuple[ResolvedInputHash, str]:
     """
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.

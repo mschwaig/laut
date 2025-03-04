@@ -58,7 +58,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     key_name = content.split(':', 1)[0]
     private_key = parse_nix_private_key(secret_key_file[0])
 
-    input_hash, input_data = compute_CT_input_hash(drv_path, False)
+    input_hash, input_data = compute_CT_input_hash(drv_path, None)
     jws_token = create_trace_signature(input_hash, input_data, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
 

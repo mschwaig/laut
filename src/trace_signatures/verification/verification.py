@@ -171,10 +171,12 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         builds_file = open(os.path.join(temp_dir, 'builds.facts'), 'w')
         
         root_result = verify_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
-
+        logger.warning(f"Closing files at {temp_dir}")
         unresolved_deps_file.close()
         resolved_deps_file.close()
         builds_file.close()
+        drv_resolutions_file.close()
+        logger.warning(f"EVALUATING datalog at {temp_dir}")
         p.runAll(temp_dir, "")
         p.dumpInputs()
         p.dumpOutputs()
@@ -267,17 +269,17 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
         for signature in fetch_ct_signatures(ct_input_hash):
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
-            outputs = signature["out"]["out"]
+            outputs : Dict[UnresolvedOutput, ContentHash] = dict()
             for o in signature["out"]:
                 # TODO: add output name or change data structure in some way to accomodate it
                 builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
-                outputs.add(unresolved_derivation.outputs[o], signature["out"][o])
-            resoled_drv = TrustlesslyResolvedDerivation(
+                outputs[unresolved_derivation.outputs[o]] = signature["out"][o]
+            resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,
                 input_hash=ct_input_hash,
                 outputs=outputs
             )
-            plausible_resolutions.add(resoled_drv)
+            plausible_resolutions.add(resolved_drv)
 
     #    if valid:
     #        print("vaildated {resolution} for {inputs.derivation.drv_path}")
