@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import time
 from typing import TypeVar, Dict, Iterator, Set, Iterator, Optional, List, Tuple, Hashable
 from itertools import product
 from functools import wraps, cache
@@ -177,6 +178,7 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         builds_file.close()
         drv_resolutions_file.close()
         logger.warning(f"EVALUATING datalog at {temp_dir}")
+        p._last_run_time = time.time() # do this cursed thing to prevent python from caching the results of loadAll() and run()
         p.loadAll(temp_dir)
         p.run()
         logger.warning(f"done EVALUATING datalog at {temp_dir}")
