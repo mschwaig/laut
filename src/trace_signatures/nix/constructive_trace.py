@@ -87,12 +87,17 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
                 output_hash = _get_content_hash(derivation, o)
                 resolved_srcs.append(output_hash)
         else:
-            for o in input_drvs[drv]["outputs"]:
-                output_hash = get_output_hash_from_disk(f"{drv}${o}")
+            # for CADs we should get called with the resolved/basic derivation
+            # so there should not be any further resolution that we have to do
+            # TODO: extend this to deal with IADs
+            if drv_data['inputDrvs'] != {}:
+                raise ValueError("called with unresolved derivation and wihout resolution")
+            #for o in input_drvs[drv]["outputs"]:
+                #output_hash = get_output_hash_from_disk(f"{drv}${o}")
                 # TODO: this should probably not just be the raw hash, but also some metadata about its format
                 # TODO: we probably don't care about "path" here, maybe we can make a whitelist of things we care about
-                # TODO: extend this to deal with IADs
-                resolved_srcs.append(output_hash)
+
+                #resolved_srcs.append(output_hash)
 
     # Create modified derivation with resolved dependencies
     modified_drv = drv_data.copy()
