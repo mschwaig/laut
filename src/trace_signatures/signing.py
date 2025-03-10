@@ -26,6 +26,7 @@ from loguru import logger
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     # Get output names from derivation
     drv_data = get_derivation(drv_path)
+    output_names = list(drv_data.get("outputs", {}).keys())
     is_fixed_output, is_content_addressed = get_derivation_type(drv_data)
     if is_fixed_output:
         # TODO: this is left for very complicated future work on better guarantees for FODs
@@ -33,6 +34,12 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     if is_content_addressed:
         # TODO: assert that keys in this data structure match out_paths
         output_hashes = drv_data["outputs"]
+        for path in out_paths:
+            # Extract the output name from path suffix
+            for name in output_names:
+                if path.endswith(f"-{name}") or (name == "out" and not any(path.endswith(f"-{n}") for n in output_names)):
+                    output_hashes[name]["hash"] = get_output_hash_from_disk(path)
+                    break
     else:
         # TODO: this is left for simpler future work on extending CAD guarantees to IADs
         return
@@ -42,6 +49,8 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
         content = f.read().strip()
     key_name = content.split(':', 1)[0]
     private_key = parse_nix_private_key(secret_key_file[0])
+
+    # TODO: construct resolution from all of the local derivation inputs >:(
 
     input_hash, input_data = compute_CT_input_hash(drv_path, None)
     jws_token = create_trace_signature(input_hash, input_data, drv_path, output_hashes, private_key, key_name)
