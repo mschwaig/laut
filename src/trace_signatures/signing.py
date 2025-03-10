@@ -26,6 +26,14 @@ from loguru import logger
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     # Get output names from derivation
     drv_data = get_derivation(drv_path)
+    if drv_data['inputDrvs'] != {}:
+        # we have to return gracefully in this case, because
+        # nix calls the post-build-hook twice
+        # once for the resolved derivation
+        # once for the unresolved one
+        logger.warning("doing nothing on unresolved derivation")
+        return
+
     output_names = list(drv_data.get("outputs", {}).keys())
     is_fixed_output, is_content_addressed = get_derivation_type(drv_data)
     if is_fixed_output:
