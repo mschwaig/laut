@@ -232,7 +232,8 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
                 resolves = unresolved_derivation,
                 input_hash = ct_input_hash,
                 # might not have to keep track of those two in python
-                outputs = { unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["hash"] }
+                # TODO: maybe change exactly which attributes of the output are added here and in other places
+                outputs = { unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"] }
         )}
 
     # use allowed DCT input hashes for verification before recursive descent

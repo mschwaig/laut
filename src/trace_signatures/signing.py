@@ -1,6 +1,8 @@
 import jwt
 from typing import Dict
 import os
+
+from trace_signatures.verification.verification import get_derivation_type
 from .storage import upload_signature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
@@ -24,33 +26,16 @@ from loguru import logger
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     # Get output names from derivation
     drv_data = get_derivation(drv_path)
-    output_names = list(drv_data.get("outputs", {}).keys())
-    logger.debug(f"Output names from derivation: {output_names}")
-
-    # Get output paths
-    if out_paths is None:
-        out_paths = os.environ.get('OUT_PATHS', '')
-    paths = [p for p in out_paths.split(',') if p]
-
-    if not paths:
-        logger.debug("No output paths provided, using get_output_path()")
-        paths = [get_output_path(drv_path)]
-
-    logger.debug(f"Output paths: {paths}")
-
-    # Map output paths to their names using path suffixes
-    output_hashes = {}
-    for path in paths:
-        # Extract the output name from path suffix
-        for name in output_names:
-            if path.endswith(f"-{name}") or (name == "out" and not any(path.endswith(f"-{n}") for n in output_names)):
-                output_hashes[name] = get_output_hash_from_disk(path)
-                break
-        else:
-            logger.error(f"Could not determine output name for path: {path}")
-            raise ValueError(f"Could not map path to output name: {path}")
-
-    logger.debug(f"Output name to hash mapping: {output_hashes}")
+    is_fixed_output, is_content_addressed = get_derivation_type(drv_data)
+    if is_fixed_output:
+        # TODO: this is left for very complicated future work on better guarantees for FODs
+        return
+    if is_content_addressed:
+        # TODO: assert that keys in this data structure match out_paths
+        output_hashes = drv_data["outputs"]
+    else:
+        # TODO: this is left for simpler future work on extending CAD guarantees to IADs
+        return
 
     # Read key and create signature
     with open(secret_key_file[0], 'r') as f:
@@ -64,7 +49,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
 
     upload_signature(to, input_hash, jws_token)
 
-def create_trace_signature(input_hash: str, input_data, drv_path: str, output_hashes: Dict[str, str],
+def create_trace_signature(input_hash: str, input_data, drv_path: str, output_hashes: Dict,
                          private_key: Ed25519PrivateKey, key_name: str) -> str:
     """
     Create a JWS signature for outputs

@@ -26,7 +26,7 @@ def get_canonical_derivation(path):
 def compute_sha256_base64(data: bytes):
     """Compute SHA-256 hash and return URL-safe base64 encoded"""
     logger.debug(f"Input type: {type(data)}")
-    logger.debug(f"Input data: {data}...")
+    logger.debug(f"Input data: {data}")
     hash_bytes = hashlib.sha256(data).digest()
     result = base64.urlsafe_b64encode(hash_bytes).decode('ascii').rstrip('=')
     logger.debug(f"Computed hash: {result}")
@@ -90,7 +90,10 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
             for o in input_drvs[drv]["outputs"]:
                 #unresolved_output_path = _get_output(derivation, o)
                 #output_hash = get_output_hash_from_disk(unresolved_output_path)
-                output_hash = get_output_hash_from_disk(o)
+                #output_hash = get_output_hash_from_disk(input_drvs[drv]["outputs"][o]["path"])
+                output_hash = input_drvs[drv]["outputs"][o]
+                # TODO: we probably don't care about "path" here, maybe we can make a whitelist of things we care about
+                # TODO: extend this to deal with IADs
                 resolved_srcs.append(output_hash)
 
     # Create modified derivation with resolved dependencies
@@ -111,6 +114,7 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
     resolved_input_hash = compute_sha256_base64(resolved_canonical)
     hash_input = resolved_canonical.decode('utf-8')
 
+    print(f"Drv path: {drv_path}")
     print(f"Resolved JSON: {hash_input}")
     print(f"Final SHA-256 (base64): {resolved_input_hash}")
 

@@ -60,7 +60,11 @@ def cli():
 def sign(drv_path, secret_key_file, to, out_paths):
     """Sign a derivation and upload the signature"""
     try:
-        sign_and_upload(drv_path, secret_key_file, to, out_paths)
+        # Get output paths
+        if out_paths is None:
+            out_paths = os.environ.get('OUT_PATHS', '')
+        paths_list = [p for p in out_paths.split(',') if p]
+        sign_and_upload(drv_path, secret_key_file, to, paths_list)
     except Exception as e:
         logger.exception(f"Error in sign command: {str(e)}")
         click.echo(f"Error: {str(e)}", err=True)
