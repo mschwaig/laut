@@ -59,12 +59,12 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     private_key = parse_nix_private_key(secret_key_file[0])
 
     input_hash, input_data = compute_CT_input_hash(drv_path, None)
-    jws_token = create_trace_signature(input_hash, input_data, output_hashes, private_key, key_name)
+    jws_token = create_trace_signature(input_hash, input_data, drv_path, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
 
     upload_signature(to, input_hash, jws_token)
 
-def create_trace_signature(input_hash: str, input_data, output_hashes: Dict[str, str], 
+def create_trace_signature(input_hash: str, input_data, drv_path: str, output_hashes: Dict[str, str],
                          private_key: Ed25519PrivateKey, key_name: str) -> str:
     """
     Create a JWS signature for outputs
@@ -90,6 +90,7 @@ def create_trace_signature(input_hash: str, input_data, output_hashes: Dict[str,
     payload = {
         "in": input_hash,
         "in_data": input_data,
+        "drv_path": drv_path,
         "out": output_hashes,
         "builder": {
             "rebuild": "1",
