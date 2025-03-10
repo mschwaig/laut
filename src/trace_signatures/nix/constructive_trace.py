@@ -88,10 +88,8 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
                 resolved_srcs.append(output_hash)
         else:
             for o in input_drvs[drv]["outputs"]:
-                #unresolved_output_path = _get_output(derivation, o)
-                #output_hash = get_output_hash_from_disk(unresolved_output_path)
-                #output_hash = get_output_hash_from_disk(input_drvs[drv]["outputs"][o]["path"])
-                output_hash = input_drvs[drv]["outputs"][o]
+                output_hash = get_output_hash_from_disk(f"{drv}${o}")
+                # TODO: this should probably not just be the raw hash, but also some metadata about its format
                 # TODO: we probably don't care about "path" here, maybe we can make a whitelist of things we care about
                 # TODO: extend this to deal with IADs
                 resolved_srcs.append(output_hash)
