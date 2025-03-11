@@ -46,6 +46,10 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
             # Extract the output name from path suffix
             for name in output_names:
                 if path.endswith(f"-{name}") or (name == "out" and not any(path.endswith(f"-{n}") for n in output_names)):
+                    output_hashes[name]["path"] = path
+                    # we can probably drop this next line in favor of just the path
+                    # potentially even get rid of that whole complex object again
+                    # if not we should assert that the prefix is correct and then drop it
                     output_hashes[name]["hash"] = get_output_hash_from_disk(path)
                     break
     else:
