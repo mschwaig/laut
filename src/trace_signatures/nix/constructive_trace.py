@@ -71,7 +71,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
         return drv_data
 
     # Get existing inputSrcs
-    resolved_srcs = list(drv_data.get('inputSrcs', []))
+    resolved_srcs = list(drv_data.get('inputSrcs', []).copy())
 
     #  Get all input derivations and do not sort since we assume the order is meaningful
     input_drvs = drv_data.get('inputDrvs', {})
@@ -101,7 +101,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
 
     # Create modified derivation with resolved dependencies
     modified_drv = drv_data.copy()
-    modified_drv['inputSrcs'] = resolved_srcs
+    modified_drv['inputSrcs'] = list(sorted(resolved_srcs))
     modified_drv['inputDrvs'] = {}
 
     return modified_drv

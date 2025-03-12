@@ -1,6 +1,7 @@
 import jwt
 from typing import Dict
 import os
+import copy
 
 from trace_signatures.verification.verification import get_derivation_type
 from .storage import upload_signature
@@ -41,7 +42,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
         return
     if is_content_addressed:
         # TODO: assert that keys in this data structure match out_paths
-        output_hashes = drv_data["outputs"]
+        output_hashes = copy.deepcopy(drv_data["outputs"])
         for path in out_paths:
             # Extract the output name from path suffix
             for name in output_names:
