@@ -47,14 +47,14 @@ def test_ca_drv_tree_small():
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
-    drv = build_unresolved_tree("/nix/store/xjdqlsw518crs3g0f5lw0kklf1gkwfg8-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/wnylsz1bmayj1xprnbj7mg6wn5scmr2v-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
 def test_ca_large():
     data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
-    drv = build_unresolved_tree("/nix/store/bc6ylmfbnx9glxqj8lz5nh2ghcqpzwc5-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/ini9yln97fpf7ccwdv8hqbj3crfqvrcm-hello-2.12.1.drv", hello_recursive)
 
 def test_loadKey():
     key = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
@@ -66,9 +66,9 @@ def test_verify_ca_drv_small():
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    #drv = build_unresolved_tree("/nix/store/6npakc9rj94rhj97n7l87m6xmha5rrfv-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
+    #drv = build_unresolved_tree("/nix/store/iqzp8nwk1g18yi58hvp3plc8y2z1lwjz-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
     #drv = build_unresolved_tree("/nix/store/0m4y3j4pnivlhhpr5yqdvlly86p93fwc-busybox.drv", hello_recursive)
-    drv = build_unresolved_tree("/nix/store/xjdqlsw518crs3g0f5lw0kklf1gkwfg8-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/wnylsz1bmayj1xprnbj7mg6wn5scmr2v-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
     list = verify_tree(drv, trust_model)
     #tracemalloc.start()
     #snapshot = tracemalloc.take_snapshot()
@@ -79,7 +79,7 @@ def test_verify_ca_drv_large():
     with open(data_file) as f:
         hello_recursive = json.load(f)
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    drv = build_unresolved_tree("/nix/store/bc6ylmfbnx9glxqj8lz5nh2ghcqpzwc5-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/ini9yln97fpf7ccwdv8hqbj3crfqvrcm-hello-2.12.1.drv", hello_recursive)
     #tracemalloc.start()
     list = verify_tree(drv, trust_model)
     #snapshot = tracemalloc.take_snapshot()

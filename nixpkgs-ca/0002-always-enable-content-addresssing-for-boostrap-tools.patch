@@ -1,0 +1,26 @@
+From b50b60277dca9adce8f50d46f6219900063761f6 Mon Sep 17 00:00:00 2001
+From: Martin Schwaighofer <mschwaig@users.noreply.github.com>
+Date: Wed, 12 Mar 2025 13:54:44 +0100
+Subject: [PATCH 2/2] always enable content addresssing for boostrap tools
+
+... which I missed earlier
+---
+ pkgs/stdenv/linux/bootstrap-tools/default.nix | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/pkgs/stdenv/linux/bootstrap-tools/default.nix b/pkgs/stdenv/linux/bootstrap-tools/default.nix
+index 2314fe84d9d0..ad57e65b0a01 100644
+--- a/pkgs/stdenv/linux/bootstrap-tools/default.nix
++++ b/pkgs/stdenv/linux/bootstrap-tools/default.nix
+@@ -14,7 +14,7 @@ let
+     };
+   };
+ 
+-  maybeContentAddressed = lib.optionalAttrs config.contentAddressedByDefault {
++  maybeContentAddressed = lib.optionalAttrs true {
+     __contentAddressed = true;
+     outputHashAlgo = "sha256";
+     outputHashMode = "recursive";
+-- 
+2.47.0
+

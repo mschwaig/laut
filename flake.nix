@@ -13,7 +13,10 @@
         nixpkgs-ca = (import nixpkgs { inherit system; }).applyPatches {
           name = "nixpkgs-always-apply-ca";
           src = nixpkgs;
-          patches = [ ./nixpkgs-ca/0001-always-enable-content-addresssing.patch ];
+          patches = [
+            ./nixpkgs-ca/0001-always-enable-content-addresssing.patch
+            ./nixpkgs-ca/0002-always-enable-content-addresssing-for-boostrap-tools.patch
+            ];
         };
 
         pkgs = import nixpkgs {
