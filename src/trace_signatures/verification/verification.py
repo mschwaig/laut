@@ -157,7 +157,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[set[TrustlesslyResolvedDerivation], dict]:
+def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[list[TrustlesslyResolvedDerivation], dict]:
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
@@ -215,7 +215,7 @@ def check_obj(obj, label):
     # for now this returns the subset of hashes for which we find evidence
 
 @remember_steps
-def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
+def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> list[TrustlesslyResolvedDerivation]:
     check_obj(unresolved_derivation, "unresolved_derivation")
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
@@ -261,7 +261,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
     # so we just want to collect all of the resolutions that we know about
     # and consider valid to some degree
     # and then use constraint solving to figure out what we are missing
-    plausible_resolutions: set[TrustlesslyResolvedDerivation] = set()
+    plausible_resolutions: list[TrustlesslyResolvedDerivation] = []
     for resolution in resolutions:            
         ct_input_hash, ct_input_data = compute_CT_input_hash(
             unresolved_derivation.drv_path, 
@@ -284,7 +284,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
                 input_hash=ct_input_hash,
                 outputs=outputs
             )
-            plausible_resolutions.add(resolved_drv)
+            plausible_resolutions.append(resolved_drv)
 
     #    if valid:
     #        print("vaildated {resolution} for {inputs.derivation.drv_path}")
