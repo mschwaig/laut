@@ -152,8 +152,8 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
 
                     # Store all payload data except the key field
                     payload_copy = payload_json.copy()
-                    if key_field in payload_copy:
-                        del payload_copy[key_field]
+                    #if key_field in payload_copy:
+                    #    del payload_copy[key_field]
 
                     # Add to the consolidated data
                     consolidated_data[kid][key_value] = payload_copy
