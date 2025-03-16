@@ -1,5 +1,31 @@
-# Verifiable SBOM paper implementation
+## laut /laʊt/ - verifiable provenance data and SBOMs with Nix
 
+The name is german for[^1]
+* loud, noisy, blatant 📢
+* (as) per, according to, in accordance with 🕵️‍♀️
+
+<div align="center">
+
+---
+
+🚧 This is a currently very incomplete implementation of https://dl.acm.org/doi/10.1145/3689944.3696169. 🚧
+
+---
+
+</div>
+
+None of the cool things about this are implemented and working yet: 🙈
+* configurable trust model[^2], ...
+* which can be re-configured over time, based on ...
+* verifiable provenance data for builders
+* like realizations for CA derivations, but also works for IA derivations
+* based on a new proposed signature format on top of JWS, with
+* arbitrary additional but detachable metadata
+* integrates with/extends https://github.com/nikstur/bombon to create verifiable SBOMs
+
+Right now it can't even verify `github:mschwaig/nixpkgs-ca#hello` yet! 😓
+
+---
 
 This is the code that goes along with my Verifiable SBOM paper.
 
@@ -65,3 +91,6 @@ https://fidoalliance.org/wp-content/uploads/2024/06/EDWG_Attestation-White-Paper
 This is an educational POC which might or might not be turned into a reference implementation at some point.
 
 It would be nice to demonstrate, that it works with Nix, Lix and Guix.
+
+[^1]: according to https://en.langenscheidt.com/german-english/laut 📖
+[^2]: set of trusted builders with additional constraining criteria, including consensus
