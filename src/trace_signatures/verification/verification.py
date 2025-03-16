@@ -40,7 +40,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
 from .trust_model import TrustedKey
-from .fetch_signatures import fetch_ct_signatures
+from .fetch_signatures import fetch_ct_signatures_mock
 from loguru import logger
 
 def get_derivation_type(drv_data) -> tuple[bool, bool]:
@@ -271,7 +271,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
         drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
             resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
-        for signature in fetch_ct_signatures(ct_input_hash):
+        for signature in fetch_ct_signatures_mock(ct_input_hash):
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
