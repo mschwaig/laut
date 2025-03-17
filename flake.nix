@@ -79,6 +79,9 @@
           pytestCheckHook = ''
             export PATH=${nix}/bin,$PATH
           '';
+          # disable this for now
+          # until it does not depend on things outside the store anymore
+          doCheck = false;
 
           nativeCheckInputs = with pkgs.python3.pkgs; [
             pytest
