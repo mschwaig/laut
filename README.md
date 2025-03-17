@@ -44,13 +44,14 @@ laut verify --from [S3 store url] --trusted-key [private key for signing] [deriv
 ```
 
 Which is run manually by the user after building or obtaining an output from the cache.
-This command tries to verify that a given derivation is valid according to the stricter validation criteria of the tool. Later on there will be more options to configure a specific trust model to verify against, and you will be able to additionally pass an SBOM which then also has to match the other elements.
+This command tries to verify that a given derivation is valid according to the stricter validation criteria of the tool. Later on there will be more options to configure a specific trust model to verify against, and you will be able to additionally pass an SBOM which then also has to match the other elements. The goal of the SBOM integration is to connect this with established standards that people outside of the Nix community understand as well.
 
 ### How does it work
 
 It's a python program. The signing is very straighforward python code.
 
 The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree and emits facts about the dependency tree to some files.
+As part of this verification phase, the tool also gathers signatures from a set of caches, taking into account possible combinations of inputs by content hash, which could satisfy the dependency on those same inputs by input hash.
 These files then serve as the input to a datalog program using SWIG, to make the actual determination about the validity of the dependency tree.
 
 The datalog program is compiled using souffle inside of its own derivation.
