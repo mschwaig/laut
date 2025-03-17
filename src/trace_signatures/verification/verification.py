@@ -198,25 +198,8 @@ def remember_steps(func):
             return result
     return wrap_verify_tree_rec
 
-
-object_counts = {}
-
-# In verify_tree_rec
-def check_obj(obj, label):
-    obj_id = id(obj)
-    if obj_id not in object_counts:
-        object_counts[obj_id] = {"count": 0, "hash": hash(obj), "type": type(obj).__name__}
-    object_counts[obj_id]["count"] += 1
-    
-    if object_counts[obj_id]["count"] > 1:
-        print(f"Reusing {label} object {obj_id} (hash={object_counts[obj_id]['hash']}) for the {object_counts[obj_id]['count']}th time")
-
-#def signature_lookup(hashes, Set[ResolvedInputHash]) -> Set[ResolvedInputHash]:
-    # for now this returns the subset of hashes for which we find evidence
-
 @remember_steps
 def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> list[TrustlesslyResolvedDerivation]:
-    check_obj(unresolved_derivation, "unresolved_derivation")
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
 
