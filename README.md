@@ -80,17 +80,24 @@ We can also test our reasoning about trust relationships directly in datalog, in
 
 ### FAQ
 
-**Q:** Why are you not implementing this in Nix directly?  
-**A:** Eventually that is definielty the way you would want to do this kind of thing, but for now it is meant to prove the concept and introduce it to an expert audience and later interested users, with a lot of breakage much shorter iteration times.
-
 **Q:** Do you want to upstram this?  
-**A:** With this project, I want to lead a credible effort to propose a specific signaure format, which does what I want from such a format, as outlined in my paper, but also gains support and accepts additions and changes by the community. At the same time I am prepared to say no to proposed changes to avoid avoid stalling this effort and other 'design by committe' issues.
+**A:** Yes. With this project, I want to lead a credible effort to propose a specific signaure format, which does what I want from such a format, as outlined in my paper.
+
+**Q:** Do you accept contributions?  
+**A:** Yes, I am enthusiastic about collaborating on this, and helping people with getting started on that. I also want to reply to proposals and criticism within a week. If I don't and you're waiting on an answer from me, please remind me.
 
 **Q:** What do you want from a signature format in Nix?  
 **A:** To turn Nix into a leading edge supply chain security tool. Nix has interesting properties in that area, but it is not living up to its potential yet.
 
 **Q:** Are you interested in working with different implementations of Nix?  
-**A:** Yes, definitely. I feel like a flexible enough signature format can be especially useful in an increasingly diverse ecosystem. Let's make it possible to let Nix evolve over time, try new ideas, AND interoperate as much as possible while doing it.
+**A:** Yes, definitely. I feel like a flexible enough signature format can be especially useful in an increasingly diverse ecosystem. Let's make it possible to let Nix evolve over time, try new ideas, AND interoperate as much as possible while doing it. It's important to me to have a good working relationship with others in the community across various implementations of Nix, who care about these issues as well.
+  Please open issues, reach me on matrix or via email at m@groundry.org.
+
+**Q:** Why are you not implementing this in Nix or any of its implementations directly?  
+**A:** Eventually that is definitely the way you would want to do this kind of thing, but for now it is meant to prove the concept (also across implementations) and introduce it to an expert audience, with a lot of breakage much shorter iterat ion times.
+
+**Q:** Can I use this now?  
+**A:** No, it does not do anything useful yet, but you can help work on it.
 
 ### Glossary
 
