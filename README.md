@@ -14,7 +14,7 @@ The name is german for[^1]
 
 </div>
 
-None of the cool things about this are implemented and working yet: 🙈
+The fundamentals are in place, but none of the cool things about this are implemented and working yet: 🙈
 * configurable trust model[^2], ...
 * which can be re-configured over time, based on ...
 * verifiable provenance data for builders
@@ -25,72 +25,76 @@ None of the cool things about this are implemented and working yet: 🙈
 
 Right now it can't even verify `github:mschwaig/nixpkgs-ca#hello` yet! 😓
 
----
+I want to get a scientific paper, and later my PhD thesis published based on this work, so if you do something that's inspired by this project, please give me a shoutout in your README.md, your docs or the relevant issue in your issue tracker. This really helps me demonstrate that my work is relevant for somebody.
 
-This is the code that goes along with my Verifiable SBOM paper.
+### How can I use it
 
-Since implementing this in Nix itself "for real" would take a lot of work, I can do the signature generation and verification completely independently.
-I can make 2 builders trust nothing and re-build every build step, uploading he results to a shared cache via a post build hook, including two signatures.
-The original signatures that Nix uses, and a constructive trace based signature based on my scheme.
-I could do this for input-addressing, content addressing or both, execept that the with input-addressing the cache can only resolve each path one way.
-I can even use a different computation to end up with unresovled and resolved derivation hashes, it does not have to match 100%.
-It would be good if it at least matches for unresolved / derivations though, but not required.
+This is a standalone command line tool called `laut`, which has two subcommands:
 
-For verification I just run my tool first, with the defined trust model, and if this succeeds, I run nix build.
-Then I check if both tools are in agreement about the output and its runtime closure.
+The first one is
+```
+laut sign-and-upload --to [S3 store url]
+```
 
-Of course in reality they could be disagreeing now, but this ugliness will disappear, if Nix adopts my verification.
+which will sign your derivations with the new signature format, and upload them to the newly introduced `traces` folder in the provided S3 store. This will then happen automatically after each build, in the same way that signatures are normally uploaded from nix-based builders.
 
-TODOs/next steps:
+The second one is
+```
+laut verify --from [S3 store url] --trusted-key [private key for signing] [derivation path or flake output path]
+```
 
-* figure out if legacy signatures should be allowed closer to the root of the dependency tree than regular signatures or not
-* I want to implement some design, which includes the runtime closure of a build step its resolved derivation and therefore input hash, and does this the same way for both input and content addressed derivations.
-  This should give us the option to be stricter when resolving input addressed derivations, but also sufficiently strict when a content addressed derivation depends on an input addressed derivation.
-  On the other hand, in a content-addressed derivation only world/for an implementation which does not support input addressing, the whole design should just 'dissapear into nothingness'.
+Which is run manually by the user after building or obtaining an output from the cache.
+This command tries to verify that a given derivation is valid according to the stricter validation criteria of the tool. Later on there will be more options to configure a specific trust model to verify against, and you will be able to additionally pass an SBOM which then also has to match the other elements.
 
-I think what we can do is
-* for a given build step walk thorugh its runtime closure, and returning all input addressed derivations which are in there, (in some sorted order?).
-* Then we resolve all of them to their specific content hashes, and make that part of a specific dedicated section in the resolved derivation, where we either place KV pairs of unresolved, resolved, or the resolved derivations in a defined order.
-In unresolved derivations, this list is not present.
-In resolved derivations, which do not have any input addressed derivations in their runtime closure, this list is also not present, or empty, depending on how we want to define it.
-In resolved derivations, which depend on some input addressed dreivations, the list is filled accordingly.
-Same thing for input addressed derivations.
+### How does it work
 
-Resolved derivations are used to build input hashes or traces, and this works for input addressing as well as content addressing.
-It's just that for input addressing we can choose to ignore this, to get the current semantics with frankenbuilds, and for content addressing we would have to relax the security model and use rewrites to get back to those original semantics.
+It's a python program. The signing is very straighforward python code.
 
-The violations of those semantics we actually care about are when two different resolutions of the same unresolved input end up in the same buildtime closure.(Also actually true purely in content addressing, but not sure yet how we would handle that either ...)
+The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree and emits facts about the dependency tree to some files.
+These files then serve as the input to a datalog program using SWIG, to make the actual determination about the validity of the dependency tree.
 
-This might actually work and not be an issue, but with how I have written the above, in the key value scenario, we could not even express conflicting resolution of an input-addressed indirect dependency. So we might detect this situation, and its purely content-addressed variant, and add a suitable rewrite to the derivation. Not sure how else we would handle this.
-The correct place to hint about how we did such rewrites might be in the response to the unresolved input hash .... i would say narinfo, but sice that's per path and not per derivation it does not seem totally appropriate.
-We might not have to query for this information if we do not have any trouble with such conflicting resolutions.
+The datalog program is compiled using souffle inside of its own derivation.
 
-During dependnecy resulution such a rewrite actually creates a constraint on the resoultion. Once we have resolved the dependencies, this constraint should be satisfied, or it should have lead to an error.
-Another possible constraint could be that a rewrite is not allowed to occur between a derivation e and its upstream dependency d.
+### How can I test it
 
-It is not clear to me if the presence of a rewrite should have an impact on the hash of the derivation as well, or be implied by this closure resolution section we are designing right now.
+As of now, there are two kinds of tests in this project
 
-Ok, this still misses the cases where we have different content addressed derivations depending on something with the same unresolved identity but a different resolved identity.
-For this we would have to scan the runt time closure of all derivations and record how each unresolved dependency is resolved.
-Then we could detect this situation, and choose to resolve it via adding an entry to the special extra section, or not, or we could make adding an entry to the special extra secttion, and therefore/at the same time making a rewriting decison mandatory. The tough thing about his is that the rewriting would then again impact identity, and I am not sure how to model this recursive mess, so it is clear to both producer and consumer.
+The python tests, which can be run with
 
-I know how this can work now, for both cases.
-We initially put out a request to the cache, using a resolved input hash, which contains the conflict (we should at the same time locally already be aware of the conflict, so the endpoint could also be different, and what we get back from upstream still has to conform to our trust model). This does not muddy the water the same way as giving back build results for arbitrarily unresolved derivations would, because we are actually going to get back a signature for an entirely differnt kind of build step: a rewrite.
-It tells us how upstream resolved this conflict. If their resolution fits within our trust model, we can also perform it, in anticipation of this helping uns get downstream stuff from their cache as well.
-We can also resovle completely differnetly or just not consult anybody about this conflict resolution at all and simply do it locally.
-Either way we end up with a new input hash based on the rewritten inputs, and can proceed from there, for example by requesting that from the cache.
+```
+pytest -s tests/
+```
 
-Some of the content addressed paths in our store might have been rewritten now, but we keep the corresponding signatures around, and hopefully the signed rewrite (or a signed rewrite we produced ourselves) makes it clear what chain of operations produced all of those outputs in our store.
-Maybe we can re-use the same primitive to reason about trivial differences in storepaths, ... i have to think about this more.
+inside a nix develop shell, and the NixOS VM tests, which you can run by first buliding the test driver for one of the tests
+```
+nix build .#checks.x86_64-linux.fullReproVM.driverInteractive 
+```
 
-RECOMMENDATIONS by numinit
-https://www.usenix.org/system/files/1401_08-12_mickens.pdf
-https://fidoalliance.org/wp-content/uploads/2024/06/EDWG_Attestation-White-Paper_2024-1.pdf
+and then running the resulting binary to get into this emacs shell.
 
+In that shell you can then run the test using the "test_script()" function.
 
-This is an educational POC which might or might not be turned into a reference implementation at some point.
+**In the future** each VM test should validate according to a different trust model, but right now there is no meaningful distinction between them yet.
 
-It would be nice to demonstrate, that it works with Nix, Lix and Guix.
+We can also test our reasoning about trust relationships directly in datalog, in a another set of tests.
+
+### FAQ
+
+**Q:** Why are you not implementing this in Nix directly?  
+**A:** Eventually that is definielty the way you would want to do this kind of thing, but for now it is meant to prove the concept and introduce it to an expert audience and later interested users, with a lot of breakage much shorter iteration times.
+
+**Q:** Do you want to upstram this?  
+**A:** With this project, I want to lead a credible effort to propose a specific signaure format, which does what I want from such a format, as outlined in my paper, but also gains support and accepts additions and changes by the community. At the same time I am prepared to say no to proposed changes to avoid avoid stalling this effort and other 'design by committe' issues.
+
+**Q:** What do you want from a signature format in Nix?  
+**A:** To turn Nix into a leading edge supply chain security tool. Nix has interesting properties in that area, but it is not living up to its potential yet.
+
+**Q:** Are you interested in working with different implementations of Nix?  
+**A:** Yes, definitely. I feel like a flexible enough signature format can be especially useful in an increasingly diverse ecosystem. Let's make it possible to let Nix evolve over time, try new ideas, AND interoperate as much as possible while doing it.
+
+### Glossary
+
+I think having a bunch of important terms explaind here will be useful.
 
 [^1]: according to https://en.langenscheidt.com/german-english/laut 📖
 [^2]: set of trusted builders with additional constraining criteria, including consensus
