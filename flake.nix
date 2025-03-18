@@ -63,7 +63,7 @@
           '';
         };
 
-        trace-signatures = pkgs.python3.pkgs.buildPythonApplication {
+        trace-signatures-f = sign-only: pkgs.python3.pkgs.buildPythonApplication {
           pname = "trace-signatures";
           version = "0.1.0";
           format = "pyproject";
@@ -98,15 +98,19 @@
             boto3
             click
             loguru
+          ] ++ (if sign-only then [] else [
             nix-verify-souffle
-          ];
+          ]);
 
           pythonImportsCheck = [ "trace_signatures" ];
         };
 
+        trace-signatures = trace-signatures-f false;
+        trace-signatures-sign-only = trace-signatures-f true;
+
     in {
         packages = {
-          inherit nix nix-vsbom trace-signatures nix-verify-souffle test-drv-json;
+          inherit nix nix-vsbom trace-signatures trace-signatures-sign-only nix-verify-souffle test-drv-json;
           default = trace-signatures;
         };
 
