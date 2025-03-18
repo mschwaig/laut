@@ -5,10 +5,8 @@ on:
   push:
     branches:
       - main
-    paths: ['.github/workflows/**', '**/*.dl', '**/*.facts', '**/*.py', '**/*.nix']
   pull_request:
     types: [opened, synchronize, reopened]
-    paths: ['.github/workflows/**', '**/*.dl', '**/*.facts', '**/*.py', '**/*.nix']
 
 jobs:
   nix-eval:
@@ -30,7 +28,7 @@ jobs:
       run: >
           nix run github:nix-community/nix-eval-jobs --
           --gc-roots-dir gcroot
-          --flake ".#"
+          --flake ".#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
   nix-build:
     strategy:
       fail-fast: false
@@ -47,4 +45,6 @@ jobs:
     - name: Build
       run: >
           nix run github:Mic92/nix-fast-build --
-          --flake ".#"
+          --no-nom
+          --skip-cache
+          --flake ".#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
