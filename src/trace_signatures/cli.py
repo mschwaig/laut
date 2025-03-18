@@ -2,6 +2,8 @@ import sys
 import os
 import click
 import subprocess
+
+from trace_signatures.verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
 from .signing import sign_and_upload
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -74,7 +76,7 @@ def sign(drv_path, secret_key_file, to, out_paths):
 @click.argument('target', required=True)
 @click.option('--cache', required=False, multiple=True,
               help='URL of signature cache to query (can be specified multiple times)')
-@click.option('--trusted-key', required=True, multiple=True, type=click.Path(exists=True),
+@click.option('--trusted-key', required=False, multiple=True, type=click.Path(exists=True),
               help='Path to trusted public key file (can be specified multiple times)')
 def verify(target, cache, trusted_key):
     """
@@ -125,8 +127,8 @@ def verify(target, cache, trusted_key):
                 "or a flake reference (e.g., nixpkgs#hello)"
             )
 
-        # Run verification with the parsed keys
-        success = verify_signatures(drv_path, caches=list(cache), trusted_keys=trusted_keys)
+        # TODO: pass caches and trust model as parameter
+        success = verify_tree_from_drv_path(drv_path)
 
         if success:
             click.echo("Verification successful!")

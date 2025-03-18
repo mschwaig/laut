@@ -20,7 +20,7 @@ import rfc8785
 
 def get_canonical_derivation(path):
     """Get canonicalized JSON representation of a Nix derivation"""
-    deriv_json = get_derivation(path)
+    deriv_json = get_derivation(path, False)
     return rfc8785.dumps(deriv_json)
 
 def compute_sha256_base64(data: bytes):
@@ -111,7 +111,7 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.
     """
-    unresolved_drv_json = get_derivation(drv_path)
+    unresolved_drv_json = get_derivation(drv_path, False)
     resolved_drv_json = resolve_dependencies(unresolved_drv_json, resolutions)
     resolved_canonical = rfc8785.dumps(resolved_drv_json)
     resolved_input_hash = compute_sha256_base64(resolved_canonical)

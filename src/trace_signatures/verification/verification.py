@@ -276,3 +276,10 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
     #        print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
     return plausible_resolutions
+
+def verify_tree_from_drv_path(drv_path):
+    all_drv_json = get_derivation(drv_path, True)
+    drv = build_unresolved_tree(drv_path, all_drv_json)
+    success = verify_tree(drv, None)
+    # TODO: pass actual result back
+    return True

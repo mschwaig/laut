@@ -26,7 +26,7 @@ from loguru import logger
 
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     # Get output names from derivation
-    drv_data = get_derivation(drv_path)
+    drv_data = get_derivation(drv_path, False)
     if drv_data['inputDrvs'] != {}:
         # we have to return gracefully in this case, because
         # nix calls the post-build-hook twice

@@ -31,19 +31,30 @@ def get_output_path(drv_path):
         raise
 
 @lru_cache(maxsize=None)
-def get_derivation(drv_path):
+def get_derivation(drv_path, recursive: bool):
     """Get Nix derivation data as dict"""
     try:
         logger.debug(f"Running nix derivation show for: {drv_path}")
-        result = subprocess.run(
-            ['nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', drv_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        if recursive:
+            result = subprocess.run(
+                ['nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', '--recursive', drv_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+        else:
+            result = subprocess.run(
+                ['nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', drv_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
         drv_dict = json.loads(result.stdout)
         logger.debug("Successfully parsed derivation JSON")
-        return drv_dict[drv_path]
+        if recursive:
+            return drv_dict
+        else:
+            return drv_dict[drv_path]
     except Exception as e:
         logger.exception("error in get_derivation")
         raise
