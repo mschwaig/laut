@@ -49,7 +49,6 @@ jobs:
     - uses: DeterminateSystems/magic-nix-cache-action@v2
     - name: Build
       run: >
-          nix run github:Mic92/nix-fast-build
-          -- --skip-cached --no-nom
-          --flake
-          ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem)"
+          nix run github:Mic92/nix-fast-build --
+          --skip-cached
+          --flake ".#"
