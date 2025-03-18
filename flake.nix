@@ -8,7 +8,7 @@
   };
 
   outputs = { self, nixpkgs, bombon, flake-utils }@inputs:
-    flake-utils.lib.eachSystem [ "x86_64-linux" ] (system:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system:
     let
         nixpkgs-ca = (import nixpkgs { inherit system; }).applyPatches {
           name = "nixpkgs-always-apply-ca";
