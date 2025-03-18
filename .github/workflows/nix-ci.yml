@@ -26,5 +26,5 @@ jobs:
       run: >
           nix run github:Mic92/nix-fast-build --
           --no-nom
-          --skip-cache
+          --skip-cached
           --flake ".#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
