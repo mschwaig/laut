@@ -29,13 +29,13 @@ jobs:
         authToken: '${{ secrets.CACHIX_TOKEN }}'
         name: laut
     - name: Build
-      if: ${{ matrix.task != "pytest" }}
+      if: ${{ matrix.task != 'pytest' }}
       run: >
           nix run github:Mic92/nix-fast-build --
           --no-nom
           --skip-cached
           --flake ".#${{ matrix.task }}.$(nix eval --raw --impure --expr builtins.currentSystem)"
     - name: Pytest
-      if: ${{ matrix.task == "pytest" }}
+      if: ${{ matrix.task == 'pytest' }}
       run: >
         nix develop --command pytest -s tests/
