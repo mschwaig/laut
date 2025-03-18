@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # allows manual triggering
   push:
     branches:
-      - master
+      - main
     paths: ['.github/workflows/**', '**/*.dl', '**/*.facts', '**/*.py', '**/*.nix']
   pull_request:
     types: [opened, synchronize, reopened]
@@ -28,10 +28,9 @@ jobs:
       run: nix flake show --all-systems
     - name: Show all output paths
       run: >
-          nix run github:nix-community/nix-eval-jobs
-          -- --gc-roots-dir gcroot
-          --flake
-          ".#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
+          nix run github:nix-community/nix-eval-jobs --
+          --gc-roots-dir gcroot
+          --flake ".#"
   nix-build:
     strategy:
       fail-fast: false
@@ -45,9 +44,7 @@ jobs:
       uses: DeterminateSystems/nix-installer-action@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
-    - uses: DeterminateSystems/magic-nix-cache-action@v2
     - name: Build
       run: >
           nix run github:Mic92/nix-fast-build --
-          --skip-cached
           --flake ".#"
