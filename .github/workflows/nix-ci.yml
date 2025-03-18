@@ -33,7 +33,6 @@ jobs:
           --flake
           ".#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
   nix-build:
-    if: ${{ vars.CACHIX_NAME != '' }}
     strategy:
       fail-fast: false
       matrix:
