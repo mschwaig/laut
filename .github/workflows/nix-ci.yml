@@ -22,6 +22,11 @@ jobs:
       uses: DeterminateSystems/nix-installer-action@v9
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Set-up cachix to push the results to
+      uses: cachix/cachix-action@v13
+      with:
+        authToken: '${{ secrets.CACHIX_TOKEN }}'
+        name: laut
     - name: Build
       run: >
           nix run github:Mic92/nix-fast-build --
