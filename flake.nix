@@ -79,14 +79,16 @@
           pytestCheckHook = ''
             export PATH=${nix}/bin,$PATH
           '';
+
           # disable this for now
-          # until it does not depend on things outside the store anymore
+          # it is no clear to me if running these tests in the sandobx would make sense
+          # because they have to inspect and reason about store contents
+          # excpt if we mock all of that away
           doCheck = false;
 
           nativeCheckInputs = with pkgs.python3.pkgs; [
             pytest
             pytest-cov
-          #  nix
           ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
