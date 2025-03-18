@@ -1,0 +1,55 @@
+name: Nix CI
+
+on:
+  workflow_dispatch: # allows manual triggering
+  push:
+    branches:
+      - master
+    paths: ['.github/workflows/**', '**/*.dl', '**/*.facts', '**/*.py', '**/*.nix']
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths: ['.github/workflows/**', '**/*.dl', '**/*.facts', '**/*.py', '**/*.nix']
+
+jobs:
+  nix-eval:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v9
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: List all flake outputs
+      run: nix flake show --all-systems
+    - name: Show all output paths
+      run: >
+          nix run github:nix-community/nix-eval-jobs
+          -- --gc-roots-dir gcroot
+          --flake
+          ".#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
+  nix-build:
+    if: ${{ vars.CACHIX_NAME != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v9
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - uses: DeterminateSystems/magic-nix-cache-action@v2
+    - name: Build
+      run: >
+          nix run github:Mic92/nix-fast-build
+          -- --skip-cached --no-nom
+          --flake
+          ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem)"
