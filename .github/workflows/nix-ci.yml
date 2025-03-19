@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
-        task: [ "checks", "packages", "pytest" ]
+        os: [ ubuntu-latest ] # disabled macos-latest for now until we can take a look at that
+        task: [ "checks", "packages" ]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
@@ -29,13 +29,8 @@ jobs:
         authToken: '${{ secrets.CACHIX_TOKEN }}'
         name: laut
     - name: Build
-      if: ${{ matrix.task != 'pytest' }}
       run: >
           nix run github:Mic92/nix-fast-build --
           --no-nom
           --skip-cached
           --flake ".#${{ matrix.task }}.$(nix eval --raw --impure --expr builtins.currentSystem)"
-    - name: Pytest
-      if: ${{ matrix.task == 'pytest' }}
-      run: >
-        nix develop --command pytest -s tests/

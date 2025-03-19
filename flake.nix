@@ -47,7 +47,7 @@
           ];
 
           pythonImportsCheck = [ "nix_verify_souffle" ];
-          doCheck = false;
+          doCheck = true;
 
           buildPhase = ''
             souffle -o nix_verify_souffle $src/nix_verify.dl
