@@ -18,7 +18,6 @@ dependencies = [
 
 [project.scripts]
 laut = "laut.cli:main"
-"laut.py" = "laut.cli:main"
 
 [project.optional-dependencies]
 test = [

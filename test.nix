@@ -93,7 +93,7 @@ let
             printf "%s" "$OUT_PATHS" | xargs nix copy --to "${storeUrl}" --no-require-sigs
             printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${storeUrl}" --secret-key-files /etc/nix/private-key
 
-            laut.py sign "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
+            laut sign "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
           '';
         };
       };
@@ -223,7 +223,7 @@ let
     ${name}.wait_for_unit("network.target")
 
     ${name}.succeed("mkdir -p ~/.config/nixpkgs")
-    ${name}.succeed("laut.py verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
+    ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
 
     # ${name}.fail("nix path-info ${pkgA}")
     # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
