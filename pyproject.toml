@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "trace_signatures"
+name = "laut"
 dynamic = ["version"]
 description = "Nix build trace signature tool"
 requires-python = ">=3.8"
@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-trace-signatures = "trace_signatures.cli:main"
-"trace-signatures.py" = "trace_signatures.cli:main"
+laut = "laut.cli:main"
+"laut.py" = "laut.cli:main"
 
 [project.optional-dependencies]
 test = [
@@ -28,7 +28,7 @@ test = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["trace_signatures"]
+packages = ["laut"]
 
 [tool.setuptools_scm]
 
@@ -38,7 +38,7 @@ packages = ["trace_signatures"]
 #addopts = "-ra -q"
 
 [tool.coverage.run]
-source = ["trace_signatures"]
+source = ["laut"]
 branch = true
 
 [tool.pytest.ini_options]

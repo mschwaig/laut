@@ -2,7 +2,7 @@ import unittest
 from typing import NamedTuple
 from itertools import product
 
-from trace_signatures.verification.verification import get_resolution_combinations 
+from laut.verification.verification import get_resolution_combinations
 
 class TestResolutionCombinations(unittest.TestCase):
     def test_simple_string_combinations(self):

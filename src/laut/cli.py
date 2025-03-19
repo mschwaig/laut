@@ -3,7 +3,7 @@ import os
 import click
 import subprocess
 
-from trace_signatures.verification.verification import verify_tree_from_drv_path
+from .verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
 from .signing import sign_and_upload
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -92,14 +92,14 @@ def verify(target, cache, trusted_key):
     one trusted public key for verification.
 
     Examples:
-        trace-signatures verify \\
+        laut verify \\
             --cache s3://binary-cache \\
             --cache s3://backup-cache \\
             --trusted-key ./keys/builder1.public \\
             --trusted-key ./keys/builder2.public \\
             nixpkgs#hello
 
-        trace-signatures verify \\
+        laut verify \\
             --cache s3://binary-cache \\
             --trusted-key ./keys/trusted.public \\
             /nix/store/xxx.drv
@@ -149,7 +149,7 @@ def main():
     logger.debug(f"Working directory: {os.getcwd()}")
 
     try:
-        cli.main(prog_name='trace-signatures', standalone_mode=False)
+        cli.main(prog_name='laut', standalone_mode=False)
     except click.exceptions.ClickException as e:
         logger.exception(f"Click exception.")
         sys.exit(e.exit_code)

@@ -64,8 +64,8 @@
           '';
         };
 
-        trace-signatures-f = sign-only: pkgs.python3.pkgs.buildPythonApplication {
-          pname = "trace-signatures";
+        laut-f = sign-only: pkgs.python3.pkgs.buildPythonApplication {
+          pname = "laut";
           version = "0.1.0";
           format = "pyproject";
 
@@ -103,16 +103,16 @@
             nix-verify-souffle
           ]);
 
-          pythonImportsCheck = [ "trace_signatures" ];
+          pythonImportsCheck = [ "laut" ];
         };
 
-        trace-signatures = trace-signatures-f false;
-        trace-signatures-sign-only = trace-signatures-f true;
+        laut = laut-f false;
+        laut-sign-only = laut-f true;
 
     in {
         packages = {
-          inherit nix nix-vsbom trace-signatures trace-signatures-sign-only nix-verify-souffle test-drv-json;
-          default = trace-signatures;
+          inherit nix nix-vsbom laut laut-sign-only nix-verify-souffle test-drv-json;
+          default = laut;
         };
 
         checks = lib.filterAttrs (name: value:
@@ -120,7 +120,7 @@
           # it makes no sense to run more than one VM test
           (name == "fullReproVM"))
           (import ./test.nix {
-            inherit pkgs nix-vsbom inputs trace-signatures nixpkgs-ca;
+            inherit pkgs nix-vsbom inputs laut nixpkgs-ca;
           });
 
         devShell = let

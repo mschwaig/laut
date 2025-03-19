@@ -3,7 +3,7 @@ from typing import Dict
 import os
 import copy
 
-from trace_signatures.verification.verification import get_derivation_type
+from laut.verification.verification import get_derivation_type
 from .storage import upload_signature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey

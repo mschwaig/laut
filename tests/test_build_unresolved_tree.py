@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
-from trace_signatures.verification.verification import build_unresolved_tree, verify_tree
-from trace_signatures.verification.trust_model import TrustModel, TrustedKey
+from laut.verification.verification import build_unresolved_tree, verify_tree
+from laut.verification.trust_model import TrustModel, TrustedKey
 
-from trace_signatures.cli import read_public_key
+from laut.cli import read_public_key
 
 import linecache
 import os

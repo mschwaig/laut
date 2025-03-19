@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from trace_signatures.nix.deep_constructive_trace import get_DCT_input_hash
+from laut.nix.deep_constructive_trace import get_DCT_input_hash
 
 import pytest
 from loguru import logger

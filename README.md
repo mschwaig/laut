@@ -29,7 +29,7 @@ I want to get a scientific paper, and later my PhD thesis published based on thi
 
 ### How can I use it
 
-This is a standalone command line tool called `laut`[^3],  which has two subcommands:
+This is a standalone command line tool called `laut`,  which has two subcommands:
 
 The first one is
 ```
@@ -106,4 +106,3 @@ I think having a bunch of important terms explaind here will be useful.
 
 [^1]: according to https://en.langenscheidt.com/german-english/laut 📖
 [^2]: set of trusted builders with additional constraining criteria, including consensus
-[^3]: as of now the binary is still called `trace-signatures` since I only came up with the name a few days ago

@@ -1,4 +1,4 @@
-{ pkgs, nix-vsbom, trace-signatures, inputs, nixpkgs-ca, ... }:
+{ pkgs, nix-vsbom, laut, inputs, nixpkgs-ca, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
@@ -93,7 +93,7 @@ let
             printf "%s" "$OUT_PATHS" | xargs nix copy --to "${storeUrl}" --no-require-sigs
             printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${storeUrl}" --secret-key-files /etc/nix/private-key
 
-            trace-signatures.py sign "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
+            laut.py sign "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
           '';
         };
       };
@@ -116,7 +116,7 @@ let
         systemPackages = with pkgs; [
           nix
           git
-          trace-signatures
+          laut
         ];
       };
   };
@@ -161,7 +161,7 @@ let
           environment.systemPackages = with pkgs; [
             nix
             git
-            trace-signatures
+            laut
           ];
       } // extraConfig;
     };
@@ -223,7 +223,7 @@ let
     ${name}.wait_for_unit("network.target")
 
     ${name}.succeed("mkdir -p ~/.config/nixpkgs")
-    ${name}.succeed("trace-signatures.py verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
+    ${name}.succeed("laut.py verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
 
     # ${name}.fail("nix path-info ${pkgA}")
     # ${name}.succeed("nix store info --store '${storeUrl}' >&2")

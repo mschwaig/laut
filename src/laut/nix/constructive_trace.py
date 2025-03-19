@@ -4,7 +4,7 @@ import hashlib
 import base64
 from typing import Optional
 from loguru import logger
-from trace_signatures.nix.types import (
+from laut.nix.types import (
     TrustlesslyResolvedDerivation,
     UnresolvedDerivation,
     ResolvedDerivation,
