@@ -31,6 +31,30 @@ def mock_derivation_lookup(monkeypatch):
     monkeypatch.setattr("laut.nix.constructive_trace.get_derivation", mock)
     return mock
 
+@pytest.fixture
+def mock_signature_fetch(monkeypatch):
+    """Fixture that mocks fetch_ct_signatures to return signature data from test files."""
+    def _fetch_signatures_mock(input_hash: str) -> list:
+        # Path to the signature file
+        signature_file = Path(__file__).parent.parent.parent / "tests" / "traces" / "out4" / "builderA.json"
+        
+        try:
+            with open(signature_file) as f:
+                signature_data = json.load(f)
+                
+            # Return the signatures for the requested input hash if they exist
+            if input_hash in signature_data:
+                return [signature_data[input_hash]]
+            else:
+                return []
+        except Exception as e:
+            print(f"Error loading signatures: {e}")
+            return []
+    
+    mock = MagicMock(side_effect=_fetch_signatures_mock)
+    monkeypatch.setattr("laut.verification.verification.fetch_ct_signatures", mock)
+    return mock
+
 # memory usage tracing from https://stackoverflow.com/a/45679009
 def display_top(snapshot, key_type='lineno', limit=10):
     snapshot = snapshot.filter_traces((
