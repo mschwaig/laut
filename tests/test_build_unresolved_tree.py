@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 from laut.verification.verification import build_unresolved_tree, verify_tree
 from laut.verification.trust_model import TrustModel, TrustedKey
 
@@ -8,6 +9,27 @@ from laut.cli import read_public_key
 import linecache
 import os
 import tracemalloc
+
+import pytest
+
+# TODO: move this and the _verify_ tests to their own file
+@pytest.fixture
+def mock_derivation_lookup(monkeypatch):
+    """
+    Fixture that mocks get_derivation to return appropriate data from hello-ca-recursive.drv
+    based on the requested derivation path.
+    """
+    def _get_derivation_mock(drv_path, _):
+        # Load the entire recursive derivation data
+        data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+        with open(data_file) as f:
+            all_derivations = json.load(f)
+
+        return all_derivations[drv_path]
+
+    mock = MagicMock(side_effect=_get_derivation_mock)
+    monkeypatch.setattr("laut.nix.constructive_trace.get_derivation", mock)
+    return mock
 
 # memory usage tracing from https://stackoverflow.com/a/45679009
 def display_top(snapshot, key_type='lineno', limit=10):
