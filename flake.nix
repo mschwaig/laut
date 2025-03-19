@@ -22,6 +22,7 @@
         pkgs = import nixpkgs {
           inherit system;
         };
+        lib = pkgs.lib;
         nix = pkgs.nix;
         nix-vsbom = bombon.lib.${system}.buildBom nix {
           includeBuildtimeDependencies = true;
@@ -114,11 +115,13 @@
           default = trace-signatures;
         };
 
-        checks = let
-            system = "x86_64-linux";
-            in import ./test.nix {
-                inherit pkgs nix-vsbom inputs trace-signatures nixpkgs-ca;
-            };
+        checks = lib.filterAttrs (name: value:
+          # since trust models are not implemented yet
+          # it makes no sense to run more than one VM test
+          (name == "fullReproVM"))
+          (import ./test.nix {
+            inherit pkgs nix-vsbom inputs trace-signatures nixpkgs-ca;
+          });
 
         devShell = let
           pythonEnv = pkgs.python3.withPackages (ps: with ps; [
