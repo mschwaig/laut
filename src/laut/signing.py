@@ -1,5 +1,5 @@
 import jwt
-from typing import Dict
+from typing import Dict, Optional
 import os
 import copy
 
@@ -23,8 +23,13 @@ from .nix.commands import (
 )
 from loguru import logger
 
+def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths):
+    result = sign_impl(drv_path, secret_key_file, out_paths)
+    if result:
+        input_hash, jws_token = result
+        upload_signature(to, input_hash, jws_token)
 
-def sign_and_upload(drv_path, secret_key_file, to, out_paths):
+def sign_impl(drv_path, secret_key_file, out_paths) -> Optional[tuple[str, str]]:
     # Get output names from derivation
     drv_data = get_derivation(drv_path, False)
     if drv_data['inputDrvs'] != {}:
@@ -33,13 +38,13 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
         # once for the resolved derivation
         # once for the unresolved one
         logger.warning("doing nothing on unresolved derivation")
-        return
+        return None
 
     output_names = list(drv_data.get("outputs", {}).keys())
     is_fixed_output, is_content_addressed = get_derivation_type(drv_data)
     if is_fixed_output:
         # TODO: this is left for very complicated future work on better guarantees for FODs
-        return
+        return None
     if is_content_addressed:
         # TODO: assert that keys in this data structure match out_paths
         output_hashes = copy.deepcopy(drv_data["outputs"])
@@ -55,7 +60,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
                     break
     else:
         # TODO: this is left for simpler future work on extending CAD guarantees to IADs
-        return
+        return None
 
     # Read key and create signature
     with open(secret_key_file[0], 'r') as f:
@@ -69,7 +74,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     jws_token = create_trace_signature(input_hash, input_data, drv_path, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
 
-    upload_signature(to, input_hash, jws_token)
+    return input_hash, jws_token
 
 def create_trace_signature(input_hash: str, input_data, drv_path: str, output_hashes: Dict,
                          private_key: Ed25519PrivateKey, key_name: str) -> str:

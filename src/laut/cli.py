@@ -5,7 +5,10 @@ import subprocess
 
 from .verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
-from .signing import sign_and_upload
+from .signing import (
+    sign_impl,
+    sign_and_upload_impl
+)
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
@@ -51,6 +54,26 @@ def cli():
     logger.info("CLI group initialized")
     pass
 
+
+@cli.command()
+@click.argument('drv-path', type=click.Path(exists=True))
+@click.option('--secret-key-file', required=True, type=click.Path(exists=True),
+              help='Path to the secret key file', multiple=True)
+@click.option('--out-paths', help='Comma-separated list of output paths (default: check $OUT_PATHS env var)',
+              default=None)
+def sign(drv_path, secret_key_file, out_paths):
+    """Sign a derivation"""
+    try:
+        # Get output paths
+        if out_paths is None:
+            out_paths = os.environ.get('OUT_PATHS', '')
+        paths_list = [p for p in out_paths.split(',') if p]
+        sign_impl(drv_path, secret_key_file, paths_list)
+    except Exception as e:
+        logger.exception(f"Error in sign command: {str(e)}")
+        click.echo(f"Error: {str(e)}", err=True)
+        sys.exit(1)
+
 @cli.command()
 @click.argument('drv-path', type=click.Path(exists=True))
 @click.option('--secret-key-file', required=True, type=click.Path(exists=True),
@@ -59,14 +82,14 @@ def cli():
               help='URL of the target store (e.g., s3://bucket-name)')
 @click.option('--out-paths', help='Comma-separated list of output paths (default: check $OUT_PATHS env var)',
               default=None)
-def sign(drv_path, secret_key_file, to, out_paths):
+def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     """Sign a derivation and upload the signature"""
     try:
         # Get output paths
         if out_paths is None:
             out_paths = os.environ.get('OUT_PATHS', '')
         paths_list = [p for p in out_paths.split(',') if p]
-        sign_and_upload(drv_path, secret_key_file, to, paths_list)
+        sign_and_upload_impl(drv_path, secret_key_file, to, paths_list)
     except Exception as e:
         logger.exception(f"Error in sign command: {str(e)}")
         click.echo(f"Error: {str(e)}", err=True)
