@@ -101,7 +101,12 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
 
     payload = {
         "in": input_hash,
-        "in_data": input_data,
+        # remove this for now in service of the lila use case
+        # we will re-add it behind an option so that we can exclude it from lila
+        # we might eventually still want to have this dat in lila
+        # but removing it for that use case now means we don't have to worry about it
+        # before the actual need arises
+        # "in_data": input_data,
         "drv_path": drv_path,
         "out": output_hashes,
         "builder": {
