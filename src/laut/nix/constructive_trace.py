@@ -67,7 +67,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
     """
     if (resolutions != None) and (resolutions == {}):
         # we have a set of resolutions, so we are in verification 'mode', but
-        # all dependencies are alredy fully resolved
+        # all dependencies are already fully resolved
         return drv_data
 
     # Get existing inputSrcs
@@ -91,7 +91,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
             # so there should not be any further resolution that we have to do
             # TODO: extend this to deal with IADs
             if drv_data['inputDrvs'] != {}:
-                raise ValueError("called with unresolved derivation and wihout resolution")
+                raise ValueError("called with unresolved derivation and without resolution")
             #for o in input_drvs[drv]["outputs"]:
                 #output_hash = get_output_hash_from_disk(f"{drv}${o}")
                 # TODO: this should probably not just be the raw hash, but also some metadata about its format

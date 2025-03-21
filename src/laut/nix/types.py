@@ -10,9 +10,9 @@ ContentHash = str
 # all this input resolution stuff is pretty half-baked
 # maybe this should be the big typed thing that return from
 # recursing through the build-time closure
-# so it woudl have a couple of things
+# so it would have a couple of things
 #class InputResolution:
-# some way to understand what a specific unresovled derivation resolves to
+# some way to understand what a specific unresolved derivation resolves to
 # but we also may need to tie this intermediary result to a specific 'part'
 # of the trust model somehow
 # grouping resolved derivations in key-specific subsets could work
@@ -22,7 +22,7 @@ ContentHash = str
 # which might make sense and would be very elegant, because we can build a lot
 # up that way starting from the threshold function that is kind of outlined
 # in the comments that are part of the VM tests
-# we could address those subgroups using hashes of the set of keys they countain, merkle-style
+# we could address those subgroups using hashes of the set of keys they contain, merkle-style
 # sadly that does not necessarily give good answers about what should come out of the lookup
 # for subgroups ... the set of keys? or the set of resolved derivations?
 # set of keys seems to make sense, but not sure

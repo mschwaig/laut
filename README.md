@@ -48,7 +48,7 @@ This command tries to verify that a given derivation is valid according to the s
 
 ### How does it work
 
-It's a python program. The signing is very straighforward python code.
+It's a python program. The signing is very straightforward python code.
 
 The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree and emits facts about the dependency tree to some files.
 As part of this verification phase, the tool also gathers signatures from a set of caches, taking into account possible combinations of inputs by content hash, which could satisfy the dependency on those same inputs by input hash.
@@ -66,7 +66,7 @@ The python tests, which can be run with
 pytest -s tests/
 ```
 
-inside a nix develop shell, and the NixOS VM tests, which you can run by first buliding the test driver for one of the tests
+inside a nix develop shell, and the NixOS VM tests, which you can run by first building the test driver for one of the tests
 ```
 nix build .#checks.x86_64-linux.fullReproVM.driverInteractive 
 ```
@@ -82,7 +82,7 @@ We can also test our reasoning about trust relationships directly in datalog, in
 ### FAQ
 
 **Q:** Do you want to upstram this?  
-**A:** Yes. With this project, I want to lead a credible effort to propose a specific signaure format, which does what I want from such a format, as outlined in my paper.
+**A:** Yes. With this project, I want to lead a credible effort to propose a specific signature format, which does what I want from such a format, as outlined in my paper.
 
 **Q:** Do you accept contributions?  
 **A:** Yes, I am enthusiastic about collaborating on this, and helping people with getting started on that. I also want to reply to proposals and criticism within a week. If I don't and you're waiting on an answer from me, please remind me.
@@ -95,14 +95,14 @@ We can also test our reasoning about trust relationships directly in datalog, in
   Please open issues, reach me on matrix or via email at m@groundry.org.
 
 **Q:** Why are you not implementing this in Nix or any of its implementations directly?  
-**A:** Eventually that is definitely the way you would want to do this kind of thing, but for now it is meant to prove the concept (also across implementations) and introduce it to an expert audience, with a lot of breakage much shorter iterat ion times.
+**A:** Eventually that is definitely the way you would want to do this kind of thing, but for now it is meant to prove the concept (also across implementations) and introduce it to an expert audience, with a lot of breakage much shorter iteration times.
 
 **Q:** Can I use this now?  
 **A:** No, it does not do anything useful yet, but you can help work on it.
 
 ### Glossary
 
-I think having a bunch of important terms explaind here will be useful.
+I think having a bunch of important terms explained here will be useful.
 
 [^1]: according to https://en.langenscheidt.com/german-english/laut 📖
 [^2]: set of trusted builders with additional constraining criteria, including consensus

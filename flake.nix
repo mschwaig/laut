@@ -82,7 +82,7 @@
           '';
 
           # disable this for now
-          # it is no clear to me if running these tests in the sandobx would make sense
+          # it is no clear to me if running these tests in the sandbox would make sense
           # because they have to inspect and reason about store contents
           # excpt if we mock all of that away
           doCheck = false;

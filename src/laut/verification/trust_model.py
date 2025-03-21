@@ -57,12 +57,12 @@ class TrustedKey:
         )
 
 @dataclass(frozen=True)
-class KeySetWithTreshold:
+class KeySetWithThreshold:
     components: Set['TrustModel']
-    treshold: int # only outermost layer of threshold can have legacy keys maybe?
+    threshold: int # only outermost layer of threshold can have legacy keys maybe?
 
     def __post_init__(self):
-        if self.treshold < 1 or self.treshold > len(self.components):
+        if self.threshold < 1 or self.threshold > len(self.components):
             raise ValueError("invalid trust model")
 
     #def contains_legacy_keys(self):
@@ -73,22 +73,22 @@ class KeySetWithTreshold:
         # do the sum thing for each output
         # actually scratch those two lines, we probably need to just gather all
         # of the signatures first and check if we have enough co-inciding transitive runtime closures
-        # return a set with those which surpass the treshold
-        #return sum(1 for x in self.components if x.ct_verify(ct_input_hash, ct_signatures)) >= self.treshold
+        # return a set with those which surpass the threshold
+        #return sum(1 for x in self.components if x.ct_verify(ct_input_hash, ct_signatures)) >= self.threshold
         return set()
 
     def dct_verify(self, dct_input_hash: UnresolvedInputHash, dct_signatures) ->Set[Set[TrustlesslyResolvedDerivation]]:
         # do the threshold thing for each combination of inputs
-        #return sum(1 for x in self.components if x.dct_verify(dct_input_hash, dct_signatures)) >= self.treshold
+        #return sum(1 for x in self.components if x.dct_verify(dct_input_hash, dct_signatures)) >= self.threshold
         return set()
 
     def __hash__(self):
-        return hash((self.components, self.treshold))
+        return hash((self.components, self.threshold))
 
     def __eq__(self, other):
-        if not isinstance(other, KeySetWithTreshold):
+        if not isinstance(other, KeySetWithThreshold):
             return False
         return (self.components == other.components) and (
-            self.treshold == other.treshold)
+            self.threshold == other.threshold)
 
-TrustModel = TrustedKey | KeySetWithTreshold
+TrustModel = TrustedKey | KeySetWithThreshold
