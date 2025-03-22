@@ -124,7 +124,7 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
         input_hash=get_DCT_input_hash(node_drv_path),
         inputs=input_outputs,
         outputs=outputs,
-        is_content_addressed=is_content_addressed_drv, # this field shold not really mater for FODs because they are leafs in the tree
+        is_content_addressed=is_content_addressed_drv, # this field should not really mater for FODs because they are leaves in the tree
         is_fixed_output=is_fixed_output,
     )
     #logger.debug(f"{unresolved_derivation}")
@@ -137,7 +137,7 @@ V = TypeVar('V')
 
 def get_resolution_combinations(input_resolutions: Dict[K, Set[V]]) -> Iterator[Dict[K, V]]:
     if len(input_resolutions) == 0:
-        # if our dependency resoultion has no variable parts
+        # if our dependency resolution has no variable parts
         # there is still one valid resolution with all of the static parts
         # so we return an empty dictionary here
         # this happens for sure on the outer edges of the dependency tree,
@@ -259,7 +259,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
             for o in signature["out"]:
-                # TODO: add output name or change data structure in some way to accomodate it
+                # TODO: add output name or change data structure in some way to accommodate it
                 builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
                 outputs[unresolved_derivation.outputs[o]] = signature["out"][o]["path"]
             resolved_drv = TrustlesslyResolvedDerivation(
@@ -270,7 +270,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
             plausible_resolutions.append(resolved_drv)
 
     #    if valid:
-    #        print("vaildated {resolution} for {inputs.derivation.drv_path}")
+    #        print("validated {resolution} for {inputs.derivation.drv_path}")
     #        valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
     #    else:
     #        print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
