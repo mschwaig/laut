@@ -3,7 +3,6 @@ from typing import Dict, Optional
 import os
 import copy
 
-from laut.verification.verification import get_derivation_type
 from .storage import upload_signature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
@@ -19,7 +18,8 @@ from .nix.constructive_trace import (
     compute_CT_input_hash,
 )
 from .nix.commands import (
-    get_derivation
+    get_derivation,
+    get_derivation_type
 )
 from loguru import logger
 

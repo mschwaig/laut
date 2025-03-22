@@ -14,7 +14,8 @@ from laut.nix.types import (
 )
 from .commands import (
     get_derivation,
-    get_output_hash_from_disk
+    get_output_hash_from_disk,
+    get_derivation_type
 )
 import rfc8785
 

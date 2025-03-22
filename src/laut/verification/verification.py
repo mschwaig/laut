@@ -15,6 +15,7 @@ import tempfile
 from ..nix.commands import (
     get_derivation,
     check_nixos_cache,
+    get_derivation_type,
     get_from_nixos_cache,
 )
 from ..nix.constructive_trace import (
@@ -42,21 +43,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from .trust_model import TrustedKey
 from .fetch_signatures import fetch_ct_signatures
 from loguru import logger
-
-def get_derivation_type(drv_data) -> tuple[bool, bool]:
-    """Determine if a derivation is fixed-output and/or content-addressed"""
-    try:
-        outputs = drv_data.get("outputs", {})
-        first_output = next(iter(outputs.values()), {})
-        has_path = bool(first_output.get("path", False))
-        has_hash = bool(first_output.get("hash", False))
-        is_content_addressed_drv =  (not has_path) and (not has_hash)
-        is_fixed_output = has_hash
-
-        return is_fixed_output, is_content_addressed_drv
-    except Exception:
-        logger.exception("error determining derivation type")
-        raise
 
 def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed_drv: bool) -> Dict[str, UnresolvedOutput]:
     global _json
