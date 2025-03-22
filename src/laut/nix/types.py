@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Set, Tuple
 from types import MappingProxyType
+from laut.nix.placeholder import from_drv_path_and_output
 
 UnresolvedInputHash = str
 ResolvedInputHash = str
@@ -71,9 +72,13 @@ class UnresolvedReferencedInputs:
 class TrustlesslyResolvedDerivation:
     """Base information about a derivation"""
     resolves: UnresolvedDerivation = field(repr=False)
+    drv_path: Optional[str] # FODs don't have this they should probably be a differnt class to make this cleaner
     input_hash: ResolvedInputHash
     #inputs: Dict[UnresolvedDerivation, 'ResolvedDerivation']
     outputs: MappingProxyType['UnresolvedOutput', ContentHash]
+
+    def placeholder_for(self, output: str):
+        return from_drv_path_and_output(self.drv_path, output)
 
     def __hash__(self):
         hashable_outputs = frozenset(self.outputs.items())
@@ -93,6 +98,9 @@ class UnresolvedOutput:
     drv_path: str
     input_hash: Optional[UnresolvedInputHash]
     unresolved_path: str # this only exists for input addressed derivations
+
+    def placeholder(self):
+        return from_drv_path_and_output(self.drv_path, self.output_name)
 
     def __hash__(self):
         return hash((self.input_hash, self.unresolved_path, self.output_name))

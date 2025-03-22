@@ -1,4 +1,5 @@
 from functools import lru_cache
+import json
 import subprocess
 import hashlib
 import base64
@@ -105,7 +106,25 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
     modified_drv['inputSrcs'] = list(sorted(resolved_srcs))
     modified_drv['inputDrvs'] = {}
 
-    return modified_drv
+    # for each key and value of the resolution thing
+    # check if it occurs in the modified derivation and replace it
+    drv_str =  rfc8785.dumps(modified_drv).decode('ascii')
+    for drv in input_drvs:
+        drv_json = get_derivation(drv, False)
+        is_fixed_output, is_ca = get_derivation_type(drv_json)
+        if is_fixed_output:
+            continue
+        # TODO: make sure we are considering different outputs per derivation in both code paths here
+        if resolutions != None:
+            # if we cannot resolve something
+            # we should make sure to throw an exception here
+            derivation = _get_typed_derivation(resolutions, drv)
+            for o in input_drvs[drv]["outputs"]:
+                drv_str = drv_str.replace(derivation.placeholder_for(o), _get_content_hash(derivation, o))
+                drv_str = drv_str.replace(derivation.resolves.outputs[o].placeholder(), _get_content_hash(derivation, o))
+
+    ret_str = json.loads(drv_str)
+    return ret_str
 
 def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]) -> tuple[ResolvedInputHash, str]:
     """

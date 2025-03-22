@@ -199,6 +199,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
         return {
             TrustlesslyResolvedDerivation(
                 resolves = unresolved_derivation,
+                drv_path = None,
                 input_hash = ct_input_hash,
                 # might not have to keep track of those two in python
                 # TODO: maybe change exactly which attributes of the output are added here and in other places
@@ -248,8 +249,10 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
                 # TODO: add output name or change data structure in some way to accommodate it
                 builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
                 outputs[unresolved_derivation.outputs[o]] = signature["out"][o]["path"]
+            drv_path=signature["drv_path"] # TODO: compute this ourselves
             resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,
+                drv_path=drv_path,
                 input_hash=ct_input_hash,
                 outputs=outputs
             )
