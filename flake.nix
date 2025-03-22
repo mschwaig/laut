@@ -98,6 +98,7 @@
             cryptography
             boto3
             click
+            sigstore
             loguru
           ] ++ (if sign-only then [] else [
             nix-verify-souffle
@@ -131,6 +132,7 @@
             boto3
             click
             loguru
+            sigstore
             pytest
             pytest-cov
             debugpy
