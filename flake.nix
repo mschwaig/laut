@@ -69,7 +69,13 @@
           version = "0.1.0";
           format = "pyproject";
 
-          src = ./.;
+          src = lib.sourceByRegex ./. [
+            "^src(/laut(/.*\.py)?)?$"
+            "^tests/.*$"
+            "^pyproject\.toml$"
+            "^LICENSE\.md$"
+            "^README\.md$"
+          ];
 
           nativeBuildInputs = with pkgs.python3.pkgs; [
             setuptools
@@ -81,11 +87,7 @@
             export PATH=${nix}/bin,$PATH
           '';
 
-          # disable this for now
-          # it is no clear to me if running these tests in the sandbox would make sense
-          # because they have to inspect and reason about store contents
-          # excpt if we mock all of that away
-          doCheck = false;
+          doCheck = !sign-only;
 
           nativeCheckInputs = with pkgs.python3.pkgs; [
             pytest
