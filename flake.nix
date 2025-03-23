@@ -81,15 +81,14 @@
           nativeBuildInputs = with pkgs.python3.pkgs; [
             setuptools
             setuptools-scm
+          ] ++ (if sign-only then [] else [
             pytestCheckHook
-          ];
+          ]);
 
           postPatch =  if sign-only then ''
             substituteInPlace "src/laut/build_config.py" \
-            --replace-fail "sign_only = False" "sign_only = True"
+              --replace-fail "sign_only = False" "sign_only = True"
           '' else "";
-
-          doCheck = !sign-only;
 
           nativeCheckInputs = with pkgs.python3.pkgs; [
             pytest
