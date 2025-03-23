@@ -13,7 +13,6 @@ import os
 import tempfile
 
 from laut.nix.commands import (
-    get_derivation,
     check_nixos_cache,
     get_derivation_type,
     get_from_nixos_cache,
@@ -267,7 +266,8 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
     return plausible_resolutions
 
 def verify_tree_from_drv_path(drv_path):
-    all_drv_json = get_derivation(drv_path, True)
+    from laut.nix import commands
+    all_drv_json = commands.get_derivation(drv_path, True)
     drv = build_unresolved_tree(drv_path, all_drv_json)
     success = verify_tree(drv, None)
     # TODO: pass actual result back

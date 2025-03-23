@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 from laut.verification.verification import build_unresolved_tree, verify_tree
 from laut.verification.trust_model import TrustModel, TrustedKey
 from laut.nix import commands
@@ -20,15 +20,17 @@ def mock_derivation_lookup(monkeypatch):
     Fixture that mocks get_derivation to return appropriate data from hello-ca-recursive.drv
     based on the requested derivation path.
     """
-    def _get_derivation_mock(drv_path, _):
+    def _get_derivation_mock(drv_path, recursive):
         # Load the entire recursive derivation data
         data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
         with open(data_file) as f:
             all_derivations = json.load(f)
+        if recursive:
+            return all_derivations
+        else:
+            return all_derivations[drv_path]
 
-        return all_derivations[drv_path]
-
-    mock = MagicMock(side_effect=_get_derivation_mock)
+    mock = Mock(side_effect=_get_derivation_mock)
     monkeypatch.setattr(commands, "get_derivation", mock)
     return mock
 
@@ -52,7 +54,7 @@ def mock_signature_fetch(monkeypatch):
             print(f"Error loading signatures: {e}")
             return []
     
-    mock = MagicMock(side_effect=_fetch_signatures_mock)
+    mock = Mock(side_effect=_fetch_signatures_mock)
     monkeypatch.setattr("laut.verification.verification.fetch_ct_signatures", mock)
     return mock
 

@@ -13,8 +13,7 @@ from laut.nix.types import (
     UnresolvedOutput,
     ContentHash
 )
-from .commands import (
-    get_derivation,
+from laut.nix.commands import (
     get_output_hash_from_disk,
     get_derivation_type
 )
@@ -22,7 +21,8 @@ import rfc8785
 
 def get_canonical_derivation(path):
     """Get canonicalized JSON representation of a Nix derivation"""
-    deriv_json = get_derivation(path, False)
+    from laut.nix import commands
+    deriv_json = commands.get_derivation(path, False)
     return rfc8785.dumps(deriv_json)
 
 def compute_sha256_base64(data: bytes):
@@ -67,6 +67,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
     Returns:
         dict: Modified derivation with resolved dependencies
     """
+    from laut.nix import commands
     if (resolutions != None) and (resolutions == {}):
         # we have a set of resolutions, so we are in verification 'mode', but
         # all dependencies are already fully resolved
@@ -110,7 +111,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
     # check if it occurs in the modified derivation and replace it
     drv_str =  rfc8785.dumps(modified_drv).decode('ascii')
     for drv in input_drvs:
-        drv_json = get_derivation(drv, False)
+        drv_json = commands.get_derivation(drv, False)
         is_fixed_output, is_ca = get_derivation_type(drv_json)
         if is_fixed_output:
             continue
@@ -131,7 +132,8 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.
     """
-    unresolved_drv_json = get_derivation(drv_path, False)
+    from laut.nix import commands
+    unresolved_drv_json = commands.get_derivation(drv_path, False)
     resolved_drv_json = resolve_dependencies(unresolved_drv_json, resolutions)
     resolved_canonical = rfc8785.dumps(resolved_drv_json)
     resolved_input_hash = compute_sha256_base64(resolved_canonical)
