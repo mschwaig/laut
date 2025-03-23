@@ -70,8 +70,9 @@
           format = "pyproject";
 
           src = lib.sourceByRegex ./. [
-            "^src(/laut(/.*\.py)?)?$"
-            "^tests/.*$"
+            "^src(/laut(/.*)?)?$"
+            "^tests(/.*)?$"
+            "^testkeys(/.*)?$"
             "^pyproject\.toml$"
             "^LICENSE\.md$"
             "^README\.md$"
@@ -80,6 +81,7 @@
           nativeBuildInputs = with pkgs.python3.pkgs; [
             setuptools
             setuptools-scm
+            pytestCheckHook
           ];
 
           postPatch =  if sign-only then ''
@@ -87,16 +89,10 @@
             --replace-fail "sign_only = False" "sign_only = True"
           '' else "";
 
-          checkPhase = "pytest";
-          pytestCheckHook = ''
-            export PATH=${nix}/bin,$PATH
-          '';
-
           doCheck = !sign-only;
 
           nativeCheckInputs = with pkgs.python3.pkgs; [
             pytest
-            pytest-cov
           ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
@@ -141,7 +137,6 @@
             loguru
             sigstore
             pytest
-            pytest-cov
             debugpy
             memory_profiler
           ] ++ [

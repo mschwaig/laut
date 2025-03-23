@@ -12,7 +12,7 @@ from nix_verify_souffle import SwigInterface
 import os
 import tempfile
 
-from ..nix.commands import (
+from laut.nix.commands import (
     get_derivation,
     check_nixos_cache,
     get_derivation_type,

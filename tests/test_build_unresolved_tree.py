@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from laut.verification.verification import build_unresolved_tree, verify_tree
 from laut.verification.trust_model import TrustModel, TrustedKey
+from laut.nix import commands
 
 from laut.cli import read_public_key
 
@@ -28,7 +29,7 @@ def mock_derivation_lookup(monkeypatch):
         return all_derivations[drv_path]
 
     mock = MagicMock(side_effect=_get_derivation_mock)
-    monkeypatch.setattr("laut.nix.constructive_trace.get_derivation", mock)
+    monkeypatch.setattr(commands, "get_derivation", mock)
     return mock
 
 @pytest.fixture
@@ -106,7 +107,7 @@ def test_loadKey():
     key = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
     print(key)
 
-def test_verify_ca_drv_small():
+def test_verify_ca_drv_small(mock_derivation_lookup, mock_signature_fetch):
     data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
@@ -120,7 +121,7 @@ def test_verify_ca_drv_small():
     #snapshot = tracemalloc.take_snapshot()
     #display_top(snapshot)
 
-def test_verify_ca_drv_large():
+def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
     data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)

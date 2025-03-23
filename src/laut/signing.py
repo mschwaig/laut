@@ -17,7 +17,7 @@ from .nix.commands import (
 from .nix.constructive_trace import (
     compute_CT_input_hash,
 )
-from .nix.commands import (
+from laut.nix.commands import (
     get_derivation,
     get_derivation_type
 )
