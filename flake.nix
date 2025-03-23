@@ -82,6 +82,11 @@
             setuptools-scm
           ];
 
+          postPatch =  if sign-only then ''
+            substituteInPlace "src/laut/build_config.py" \
+            --replace-fail "sign_only = False" "sign_only = True"
+          '' else "";
+
           checkPhase = "pytest";
           pytestCheckHook = ''
             export PATH=${nix}/bin,$PATH

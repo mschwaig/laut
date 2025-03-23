@@ -2,6 +2,7 @@ import sys
 import os
 import click
 import subprocess
+from loguru import logger
 
 from .verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
@@ -13,7 +14,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
 from .verification.trust_model import TrustedKey
-from loguru import logger
+from . import build_config
+
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """
@@ -49,9 +51,13 @@ def read_public_key(key_path: str) -> TrustedKey:
         raise click.BadParameter(f"Error reading public key file {key_path}: {str(e)}")
 
 @click.group()
-def cli():
+@click.pass_context
+def cli(ctx: click.Context):
     """Nix build trace signature tool"""
     logger.info("CLI group initialized")
+
+    if build_config.sign_only and ctx.invoked_subcommand and (not ctx.invoked_subcommand in [ "sign" ]):
+        ctx.exit()
     pass
 
 
