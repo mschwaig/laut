@@ -3,11 +3,6 @@ import time
 from typing import TypeVar, Dict, Iterator, Set, Iterator, Optional, List, Tuple, Hashable
 from itertools import product
 from functools import wraps, cache
-import subprocess
-import json
-import itertools
-import jwt
-from nix_verify_souffle import SwigInterface
 
 import os
 import tempfile
@@ -147,7 +142,7 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
-
+    from nix_verify_souffle import SwigInterface
     p = SwigInterface.newInstance("nix_verify")
     with tempfile.TemporaryDirectory() as temp_dir:
 

@@ -57,7 +57,8 @@ def cli(ctx: click.Context):
     logger.info("CLI group initialized")
 
     if build_config.sign_only and ctx.invoked_subcommand and (not ctx.invoked_subcommand in [ "sign" ]):
-        ctx.exit()
+        logger.error(f"invoked subcommand '{ctx.invoked_subcommand}' unavailable in 'sign-only' configuration of laut")
+        ctx.exit(1)
     pass
 
 
