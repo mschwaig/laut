@@ -144,7 +144,6 @@
             nix-verify-souffle
           ]);
         in pkgs.mkShell {
-          PYTHONPATH = "./src:${pythonEnv}/${pythonEnv.sitePackages}";
           PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
             pythonEnv

@@ -8,11 +8,9 @@
             "module": "pytest",
             "args": [
                 "-v",
-                "--no-cov",
                 "--pdb",
                 //"${file}",
                 //"-k", "test_verify_ca_drv_small",
-                "tests"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
