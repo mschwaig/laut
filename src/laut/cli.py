@@ -3,6 +3,7 @@ import os
 import click
 import subprocess
 from loguru import logger
+from . import config
 
 from .verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
@@ -51,8 +52,10 @@ def read_public_key(key_path: str) -> TrustedKey:
         raise click.BadParameter(f"Error reading public key file {key_path}: {str(e)}")
 
 @click.group()
+@click.option('--debug/--no-debug', default=False)
 @click.pass_context
-def cli(ctx: click.Context):
+def cli(ctx: click.Context, debug: bool):
+    config.debug = debug
     """Nix build trace signature tool"""
     logger.info("CLI group initialized")
 
@@ -174,7 +177,7 @@ def verify(target, cache, trusted_key):
 
 def main():
     """Entry point for the script"""
-    logger.debug("Script started")
+    logger.debug("Script started on {sys.version}")
     logger.debug(f"Args: {sys.argv}")
     logger.debug(f"Working directory: {os.getcwd()}")
 

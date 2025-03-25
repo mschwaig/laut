@@ -21,6 +21,7 @@ from laut.nix.commands import (
     get_derivation,
     get_derivation_type
 )
+from laut import config
 from loguru import logger
 
 def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths):
@@ -101,12 +102,7 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
 
     payload = {
         "in": input_hash,
-        # remove this for now in service of the lila use case
-        # we will re-add it behind an option so that we can exclude it from lila
-        # we might eventually still want to have this dat in lila
-        # but removing it for that use case now means we don't have to worry about it
-        # before the actual need arises
-        # "in_data": input_data,
+        **({"in_preimage": input_data} if config.debug else {}),
         "drv_path": drv_path,
         "out": output_hashes,
         "builder": {

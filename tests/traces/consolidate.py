@@ -124,18 +124,18 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
                             print(f"Payload base64: {payload_b64[:50]}...")
                         continue
 
-                    # Parse in_data if it exists and is a string
-                    if 'in_data' in payload_json and isinstance(payload_json['in_data'], str):
+                    # Parse in_preimage if it exists and is a string
+                    if 'in_preimage' in payload_json and isinstance(payload_json['in_preimage'], str):
                         try:
-                            in_data_json = json.loads(payload_json['in_data'])
+                            in_preimage_json = json.loads(payload_json['in_preimage'])
                             if debug:
-                                print(f"Successfully parsed in_data as JSON")
+                                print(f"Successfully parsed in_preimage as JSON")
 
                             # Replace the string with the parsed JSON object
-                            payload_json['in_data'] = in_data_json
+                            payload_json['in_preimage'] = in_preimage_json
                         except json.JSONDecodeError as e:
                             if debug:
-                                print(f"Could not parse in_data as JSON: {e}")
+                                print(f"Could not parse in_preimage as JSON: {e}")
 
                     # Get the key field value from payload
                     key_value = None

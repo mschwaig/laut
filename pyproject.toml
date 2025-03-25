@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "laut"
 dynamic = ["version"]
 description = "Nix build trace signature tool"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 # TODO: add license and classifiers
 dependencies = [
     "rfc8785",
