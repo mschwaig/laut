@@ -33,7 +33,7 @@ def get_output_path(drv_path):
             logger.debug(f"Found CA derivation output: {outputs[0]}")
             return outputs[0]
 
-        drv_data = get_derivation(drv_path)
+        drv_data = get_derivation(drv_path, False)
         if 'outputs' in drv_data and 'out' in drv_data['outputs']:
             output_data = drv_data['outputs']['out']
             if isinstance(output_data, dict) and 'path' in output_data:

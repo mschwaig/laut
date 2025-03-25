@@ -44,6 +44,8 @@ def test_sign_resolved_hook(runner, mock_derivation_lookup_resolved):
             'DRV_PATH': '/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv',
         }
     )
+    assert mock_derivation_lookup_resolved.call_count == 2 # TODO: make this 1
+    mock_derivation_lookup_resolved.assert_called_with('/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv', False)
     assert result.exit_code == 0
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
@@ -58,6 +60,8 @@ def test_sign_unresolved_hook(runner, mock_derivation_lookup_unresolved):
             'DRV_PATH': '/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv',
         }
     )
+    assert mock_derivation_lookup_unresolved.call_count == 1
+    mock_derivation_lookup_unresolved.assert_called_with('/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv', False)
     assert result.stdout == ''
     assert result.exit_code == 117
 
