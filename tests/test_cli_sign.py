@@ -1,20 +1,65 @@
+import json
+from pathlib import Path
+from unittest.mock import Mock
 import pytest
 from click.testing import CliRunner
+import re
+
 from laut import cli as cli_file
+from laut.nix import commands
 
 sign = cli_file.sign
 cli = cli_file.cli
 
 @pytest.fixture
+def mock_derivation_lookup_resolved(monkeypatch):
+    drv_file = Path(__file__).parent / "data" / "cli_sign" / "resolved.drv"
+    drv = drv_file.read_text()
+    drv_dict = json.loads(drv)
+    mock = Mock(return_value=drv_dict)
+    monkeypatch.setattr(commands, "get_derivation", mock)
+    return mock
+
+@pytest.fixture
+def mock_derivation_lookup_unresolved(monkeypatch):
+    drv_file = Path(__file__).parent / "data" / "cli_sign" / "unresolved.drv"
+    drv = drv_file.read_text()
+    drv_dict = json.loads(drv)
+    mock = Mock(return_value=drv_dict)
+    monkeypatch.setattr(commands, "get_derivation", mock)
+    return mock
+
+@pytest.fixture
 def runner():
     """Provides a Click CLI test runner."""
-    return CliRunner()
+    return CliRunner(mix_stderr=False)
 
-# def test_sign_resolved_hook(runner):
-#     """Test the add command."""
-#     result = runner.invoke(sign, ['5', '7'])
-#     assert result.exit_code == 0
-#     assert 'Result: 12' in result.output
+def test_sign_resolved_hook(runner, mock_derivation_lookup_resolved):
+    result = runner.invoke(sign, [
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            "/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv"
+        ],
+        env = {
+            'OUT_PATHS': '',
+            'DRV_PATH': '/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv',
+        }
+    )
+    assert result.exit_code == 0
+    pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+    assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
+
+def test_sign_unresolved_hook(runner, mock_derivation_lookup_unresolved):
+    result = runner.invoke(sign, [
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            "/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv"
+        ],
+        env = {
+            'OUT_PATHS': '',
+            'DRV_PATH': '/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv',
+        }
+    )
+    assert result.stdout == ''
+    assert result.exit_code == 117
 
 # def test_sign_unresolved_hook(runner):
 #     """Test the add command."""

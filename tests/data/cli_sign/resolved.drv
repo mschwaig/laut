@@ -1,0 +1,35 @@
+{
+    "args": [
+        "ash",
+        "-e",
+        "/nix/store/i9nx0dp1khrgikqr95ryy2jkigr4c5yv-unpack-bootstrap-tools.sh"
+    ],
+    "builder": "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox",
+    "env": {
+        "builder": "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox",
+        "hardeningUnsupportedFlags": "fortify3 shadowstack pacret stackclashprotection trivialautovarinit zerocallusedregs",
+        "isGNU": "1",
+        "langC": "1",
+        "langCC": "1",
+        "name": "bootstrap-tools",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "system": "x86_64-linux",
+        "tarball": "/nix/store/2pizl7lq4awa7p9bklr8037yh1sca0hg-bootstrap-tools.tar.xz"
+    },
+    "inputDrvs": {},
+    "inputSrcs": [
+        "/nix/store/2pizl7lq4awa7p9bklr8037yh1sca0hg-bootstrap-tools.tar.xz",
+        "/nix/store/i9nx0dp1khrgikqr95ryy2jkigr4c5yv-unpack-bootstrap-tools.sh",
+        "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox"
+    ],
+    "name": "bootstrap-tools",
+    "outputs": {
+        "out": {
+        "hashAlgo": "sha256",
+        "method": "nar"
+        }
+    },
+    "system": "x86_64-linux"
+}

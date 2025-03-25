@@ -78,7 +78,17 @@ def sign(drv_path, secret_key_file, out_paths):
         if out_paths is None:
             out_paths = os.environ.get('OUT_PATHS', '')
         paths_list = [p for p in out_paths.split(',') if p]
-        sign_impl(drv_path, secret_key_file, paths_list)
+        result = sign_impl(drv_path, secret_key_file, paths_list)
+        if result:
+            input_hash, jws_token = result
+            logger.debug("printing signature to stdout")
+            # result is the produced signature
+            sys.stdout.write(f"{jws_token}\n")
+        else:
+            # there is no result
+            # because the passed derivation
+            # has not been resolved yet
+            sys.exit(117)
     except Exception as e:
         logger.exception(f"Error in sign command: {str(e)}")
         click.echo(f"Error: {str(e)}", err=True)

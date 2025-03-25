@@ -71,7 +71,7 @@ def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivatio
     _json = json
     root_node = build_unresolved_tree_rec(node_drv_path)
     cache_info = build_unresolved_tree_rec.cache_info()
-    print(cache_info)
+    logger.debug(cache_info)
     return root_node
 
 @cache
@@ -253,10 +253,10 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
             plausible_resolutions.append(resolved_drv)
 
     #    if valid:
-    #        print("validated {resolution} for {inputs.derivation.drv_path}")
+    #        loguru.debug("validated {resolution} for {inputs.derivation.drv_path}")
     #        valid_resolutions.add((resolved_derivation, f"CT makes {resolution} a valid resolution for {inputs.derivation.drv_path}"))
     #    else:
-    #        print("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
+    #        loguru.debug("failed to vaildate {resolution} for {inputs.derivation.drv_path}")
 
     return plausible_resolutions
 

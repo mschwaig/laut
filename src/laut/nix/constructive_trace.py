@@ -139,9 +139,9 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
     resolved_input_hash = compute_sha256_base64(resolved_canonical)
     hash_input = resolved_canonical.decode('utf-8')
 
-    print(f"Drv path: {drv_path}")
-    print(f"Resolved JSON: {hash_input}")
-    print(f"Final SHA-256 (base64): {resolved_input_hash}")
+    logger.debug(f"Drv path: {drv_path}")
+    logger.debug(f"Resolved JSON: {hash_input}")
+    logger.debug(f"Final SHA-256 (base64): {resolved_input_hash}")
 
     return resolved_input_hash, hash_input
 

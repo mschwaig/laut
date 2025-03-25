@@ -18,7 +18,6 @@ from .nix.constructive_trace import (
     compute_CT_input_hash,
 )
 from laut.nix.commands import (
-    get_derivation,
     get_derivation_type
 )
 from laut import config
@@ -31,8 +30,8 @@ def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths):
         upload_signature(to, input_hash, jws_token)
 
 def sign_impl(drv_path, secret_key_file, out_paths) -> Optional[tuple[str, str]]:
-    # Get output names from derivation
-    drv_data = get_derivation(drv_path, False)
+    from laut.nix import commands
+    drv_data = commands.get_derivation(drv_path, False)
     if drv_data['inputDrvs'] != {}:
         # we have to return gracefully in this case, because
         # nix calls the post-build-hook twice
