@@ -12,20 +12,26 @@ sign = cli_file.sign
 cli = cli_file.cli
 
 @pytest.fixture
-def mock_derivation_lookup_resolved(monkeypatch):
-    drv_file = Path(__file__).parent / "data" / "cli_sign" / "resolved.drv"
-    drv = drv_file.read_text()
-    drv_dict = json.loads(drv)
-    mock = Mock(return_value=drv_dict)
-    monkeypatch.setattr(commands, "get_derivation", mock)
-    return mock
+def mock_derivation_lookup(monkeypatch):
+    """
+    Fixture that mocks get_derivation to return appropriate data from hello-ca-recursive.drv
+    based on the requested derivation path.
+    """
+    def _get_derivation_mock(drv_path, recursive):
+        assert(recursive == False)
 
-@pytest.fixture
-def mock_derivation_lookup_unresolved(monkeypatch):
-    drv_file = Path(__file__).parent / "data" / "cli_sign" / "unresolved.drv"
-    drv = drv_file.read_text()
-    drv_dict = json.loads(drv)
-    mock = Mock(return_value=drv_dict)
+        if drv_path == "/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv":
+            drv_file_name = "resolved.drv"
+        elif drv_path == "/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv":
+            drv_file_name = "unresolved.drv"
+        else:
+            ValueError("invalid input to mock")
+
+        drv_file = Path(__file__).parent / "data" / "cli_sign" / drv_file_name
+        drv = json.loads(drv_file.read_text())
+        return drv
+
+    mock = Mock(side_effect=_get_derivation_mock)
     monkeypatch.setattr(commands, "get_derivation", mock)
     return mock
 
@@ -34,7 +40,7 @@ def runner():
     """Provides a Click CLI test runner."""
     return CliRunner(mix_stderr=False)
 
-def test_sign_resolved_hook(runner, mock_derivation_lookup_resolved):
+def test_sign_resolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
             '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
             "/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv"
@@ -44,13 +50,13 @@ def test_sign_resolved_hook(runner, mock_derivation_lookup_resolved):
             'DRV_PATH': '/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv',
         }
     )
-    assert mock_derivation_lookup_resolved.call_count == 2 # TODO: make this 1
-    mock_derivation_lookup_resolved.assert_called_with('/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv', False)
+    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    mock_derivation_lookup.assert_called_with('/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv', False)
     assert result.exit_code == 0
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
 
-def test_sign_unresolved_hook(runner, mock_derivation_lookup_unresolved):
+def test_sign_unresolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
             '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
             "/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv"
@@ -60,8 +66,8 @@ def test_sign_unresolved_hook(runner, mock_derivation_lookup_unresolved):
             'DRV_PATH': '/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv',
         }
     )
-    assert mock_derivation_lookup_unresolved.call_count == 1
-    mock_derivation_lookup_unresolved.assert_called_with('/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv', False)
+    assert mock_derivation_lookup.call_count == 1
+    mock_derivation_lookup.assert_called_with('/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv', False)
     assert result.stdout == ''
     assert result.exit_code == 117
 
