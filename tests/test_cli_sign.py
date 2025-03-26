@@ -58,6 +58,22 @@ def test_sign_resolved_hook(runner, mock_derivation_lookup):
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
 
 @pytest.mark.skip(reason="does not work in sandbox for some unknown reason")
+def test_sign_resolved_problematic_derivaion_hook(runner, mock_derivation_lookup):
+    result = runner.invoke(sign, [
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            "/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.dr"
+        ],
+        env = {
+            'OUT_PATHS': '',
+            'DRV_PATH': '/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.dr',
+        }
+    )
+    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    mock_derivation_lookup.assert_called_with('/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.dr', False)
+    assert result.exit_code == 0
+    pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+    assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
+
 def test_sign_unresolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
             '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
