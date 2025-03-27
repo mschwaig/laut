@@ -1,15 +1,36 @@
-{ pkgs, nix-vsbom, laut, inputs, nixpkgs-ca, ... }:
+{
+  scope ? pkgsIA.callPackage ./default.nix { },
+  laut ? scope.laut,
+  nixpkgs ? builtins.fetchTarball {
+    url = "https://github.com/NixOS/nixpkgs/archive/4633a7c72337ea8fd23a4f2ba3972865e3ec685d.tar.gz";
+    sha256 = "sha256:0z9jlamk8krq097a375qqhyj7ljzb6nlqh652rl4s00p2mf60f6r";
+  },
+  nixpkgs-ca ? builtins.fetchTarball {
+    url = "https://github.com/mschwaig/nixpkgs/archive/nixpkgs-ca.tar.gz";
+  },
+  lib ? pkgsIA.lib,
+  pkgsIA ? import nixpkgs { system = "x86_64-linux"; },
+  pkgsCA ? import nixpkgs {
+    config.contentAddressedByDefault = true;
+    system = "x86_64-linux";
+  },
+  pkgsCA' ? import nixpkgs-ca {
+    # config.contentAddressedByDefault = true;
+    system = "x86_64-linux";
+  },
+  ...
+}:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 let
- # ia-pkgs = pkgs;
- # pkgs = ca-pkgs;
+  # ia-pkgs = pkgs;
+  # pkgs = ca-pkgs;
   cachePort = 9000;
 
-  pkgA = pkgs.cowsay;
+  pkgA = pkgsIA.cowsay;
 
   accessKey = "BKIKJAA5BMMU2RHO6IBB";
   secretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
@@ -18,20 +39,39 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
-  trivialPackageCa = "nixpkgs-ca#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
+  trivialPackageCaStr = lib.concatStringsSep "." trivialPackageCa;
+  trivialPackageCa = [
+    "stdenv"
+    "__bootPackages"
+    "stdenv"
+    "__bootPackages"
+    "stdenv"
+    "__bootPackages"
+    "stdenv"
+    "__bootPackages"
+    "stdenv"
+    "__bootPackages"
+    "stdenv"
+    "__bootPackages"
+    "stdenv"
+    "__bootPackages"
+    "binutils"
+  ];
 
-  cache = { ... }: {
+  cache =
+    { ... }:
+    {
       virtualisation.writableStore = true;
       virtualisation.additionalPaths = [ pkgA ];
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
-      environment.systemPackages = [ pkgs.minio-client ];
+      environment.systemPackages = [ pkgsIA.minio-client ];
       nix.extraOptions = "experimental-features = nix-command";
       services.minio = {
         enable = true;
         region = "eu-west-1";
         listenAddress = "127.0.0.1:9002";
-        rootCredentialsFile = pkgs.writeText "minio-credentials" ''
+        rootCredentialsFile = pkgsIA.writeText "minio-credentials" ''
           MINIO_ROOT_USER=${accessKey}
           MINIO_ROOT_PASSWORD=${secretKey}
         '';
@@ -48,9 +88,14 @@ let
         };
       };
 
-      networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
-  };
-  makeBuilder  = { privateKey, publicKey, ... }: {
+      networking.firewall.allowedTCPPorts = [
+        cachePort
+        9001
+      ];
+    };
+  makeBuilder =
+    { privateKey, publicKey, ... }:
+    {
       virtualisation.memorySize = 16384;
       virtualisation.cores = 8;
       virtualisation.diskSize = 4096;
@@ -62,20 +107,29 @@ let
       virtualisation.additionalPaths = [ pkgA ];
 
       nix = {
-        registry = {
-          nixpkgs-ca.flake = nixpkgs-ca;
-          nixpkgs.flake = inputs.nixpkgs;
-        };
+        nix.nixPath = [
+          "nixpkgs=${nixpkgs}"
+          "nixpkgs-ca=${
+            pkgsIA.runCommand "nixpkgs-ca" { } ''
+              args: import <nixpkgs> (args // {
+                config = args.config or { } // {
+                  contentAddressedByDefault = true;
+                };
+              })
+            ''
+          }"
+        ];
         extraOptions =
-        let
-          emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
-        in ''
-          experimental-features = nix-command flakes ca-derivations
-          flake-registry = ${emptyRegistry}
-        '';
+          let
+            emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
+          in
+          ''
+            experimental-features = nix-command flakes ca-derivations
+            flake-registry = ${emptyRegistry}
+          '';
         settings = {
           trusted-substituters = [ ];
-          post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
+          post-build-hook = pkgsIA.writeShellScript "copy-to-cache" ''
             set -eux
             set -f # disable globbing
 
@@ -104,7 +158,7 @@ let
           STORE_DIR="mktemp -d"
           nix --store $STORE_DIR build nixpkgs#hello
         '';
-        deps = [];  # Add dependencies if needed
+        deps = [ ]; # Add dependencies if needed
       };
 
       environment = {
@@ -113,143 +167,150 @@ let
           "nix/private-key".source = privateKey;
           "nix/public-key".source = publicKey;
         };
-        systemPackages = with pkgs; [
+        systemPackages = with pkgsIA; [
           nix
           git
           laut
         ];
       };
-  };
-
-  makeTest = name: { extraConfig, trustModel ? null }: pkgs.nixosTest {
-    name = "sbom-verify-${name}";
-
-    nodes = {
-      inherit cache;
-
-      builderA = makeBuilder {
-        privateKey = ./testkeys/builderA_key.private;
-        publicKey = ./testkeys/builderA_key.public;
-      };
-      builderB = makeBuilder {
-        privateKey = ./testkeys/builderB_key.private;
-        publicKey = ./testkeys/builderB_key.public;
-      };
-      # TODO: add nixpkgs-mirror;
-
-      ${name} = { ... }: {
-          virtualisation.memorySize = 2048;
-          virtualisation.cores = 2;
-          virtualisation.diskSize = 4096;
-          virtualisation.writableStore = true;
-          virtualisation.useNixStoreImage = true;
-          systemd.services.nix-daemon.enable = true;
-          virtualisation.mountHostNixStore = false;
-
-          nix.registry = {
-            nixpkgs-ca.flake = nixpkgs-ca;
-            nixpkgs.flake = inputs.nixpkgs;
-          };
-          nix.extraOptions =
-          let
-            emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
-          in ''
-            experimental-features = nix-command flakes ca-derivations
-            flake-registry = ${emptyRegistry}
-          '';
-
-          environment.systemPackages = with pkgs; [
-            nix
-            git
-            laut
-          ];
-      } // extraConfig;
     };
 
-    # Test script to verify the setup
-    testScript = ''
-    from threading import Thread
-    from typing import Callable
-    from functools import wraps
+  makeTest =
+    name:
+    {
+      extraConfig,
+      trustModel ? null,
+    }:
+    pkgsIA.nixosTest {
+      name = "sbom-verify-${name}";
 
-    def run_in_background(func: Callable):
-      @wraps(func)
-      def wrapper(*args, **kwargs):
-        thread = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
-        thread.start()
-        return thread
-      return wrapper
+      nodes = {
+        inherit cache;
 
-    cache.start()
-    cache.forward_port(9000, 9000)
-    cache.forward_port(9001, 9001)
-    cache.wait_for_unit("minio")
-    cache.wait_for_open_port(9002)
-    cache.wait_for_open_port(${builtins.toString cachePort})
+        builderA = makeBuilder {
+          privateKey = ./testkeys/builderA_key.private;
+          publicKey = ./testkeys/builderA_key.public;
+        };
+        builderB = makeBuilder {
+          privateKey = ./testkeys/builderB_key.private;
+          publicKey = ./testkeys/builderB_key.public;
+        };
+        # TODO: add nixpkgs-mirror;
 
-    # configure cache
-    cache.succeed("mc config host add minio http://cache:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
-    cache.succeed("mc mb minio/binary-cache")
-    cache.succeed("mc anonymous set download minio/binary-cache") # allow public read
+        ${name} =
+          { ... }:
+          {
+            virtualisation.memorySize = 2048;
+            virtualisation.cores = 2;
+            virtualisation.diskSize = 4096;
+            virtualisation.writableStore = true;
+            virtualisation.useNixStoreImage = true;
+            systemd.services.nix-daemon.enable = true;
+            virtualisation.mountHostNixStore = false;
 
-    @run_in_background
-    def boot_and_configure(builder):
-      builder.start()
-      builder.wait_for_unit("network.target")
+            nix.extraOptions =
+              let
+                emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
+              in
+              ''
+                experimental-features = nix-command flakes ca-derivations
+                flake-registry = ${emptyRegistry}
+              '';
 
-      builder.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
+            environment.systemPackages = with pkgsIA; [
+              nix
+              git
+              laut
+            ];
+          }
+          // extraConfig;
+      };
 
-      builder.wait_for_unit("default.target")
+      # Test script to verify the setup
+      testScript = ''
+        from threading import Thread
+        from typing import Callable
+        from functools import wraps
 
-    t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
+        def run_in_background(func: Callable):
+          @wraps(func)
+          def wrapper(*args, **kwargs):
+            thread = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
+            thread.start()
+            return thread
+          return wrapper
 
-    t1.join()
-    t2.join()
+        cache.start()
+        cache.forward_port(9000, 9000)
+        cache.forward_port(9001, 9001)
+        cache.wait_for_unit("minio")
+        cache.wait_for_open_port(9002)
+        cache.wait_for_open_port(${builtins.toString cachePort})
 
-    @run_in_background
-    def build_and_upload(builder):
-      builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-      builder.succeed("nix build ${trivialPackageCa} --secret-key-files \"/etc/nix/private-key\"")
+        # configure cache
+        cache.succeed("mc config host add minio http://cache:${builtins.toString cachePort} ${accessKey} ${secretKey} --api s3v4")
+        cache.succeed("mc mb minio/binary-cache")
+        cache.succeed("mc anonymous set download minio/binary-cache") # allow public read
 
-    t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
+        @run_in_background
+        def boot_and_configure(builder):
+          builder.start()
+          builder.wait_for_unit("network.target")
 
-    t1.join()
-    t2.join()
+          builder.succeed("curl -fv http://cache:${builtins.toString cachePort}/minio/health/ready")
 
-    #builderA.shutdown()
-    #builderB.shutdown()
+          builder.wait_for_unit("default.target")
 
-    ${name}.start()
-    ${name}.wait_for_unit("network.target")
+        t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
 
-    ${name}.succeed("mkdir -p ~/.config/nixpkgs")
-    ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
+        t1.join()
+        t2.join()
 
-    # ${name}.fail("nix path-info ${pkgA}")
-    # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
-    # ${name}.succeed("nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
-    # ${name}.succeed("nix path-info ${pkgA}")
+        @run_in_background
+        def build_and_upload(builder):
+          builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
+          builder.succeed("nix build -f '<nixpkgs-ca>' ${trivialPackageCa} --secret-key-files \"/etc/nix/private-key\"")
 
-    # ${name}.succeed("nix-store --verify")
+        t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
 
-    # TODO: run test script
-    # using specific trust model
+        t1.join()
+        t2.join()
 
-    # run verification tool
-    # run nix build
-    '';
-  };
-in {
+        #builderA.shutdown()
+        #builderB.shutdown()
+
+        ${name}.start()
+        ${name}.wait_for_unit("network.target")
+
+        ${name}.succeed("mkdir -p ~/.config/nixpkgs")
+        ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} $(nix-instantiate -f '<nixpkgs-ca>' ${trivialPackageCa})")
+
+        # ${name}.fail("nix path-info ${pkgA}")
+        # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
+        # ${name}.succeed("nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
+        # ${name}.succeed("nix path-info ${pkgA}")
+
+        # ${name}.succeed("nix-store --verify")
+
+        # TODO: run test script
+        # using specific trust model
+
+        # run verification tool
+        # run nix build
+      '';
+    };
+in
+{
   # Full local reproducibility model - trusts only itself
   fullReproVM = makeTest "full_local_repro" {
-    extraConfig = {};
-   # extraConfig.nix = {
-   #   extraOptions = "experimental-features = nix-command flakes";
-   #   settings = {
-   #       substituters = [ ];
-   #       trusted-public-keys = [ ];
-   #   };
-   # };
+    extraConfig = { };
+    # extraConfig.nix = {
+    #   extraOptions = "experimental-features = nix-command flakes";
+    #   settings = {
+    #       substituters = [ ];
+    #       trusted-public-keys = [ ];
+    #   };
+    # };
     #  trust_model = Builder(self())
   };
 
@@ -290,8 +351,8 @@ in {
     extraConfig.nix.settings = {
       extraConfig.nix = {
         extraOptions = "experimental-features = nix-command flakes";
-          substituters = [ "http://cache.local" ];
-          trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
+        substituters = [ "http://cache.local" ];
+        trusted-public-keys = [ "cache.local:${placeholder "CACHE_KEY"}" ];
       };
     };
     #  trust_model = Builder("builderA:IRs7KiYMNnwMOui+D4VufEelbplIR7vzbMIDJjaG5GU=",
@@ -302,4 +363,7 @@ in {
     #     host_sw_exclude = SW_CRITERIA.DRVS_WITH_VULNS + nixpkgsRange("xyutils", "5.6.0", "5.6.1"))
   };
 
+  weirdDrv.ca' = lib.getAttrFromPath trivialPackageCa pkgsCA';
+  weirdDrv.ca = lib.getAttrFromPath trivialPackageCa pkgsCA;
+  weirdDrv.ia = lib.getAttrFromPath trivialPackageCa pkgsIA;
 }

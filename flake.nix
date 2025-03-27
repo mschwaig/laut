@@ -32,98 +32,23 @@
           nix derivation show --recursive ${nixpkgs-ca}#hello
         '';
 
-        nix-verify-souffle = pkgs.python3.pkgs.buildPythonApplication {
-          pname = "nix_verify_souffle";
-          version = "0.1.0";
-
-          src = ./datalog;
-
-          format = "other";
-          build-system = [
-            pkgs.python3.pkgs.hatchling
-          ];
-          nativeBuildInputs = with pkgs; [
-            souffle
-          ];
-
-          pythonImportsCheck = [ "nix_verify_souffle" ];
-          doCheck = true;
-
-          buildPhase = ''
-            souffle -o nix_verify_souffle $src/nix_verify.dl
-            souffle -s python $src/nix_verify.dl
-          '';
-
-          installPhase = ''
-            PKGS_PATH=$out/${pkgs.python3.sitePackages}/nix_verify_souffle
-            mkdir -p $out/bin $PKGS_PATH
-            cp nix_verify_souffle $out/bin/
-            touch $PKGS_PATH/__init__.py
-            cp SwigInterface.py $PKGS_PATH/SwigInterface.py
-            cp _SwigInterface.so $PKGS_PATH/_SwigInterface.so
-          '';
-        };
-
-        laut-f = sign-only: pkgs.python3.pkgs.buildPythonApplication {
-          pname = "laut";
-          version = "0.1.0";
-          format = "pyproject";
-
-          src = lib.sourceByRegex ./. [
-            "^src(/laut(/.*)?)?$"
-            "^tests(/.*)?$"
-            "^testkeys(/.*)?$"
-            "^pyproject\.toml$"
-            "^LICENSE\.md$"
-            "^README\.md$"
-          ];
-
-          nativeBuildInputs = with pkgs.python3.pkgs; [
-            setuptools
-            setuptools-scm
-          ] ++ (if sign-only then [] else [
-            pytestCheckHook
-          ]);
-
-          postPatch =  if sign-only then ''
-            substituteInPlace "src/laut/build_config.py" \
-              --replace-fail "sign_only = False" "sign_only = True"
-          '' else "";
-
-          nativeCheckInputs = with pkgs.python3.pkgs; [
-            pytest
-          ];
-
-          propagatedBuildInputs = with pkgs.python3.pkgs; [
-            rfc8785
-            pyjwt
-            cryptography
-            boto3
-            click
-            sigstore
-            loguru
-          ] ++ (if sign-only then [] else [
-            nix-verify-souffle
-          ]);
-
-          pythonImportsCheck = [ "laut" ];
-        };
-
-        laut = laut-f false;
-        laut-sign-only = laut-f true;
-
+        scope = pkgs.callPackage ./default.nix { nixpkgs = null; };
     in {
         packages = {
-          inherit nix nix-vsbom laut laut-sign-only nix-verify-souffle test-drv-json;
-          default = laut;
-        };
+          inherit nix nix-vsbom test-drv-json;
+          default = scope.laut;
+        } // scope;
+
 
         checks = lib.filterAttrs (name: value:
           # since trust models are not implemented yet
           # it makes no sense to run more than one VM test
           (name == "fullReproVM"))
           (import ./test.nix {
-            inherit pkgs nix-vsbom inputs laut nixpkgs-ca;
+            pkgsCA = nixpkgs-ca;
+            pkgsIA = pkgs;
+            inherit nixpkgs;
+            inherit (scope) laut;
           });
 
         devShell = let
