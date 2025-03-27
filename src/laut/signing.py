@@ -60,7 +60,7 @@ def sign_impl(drv_path, secret_key_file, out_paths) -> Optional[tuple[str, str]]
                     break
     else:
         # TODO: for now this is left for future work on extending CA derivation guarantees to IA derivations
-        logger.exception("not handeling IA derivation {drv_path}")
+        logger.exception(f"not handeling IA derivation {drv_path}")
         return None
 
     # Read key and create signature
