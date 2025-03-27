@@ -366,4 +366,10 @@ in
   weirdDrv.ca' = lib.getAttrFromPath trivialPackageCa pkgsCA';
   weirdDrv.ca = lib.getAttrFromPath trivialPackageCa pkgsCA;
   weirdDrv.ia = lib.getAttrFromPath trivialPackageCa pkgsIA;
+
+  weirdDrv.mk-diff = pkgsIA.writeShellScriptBin "mk-diff" ''
+    ${lib.getExe' pkgsIA.nix "nix-instantiate"} -A weirdDrv."ca" test.nix | xargs ${lib.getExe pkgsIA.nix} derivation show | ${lib.getExe pkgsIA.jq} > ca.json
+    ${lib.getExe' pkgsIA.nix "nix-instantiate"} -A weirdDrv."ia" test.nix | xargs ${lib.getExe pkgsIA.nix} derivation show | ${lib.getExe pkgsIA.jq} > ia.json
+    ${lib.getExe pkgsIA.delta} ia.json ca.json
+  '';
 }
