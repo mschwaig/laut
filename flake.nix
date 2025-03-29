@@ -10,15 +10,6 @@
   outputs = { self, nixpkgs, bombon, flake-utils }@inputs:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (system:
     let
-        nixpkgs-ca = (import nixpkgs { inherit system; }).applyPatches {
-          name = "nixpkgs-always-apply-ca";
-          src = nixpkgs;
-          patches = [
-            ./nixpkgs-ca/0001-always-enable-content-addresssing.patch
-            ./nixpkgs-ca/0002-always-enable-content-addresssing-for-boostrap-tools.patch
-            ];
-        };
-
         pkgs = import nixpkgs {
           inherit system;
         };
@@ -29,7 +20,7 @@
         };
 
         test-drv-json = pkgs.writeShellScriptBin "examine-derivation" ''
-          nix derivation show --recursive ${nixpkgs-ca}#hello
+          nix derivation show --recursive ${nixpkgs}#hello # TODO: fix this
         '';
 
         nix-verify-souffle = pkgs.python3.pkgs.buildPythonApplication {
@@ -123,7 +114,7 @@
           # it makes no sense to run more than one VM test
           (name == "fullReproVM"))
           (import ./test.nix {
-            inherit pkgs nix-vsbom inputs laut nixpkgs-ca;
+            inherit pkgs nix-vsbom inputs laut system;
           });
 
         devShell = let

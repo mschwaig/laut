@@ -1,4 +1,4 @@
-{ pkgs, nix-vsbom, laut, inputs, nixpkgs-ca, ... }:
+{ nix-vsbom, laut, inputs, system, ... }:
 
 # this code is inspired by
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
@@ -9,6 +9,8 @@ let
  # pkgs = ca-pkgs;
   cachePort = 9000;
 
+  pkgs = import inputs.nixpkgs { inherit system; };
+  testLib =  import (inputs.nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
   pkgA = pkgs.cowsay;
 
   accessKey = "BKIKJAA5BMMU2RHO6IBB";
@@ -18,7 +20,7 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
-  trivialPackageCa = "nixpkgs-ca#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
+  trivialPackageCa = "nixpkgs#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
 
   cache = { ... }: {
       virtualisation.writableStore = true;
@@ -62,10 +64,6 @@ let
       virtualisation.additionalPaths = [ pkgA ];
 
       nix = {
-        registry = {
-          nixpkgs-ca.flake = nixpkgs-ca;
-          nixpkgs.flake = inputs.nixpkgs;
-        };
         extraOptions =
         let
           emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
@@ -102,7 +100,6 @@ let
         text = ''
           echo "Running post-generation script"
           STORE_DIR="mktemp -d"
-          nix --store $STORE_DIR build nixpkgs#hello
         '';
         deps = [];  # Add dependencies if needed
       };
@@ -121,8 +118,13 @@ let
       };
   };
 
-  makeTest = name: { extraConfig, trustModel ? null }: pkgs.nixosTest {
+  makeTest = name: { extraConfig, trustModel ? null }: testLib.runTest {
     name = "sbom-verify-${name}";
+
+    node = {
+      inherit pkgs;
+      #config.pkgsReadOnly = false;
+    };
 
     nodes = {
       inherit cache;
@@ -146,10 +148,6 @@ let
           systemd.services.nix-daemon.enable = true;
           virtualisation.mountHostNixStore = false;
 
-          nix.registry = {
-            nixpkgs-ca.flake = nixpkgs-ca;
-            nixpkgs.flake = inputs.nixpkgs;
-          };
           nix.extraOptions =
           let
             emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
@@ -201,6 +199,8 @@ let
 
       builder.wait_for_unit("default.target")
 
+      builder.succeed("mkdir -p ~/.config/nixpkgs")
+      builder.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
     t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
 
     t1.join()
