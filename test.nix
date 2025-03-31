@@ -18,7 +18,8 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
-  trivialPackageCa = "nixpkgs#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
+#  trivialPackageCa = ".#hello";
+  trivialPackageCa = ".#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
 
   cache = { ... }: {
       virtualisation.writableStore = true;
@@ -63,11 +64,8 @@ let
 
       nix = {
         extraOptions =
-        let
-          emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
-        in ''
+        ''
           experimental-features = nix-command flakes ca-derivations
-          flake-registry = ${emptyRegistry}
         '';
         settings = {
           trusted-substituters = [ ];
@@ -121,7 +119,6 @@ let
 
     node = {
       inherit pkgs;
-      #config.pkgsReadOnly = false;
     };
 
     nodes = {
@@ -147,11 +144,8 @@ let
           virtualisation.mountHostNixStore = false;
 
           nix.extraOptions =
-          let
-            emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}'';
-          in ''
+          ''
             experimental-features = nix-command flakes ca-derivations
-            flake-registry = ${emptyRegistry}
           '';
 
           environment.systemPackages = with pkgs; [
