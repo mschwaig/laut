@@ -5,8 +5,6 @@
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 let
- # ia-pkgs = pkgs;
- # pkgs = ca-pkgs;
   cachePort = 9000;
 
   pkgs = import inputs.nixpkgs { inherit system; };
@@ -201,29 +199,33 @@ let
 
       builder.succeed("mkdir -p ~/.config/nixpkgs")
       builder.succeed("echo \"{ contentAddressedByDefault = true; }\" > ~/.config/nixpkgs/config.nix")
-    t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
+    #t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
+    t1 = boot_and_configure(builderA)
 
     t1.join()
-    t2.join()
+    #t2.join()
 
     @run_in_background
     def build_and_upload(builder):
       builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-      builder.succeed("nix build ${trivialPackageCa} --secret-key-files \"/etc/nix/private-key\"")
+      builder.succeed("cd ${inputs.nixpkgs.outPath}; NIXPKGS_CONTENT_ADDRESSED_BY_DEFAULT=1 nix build --impure ${trivialPackageCa} --secret-key-files \"/etc/nix/private-key\"")
 
-    t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
+    #t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
+    t1 = build_and_upload(builderA)
 
     t1.join()
-    t2.join()
+    #t2.join()
 
     #builderA.shutdown()
     #builderB.shutdown()
 
-    ${name}.start()
-    ${name}.wait_for_unit("network.target")
+    # for now we only care about extracting the cache outputs from this test
+    # and using them as input for the unit and integration tests in python
+    #${name}.start()
+    #${name}.wait_for_unit("network.target")
 
-    ${name}.succeed("mkdir -p ~/.config/nixpkgs")
-    ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
+    #${name}.succeed("mkdir -p ~/.config/nixpkgs")
+    #${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} ${trivialPackageCa}")
 
     # ${name}.fail("nix path-info ${pkgA}")
     # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
