@@ -87,7 +87,7 @@ let
             printf "%s" "$OUT_PATHS" | xargs nix copy --to "${storeUrl}" --no-require-sigs
             printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${storeUrl}" --secret-key-files /etc/nix/private-key
 
-            laut sign-and-upload "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
+            laut --debug sign-and-upload "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${storeUrl}"
           '';
         };
       };
