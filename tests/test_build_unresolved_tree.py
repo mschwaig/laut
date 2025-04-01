@@ -45,14 +45,14 @@ def test_ca_drv_tree_small():
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
-    drv = build_unresolved_tree("/nix/store/wnylsz1bmayj1xprnbj7mg6wn5scmr2v-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/sr2srdqrrxghnqr64fbh8fvfr3xccqvw-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
 def test_ca_large():
     data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
-    drv = build_unresolved_tree("/nix/store/ini9yln97fpf7ccwdv8hqbj3crfqvrcm-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/jhwqw8cbw8xy84wbdhzmf337bxa7wdbj-hello-2.12.1.drv", hello_recursive)
 
 def test_loadKey():
     key = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))

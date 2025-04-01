@@ -1,0 +1,943 @@
+{
+  "2-3Y7pg6o2TK7hKdXvPL4SJu5EfmnPW4jlNSG4Ou1b8": {
+    "in": "2-3Y7pg6o2TK7hKdXvPL4SJu5EfmnPW4jlNSG4Ou1b8",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "buildInputs": "",
+        "buildPhase": "NIX_CC_USE_RESPONSE_FILE=0 \"$CC\" -std=c99 -O3 -o \"expand-response-params\" expand-response-params.c\n",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "enableParallelBuilding": "1",
+        "enableParallelChecking": "1",
+        "enableParallelInstalling": "1",
+        "installPhase": "mkdir -p $prefix/bin\nmv expand-response-params $prefix/bin/\n",
+        "mesonFlags": "",
+        "name": "expand-response-params",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "src": "/nix/store/jik02mkz72r2f6hhxnlhp6h5f0fi89gw-expand-response-params.c",
+        "stdenv": "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "strictDeps": "1",
+        "system": "x86_64-linux",
+        "unpackPhase": "cp \"$src\" expand-response-params.c\nsrc=$PWD\n"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "/nix/store/jik02mkz72r2f6hhxnlhp6h5f0fi89gw-expand-response-params.c",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "name": "expand-response-params",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/ki521mf1ijibb603bzs1g318lxhika7l-expand-response-params.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/xgiz958xvklphpzr7a9yww7vkcf9fskw-expand-response-params",
+        "hash": "sha256:07jzm8hhhzg9b1jknpm1391b94as1hwyfm7v99gzc8jmncywk9ds"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "zPgeG_WdqTKyronMEJq1by4U8qRIke199OxmpBHj1qA": {
+    "in": "zPgeG_WdqTKyronMEJq1by4U8qRIke199OxmpBHj1qA",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "buildCommand": "mkdir -p $out\nln -s /nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib $out/lib\nln -s /nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/include-glibc $out/include\n",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "enableParallelBuilding": "1",
+        "enableParallelChecking": "1",
+        "enableParallelInstalling": "1",
+        "mesonFlags": "",
+        "name": "bootstrap-stage0-glibc-bootstrapFiles",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "pname": "bootstrap-stage0-glibc",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "stdenv": "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "strictDeps": "1",
+        "system": "x86_64-linux",
+        "version": "bootstrapFiles"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "name": "bootstrap-stage0-glibc-bootstrapFiles",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/b59bb3imj6pwwygsrdj5vzyjaw9ma8lf-bootstrap-stage0-glibc-bootstrapFiles.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "hash": "sha256:18bdhlsiqms52ynaab1y6k45jzzhl6z2p0p0kba2pfb7d0m13ivn"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "XZ5xoJG9p55bBy7wAKxpJxm9hOTjgQbzRSNs1hG52Lk": {
+    "in": "XZ5xoJG9p55bBy7wAKxpJxm9hOTjgQbzRSNs1hG52Lk",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "bintools": "/nix/store/bnyyaql5yvcrfw42k9kd5d10c2f10mnp-bootstrap-stage0-binutils-wrapper-",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cc": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "coreutils_bin": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "darwinMinVersion": "",
+        "darwinMinVersionVariable": "",
+        "darwinPlatformForCC": "",
+        "default_hardening_flags_str": "bindnow format fortify fortify3 pic relro stackprotector strictoverflow zerocallusedregs",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "dontBuild": "1",
+        "dontConfigure": "1",
+        "enableParallelBuilding": "1",
+        "enableParallelChecking": "1",
+        "enableParallelInstalling": "1",
+        "expandResponseParams": "",
+        "gnugrep_bin": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "installPhase": "mkdir -p $out/bin $out/nix-support\n\nwrap() {\n  local dst=\"$1\"\n  local wrapper=\"$2\"\n  export prog=\"$3\"\n  export use_response_file_by_default=0\n  substituteAll \"$wrapper\" \"$out/bin/$dst\"\n  chmod +x \"$out/bin/$dst\"\n}\necho $cc > $out/nix-support/orig-cc\n\nccPath=\"/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin\"\nfor bbin in $bintools/bin/*; do\n  mkdir -p \"$out/bin\"\n  ln -s \"$bbin\" \"$out/bin/$(basename $bbin)\"\ndone\nexport named_cc=cc\nexport named_cxx=c++\n\nif [ -e $ccPath/gcc ]; then\n  wrap gcc $wrapper $ccPath/gcc\n  ln -s gcc $out/bin/cc\n  export named_cc=gcc\n  export named_cxx=g++\nelif [ -e $ccPath/clang ]; then\n  wrap clang $wrapper $ccPath/clang\n  ln -s clang $out/bin/cc\n  export named_cc=clang\n  export named_cxx=clang++\nelif [ -e $ccPath/arocc ]; then\n  wrap arocc $wrapper $ccPath/arocc\n  ln -s arocc $out/bin/cc\n  export named_cc=arocc\nfi\n\nif [ -e $ccPath/g++ ]; then\n  wrap g++ $wrapper $ccPath/g++\n  ln -s g++ $out/bin/c++\nelif [ -e $ccPath/clang++ ]; then\n  wrap clang++ $wrapper $ccPath/clang++\n  ln -s clang++ $out/bin/c++\nfi\n\nif [ -e $ccPath/cpp ]; then\n  wrap cpp $wrapper $ccPath/cpp\nelif [ -e $ccPath/cpp ]; then\n  wrap cpp $wrapper $ccPath/cpp\nfi\n",
+        "isArocc": "",
+        "isClang": "",
+        "libc_bin": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "libc_dev": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "libc_lib": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "mesonFlags": "",
+        "mktemp": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/mktemp",
+        "name": "bootstrap-stage1-gcc-wrapper-",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "pname": "bootstrap-stage1-gcc-wrapper",
+        "postFixup": "touch \"$out/nix-support/cc-cflags\"\ntouch \"$out/nix-support/cc-ldflags\"\nif [[ -f \"$bintools/nix-support/dynamic-linker\" ]]; then\n  ln -s \"$bintools/nix-support/dynamic-linker\" \"$out/nix-support\"\nfi\nif [[ -f \"$bintools/nix-support/dynamic-linker-m32\" ]]; then\n  ln -s \"$bintools/nix-support/dynamic-linker-m32\" \"$out/nix-support\"\nfi\ntouch \"$out/nix-support/libc-cflags\"\ntouch \"$out/nix-support/libc-ldflags\"\necho \"-B/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/lib/\" >> $out/nix-support/libc-crt1-cflags\necho \"-idirafter /nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/include\" >> $out/nix-support/libc-cflags\nfor dir in \"/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools\"/lib/gcc/*/*/include-fixed; do\n  echo '-idirafter' ${dir} >> $out/nix-support/libc-cflags\ndone\n\necho \"/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles\" > $out/nix-support/orig-libc\necho \"/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles\" > $out/nix-support/orig-libc-dev\ntouch \"$out/nix-support/libcxx-cxxflags\"\ntouch \"$out/nix-support/libcxx-ldflags\"\nif [ -e \"/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib64\" -a ! -L \"/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib64\" ]; then\n  ccLDFlags+=\" -L/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib64\"\n  ccCFlags+=\" -B/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib64\"\nfi\nccLDFlags+=\" -L/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib\"\nccCFlags+=\" -B/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/lib\"\n\necho \"$ccLDFlags\" >> $out/nix-support/cc-ldflags\necho \"$ccCFlags\" >> $out/nix-support/cc-cflags\nexport hardening_unsupported_flags=\"fortify3 shadowstack pacret stackclashprotection trivialautovarinit zerocallusedregs\"\nfor flags in \"$out/nix-support\"/*flags*; do\n  substituteInPlace \"$flags\" --replace $'\\n' ' '\ndone\n\nsubstituteAll /nix/store/p86c38va977n9lyw1lqbxx0syl0vllph-add-flags.sh $out/nix-support/add-flags.sh\nsubstituteAll /nix/store/zq22rvyy29sgnq9d6ypa4826s3v2fm1w-add-hardening.sh $out/nix-support/add-hardening.sh\nsubstituteAll /nix/store/6b9v7v02npab086yaba2j4yfqrph5mgp-utils.bash $out/nix-support/utils.bash\nsubstituteAll /nix/store/6xizqkp4bnhydwc7ihyqi93171gbj5n4-darwin-sdk-setup.bash $out/nix-support/darwin-sdk-setup.bash\n",
+        "preferLocalBuild": "1",
+        "propagatedBuildInputs": "/nix/store/bnyyaql5yvcrfw42k9kd5d10c2f10mnp-bootstrap-stage0-binutils-wrapper-",
+        "propagatedNativeBuildInputs": "",
+        "rm": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/rm",
+        "setupHooks": "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash /nix/store/ckjykyfw30zj1n3lcca9lwm2lzd7azdb-setup-hook.sh",
+        "shell": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "stdenv": "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "strictDeps": "1",
+        "suffixSalt": "x86_64_unknown_linux_gnu",
+        "system": "x86_64-linux",
+        "unpackPhase": "src=$PWD\n",
+        "version": "",
+        "wrapper": "/nix/store/f1kvkfigync29bnh159frf9xchfm1dpm-cc-wrapper.sh",
+        "wrapperName": "CC_WRAPPER"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "/nix/store/6b9v7v02npab086yaba2j4yfqrph5mgp-utils.bash",
+        "/nix/store/6xizqkp4bnhydwc7ihyqi93171gbj5n4-darwin-sdk-setup.bash",
+        "/nix/store/bnyyaql5yvcrfw42k9kd5d10c2f10mnp-bootstrap-stage0-binutils-wrapper-",
+        "/nix/store/ckjykyfw30zj1n3lcca9lwm2lzd7azdb-setup-hook.sh",
+        "/nix/store/f1kvkfigync29bnh159frf9xchfm1dpm-cc-wrapper.sh",
+        "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/p86c38va977n9lyw1lqbxx0syl0vllph-add-flags.sh",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh",
+        "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash",
+        "/nix/store/zq22rvyy29sgnq9d6ypa4826s3v2fm1w-add-hardening.sh"
+      ],
+      "name": "bootstrap-stage1-gcc-wrapper-",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/r9ls3wl1g7rm2sz176l3d7wqhw8lnrh8-bootstrap-stage1-gcc-wrapper-.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/gsbjw9yh9nbcys03wp1grrmv69rwwz1z-bootstrap-stage1-gcc-wrapper-",
+        "hash": "sha256:0fg659xylgczpvhahfx4szc1bdfkjs820fz1a7dv0wdvy1yrcqf2"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "xFyJGN2FRBMQM21-qPTWbtNTMoxUuEUPUPJnuZHz-IM": {
+    "in": "xFyJGN2FRBMQM21-qPTWbtNTMoxUuEUPUPJnuZHz-IM",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "dontBuild": "1",
+        "dontConfigure": "1",
+        "dontUpdateAutotoolsGnuConfigScripts": "1",
+        "installPhase": "runHook preInstall\ninstall -Dm755 ./config.guess $out/config.guess\ninstall -Dm755 ./config.sub $out/config.sub\nrunHook postInstall\n",
+        "mesonFlags": "",
+        "name": "gnu-config-2024-01-01",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "pname": "gnu-config",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "stdenv": "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "strictDeps": "",
+        "system": "x86_64-linux",
+        "unpackPhase": "runHook preUnpack\ncp /nix/store/vq0j27nvpks679djbiykl8ikdyj6z5a9-config.guess-948ae97 ./config.guess\ncp /nix/store/1p61qjvlqmwrqab3zp5yh3z8rf3mvjmz-config.sub-948ae97 ./config.sub\nchmod +w ./config.sub ./config.guess\nrunHook postUnpack\n",
+        "version": "2024-01-01"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/1p61qjvlqmwrqab3zp5yh3z8rf3mvjmz-config.sub-948ae97",
+        "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh",
+        "/nix/store/vq0j27nvpks679djbiykl8ikdyj6z5a9-config.guess-948ae97"
+      ],
+      "name": "gnu-config-2024-01-01",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/a35ld89ikfh5d81g4i7v1kk0bgj06m8j-gnu-config-2024-01-01.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/d5mrsvkgcdigbhqvw5cv4sqdv9h0jjg9-gnu-config-2024-01-01",
+        "hash": "sha256:1l43qv8hnmziw5a1qfa5nv3vbwgyyzza9jlxj50p97r0ka63wjvc"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "Np2ugyKLYg19NoKsYltsIgqTRmNtmBpZ7DTuC0P9x60": {
+    "in": "Np2ugyKLYg19NoKsYltsIgqTRmNtmBpZ7DTuC0P9x60",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "enableParallelBuilding": "1",
+        "enableParallelChecking": "1",
+        "enableParallelInstalling": "1",
+        "mesonFlags": "",
+        "name": "patchelf-0.15.0",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "pname": "patchelf",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "setupHook": "/nix/store/v7ihfx32zv7bdha6i9dd6a3r0knzs8j3-setup-hook.sh",
+        "src": "/nix/store/447hvnlzzi9myri1iq3bijxgx6v6b592-patchelf-0.15.0.tar.bz2",
+        "stdenv": "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "strictDeps": "1",
+        "system": "x86_64-linux",
+        "version": "0.15.0"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "/nix/store/447hvnlzzi9myri1iq3bijxgx6v6b592-patchelf-0.15.0.tar.bz2",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh",
+        "/nix/store/v7ihfx32zv7bdha6i9dd6a3r0knzs8j3-setup-hook.sh"
+      ],
+      "name": "patchelf-0.15.0",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/kigynh817zcnwpdqwh0mlzk8fzlgfkys-patchelf-0.15.0.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/dmc68jln3g9f8hxvxr5f4y8xpv08dh8f-patchelf-0.15.0",
+        "hash": "sha256:01y6m0f6jdbxjya3jigw0xs6dg7hk5rmdjvvlkfddf875j2xg13y"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "3Ug-5G5542Q0aTzvIkiN_xyP_9Uc6UJTqsmh3NP8T1k": {
+    "in": "3Ug-5G5542Q0aTzvIkiN_xyP_9Uc6UJTqsmh3NP8T1k",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "bintools_bin": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "coreutils_bin": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "darwinMinVersion": "",
+        "darwinMinVersionVariable": "",
+        "darwinPlatform": "",
+        "darwinSdkVersion": "",
+        "default_hardening_flags_str": "bindnow format fortify fortify3 pic relro stackprotector strictoverflow zerocallusedregs",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "dontBuild": "1",
+        "dontConfigure": "1",
+        "dynamicLinker": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/lib/ld-linux-x86-64.so.2",
+        "enableParallelBuilding": "1",
+        "enableParallelChecking": "1",
+        "enableParallelInstalling": "1",
+        "expandResponseParams": "/bin/expand-response-params",
+        "gnugrep_bin": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "installPhase": "mkdir -p $out/bin $out/nix-support\n\nwrap() {\n  local dst=\"$1\"\n  local wrapper=\"$2\"\n  export prog=\"$3\"\n  export use_response_file_by_default=0\n  substituteAll \"$wrapper\" \"$out/bin/$dst\"\n  chmod +x \"$out/bin/$dst\"\n}\necho $bintools_bin > $out/nix-support/orig-bintools\n\nldPath=\"/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin\"\nfor binary in objdump objcopy size strings as ar nm gprof dwp c++filt addr2line \\\n    ranlib readelf elfedit dlltool dllwrap windmc windres; do\n  if [ -e $ldPath/${binary} ]; then\n    ln -s $ldPath/${binary} $out/bin/${binary}\n  fi\ndone\n\nif [ -e ${ld:-$ldPath/ld} ]; then\n  wrap ld /nix/store/yrwphan7mi168vnn4bamwg5795rjbkzh-ld-wrapper.sh ${ld:-$ldPath/ld}\nfi\n\nfor variant in $ldPath/ld.*; do\n  basename=$(basename \"$variant\")\n  wrap $basename /nix/store/yrwphan7mi168vnn4bamwg5795rjbkzh-ld-wrapper.sh $variant\ndone\n",
+        "libc_bin": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "libc_dev": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "libc_lib": "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "mesonFlags": "",
+        "mktemp": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/mktemp",
+        "name": "bootstrap-stage0-binutils-wrapper-",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "pname": "bootstrap-stage0-binutils-wrapper",
+        "postFixup": "touch \"$out/nix-support/libc-ldflags\"\necho \"-L/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/lib\" >> $out/nix-support/libc-ldflags\n\necho \"/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles\" > $out/nix-support/orig-libc\necho \"/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles\" > $out/nix-support/orig-libc-dev\nif [[ -z ${dynamicLinker+x} ]]; then\n  echo \"Don't know the name of the dynamic linker for platform 'x86_64-unknown-linux-gnu', so guessing instead.\" >&2\n  local dynamicLinker=\"/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/lib/ld*.so.?\"\nfi\ndynamicLinker=($dynamicLinker)\n\ncase ${#dynamicLinker[@]} in\n  0) echo \"No dynamic linker found for platform 'x86_64-unknown-linux-gnu'.\" >&2;;\n  1) echo \"Using dynamic linker: '$dynamicLinker'\" >&2;;\n  *) echo \"Multiple dynamic linkers found for platform 'x86_64-unknown-linux-gnu'.\" >&2;;\nesac\n\nif [ -n \"${dynamicLinker-}\" ]; then\n  echo $dynamicLinker > $out/nix-support/dynamic-linker\n\n  if [ -e /nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/lib/32/ld-linux.so.2 ]; then\n  echo /nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles/lib/32/ld-linux.so.2 > $out/nix-support/dynamic-linker-m32\nfi\ntouch $out/nix-support/ld-set-dynamic-linker\n\nfi\nprintWords /nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools /nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles > $out/nix-support/propagated-user-env-packages\nexport hardening_unsupported_flags=\"\"\nif [[ \"$($ldPath/ld -z now 2>&1 || true)\" =~ un(recognized|known)\\ option ]]; then\n  hardening_unsupported_flags+=\" bindnow\"\nfi\nif [[ \"$($ldPath/ld -z relro 2>&1 || true)\" =~ un(recognized|known)\\ option ]]; then\n  hardening_unsupported_flags+=\" relro\"\nfi\nwrap strip /nix/store/m9qvr6m0bylrjqb5ind6hfzsax14xys9-gnu-binutils-strip-wrapper.sh \\\n  \"/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/strip\"\nfor flags in \"$out/nix-support\"/*flags*; do\n  substituteInPlace \"$flags\" --replace $'\\n' ' '\ndone\n\nsubstituteAll /nix/store/mrzpfh0ml9k07sw019ydagbb2z1q4sxz-add-flags.sh $out/nix-support/add-flags.sh\nsubstituteAll /nix/store/9rq2ab2wl3ia1ism6zjvdxcnpv9s9rgn-add-hardening.sh $out/nix-support/add-hardening.sh\nsubstituteAll /nix/store/6b9v7v02npab086yaba2j4yfqrph5mgp-utils.bash $out/nix-support/utils.bash\nsubstituteAll /nix/store/6xizqkp4bnhydwc7ihyqi93171gbj5n4-darwin-sdk-setup.bash $out/nix-support/darwin-sdk-setup.bash\n",
+        "preferLocalBuild": "1",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "rm": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/rm",
+        "setupHooks": "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash /nix/store/0zmg36dmrb9v7bc7b7igmi434nhi1qp9-setup-hook.sh",
+        "shell": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "stdenv": "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "strictDeps": "1",
+        "suffixSalt": "x86_64_unknown_linux_gnu",
+        "system": "x86_64-linux",
+        "targetPrefix": "",
+        "unpackPhase": "src=$PWD\n",
+        "version": "",
+        "wrapperName": "BINTOOLS_WRAPPER"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/0zmg36dmrb9v7bc7b7igmi434nhi1qp9-setup-hook.sh",
+        "/nix/store/4yjcqvgxw8fcy1h9z5xn2ilprk2lqm17-bootstrap-stage0-glibc-bootstrapFiles",
+        "/nix/store/6b9v7v02npab086yaba2j4yfqrph5mgp-utils.bash",
+        "/nix/store/6xizqkp4bnhydwc7ihyqi93171gbj5n4-darwin-sdk-setup.bash",
+        "/nix/store/9rq2ab2wl3ia1ism6zjvdxcnpv9s9rgn-add-hardening.sh",
+        "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "/nix/store/m9qvr6m0bylrjqb5ind6hfzsax14xys9-gnu-binutils-strip-wrapper.sh",
+        "/nix/store/mrzpfh0ml9k07sw019ydagbb2z1q4sxz-add-flags.sh",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh",
+        "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash",
+        "/nix/store/yrwphan7mi168vnn4bamwg5795rjbkzh-ld-wrapper.sh"
+      ],
+      "name": "bootstrap-stage0-binutils-wrapper-",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/bnyyaql5yvcrfw42k9kd5d10c2f10mnp-bootstrap-stage0-binutils-wrapper-",
+        "hash": "sha256:0cjscjzai00hz73xwcf67rz6d73cddxbkhxnb77fk61n3g2bhq1h"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "s_GsImWpbce2Em_qbvgHg7KhaaCh3zRE7EGbRp3WEzM": {
+    "in": "s_GsImWpbce2Em_qbvgHg7KhaaCh3zRE7EGbRp3WEzM",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/ckzrg0f0bdyx8rf703nc61r3hz5yys9q-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "defaultBuildInputs": "",
+        "defaultNativeBuildInputs": "/nix/store/h9lc1dpi14z7is86ffhl3ld569138595-audit-tmpdir.sh /nix/store/m54bmrhj6fqz8nds5zcj97w9s9bckc9v-compress-man-pages.sh /nix/store/wgrbkkaldkrlrni33ccvm3b6vbxzb656-make-symlinks-relative.sh /nix/store/5yzw0vhkyszf2d179m0qfkgxmp5wjjx4-move-docs.sh /nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh /nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh /nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh /nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh /nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh /nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh /nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh /nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh /nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh",
+        "disallowedRequisites": "",
+        "initialPath": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "name": "bootstrap-stage0-stdenv-linux",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "preHook": "# Don't patch #!/interpreter because it leads to retained\n# dependencies on the bootstrapTools in the final stdenv.\ndontPatchShebangs=1\nexport NIX_ENFORCE_PURITY=\"${NIX_ENFORCE_PURITY-1}\"\nexport NIX_ENFORCE_NO_NATIVE=\"${NIX_ENFORCE_NO_NATIVE-1}\"\n\n",
+        "setup": "/nix/store/xrg4vv8pg061c8dvdg5v9vbfmaglb7yn-setup.sh",
+        "shell": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "system": "x86_64-linux"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh",
+        "/nix/store/5yzw0vhkyszf2d179m0qfkgxmp5wjjx4-move-docs.sh",
+        "/nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh",
+        "/nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh",
+        "/nix/store/ckzrg0f0bdyx8rf703nc61r3hz5yys9q-builder.sh",
+        "/nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh",
+        "/nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh",
+        "/nix/store/h9lc1dpi14z7is86ffhl3ld569138595-audit-tmpdir.sh",
+        "/nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh",
+        "/nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh",
+        "/nix/store/m54bmrhj6fqz8nds5zcj97w9s9bckc9v-compress-man-pages.sh",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh",
+        "/nix/store/wgrbkkaldkrlrni33ccvm3b6vbxzb656-make-symlinks-relative.sh",
+        "/nix/store/xrg4vv8pg061c8dvdg5v9vbfmaglb7yn-setup.sh",
+        "/nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh"
+      ],
+      "name": "bootstrap-stage0-stdenv-linux",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/mvfqjsfcycw02ig1wlqwgzscjjlzi52a-bootstrap-stage0-stdenv-linux.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "hash": "sha256:1amggcxr768d29iswh8s23kjq2x535q03yqv3cvfwxn4fc5gkg2w"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "DRiZFclRf_ZKzTIyrv2VOcsxUaXwUiX1t5yX0pKmM2k": {
+    "in": "DRiZFclRf_ZKzTIyrv2VOcsxUaXwUiX1t5yX0pKmM2k",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "dontBuild": "1",
+        "dontConfigure": "1",
+        "dontUpdateAutotoolsGnuConfigScripts": "1",
+        "installPhase": "runHook preInstall\ninstall -Dm755 ./config.guess $out/config.guess\ninstall -Dm755 ./config.sub $out/config.sub\nrunHook postInstall\n",
+        "mesonFlags": "",
+        "name": "gnu-config-2024-01-01",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "patches": "",
+        "pname": "gnu-config",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "stdenv": "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "strictDeps": "",
+        "system": "x86_64-linux",
+        "unpackPhase": "runHook preUnpack\ncp /nix/store/vq0j27nvpks679djbiykl8ikdyj6z5a9-config.guess-948ae97 ./config.guess\ncp /nix/store/1p61qjvlqmwrqab3zp5yh3z8rf3mvjmz-config.sub-948ae97 ./config.sub\nchmod +w ./config.sub ./config.guess\nrunHook postUnpack\n",
+        "version": "2024-01-01"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/1p61qjvlqmwrqab3zp5yh3z8rf3mvjmz-config.sub-948ae97",
+        "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh",
+        "/nix/store/vq0j27nvpks679djbiykl8ikdyj6z5a9-config.guess-948ae97"
+      ],
+      "name": "gnu-config-2024-01-01",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/c4zhw0z5l7lws1c42mncpqd6h0qfyzdp-gnu-config-2024-01-01.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/d5mrsvkgcdigbhqvw5cv4sqdv9h0jjg9-gnu-config-2024-01-01",
+        "hash": "sha256:1l43qv8hnmziw5a1qfa5nv3vbwgyyzza9jlxj50p97r0ka63wjvc"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "LKVzoy6Q1f2wIf-XCJsGX9dcXbK-CvbjFj0lG_XRuWI": {
+    "in": "LKVzoy6Q1f2wIf-XCJsGX9dcXbK-CvbjFj0lG_XRuWI",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/ckzrg0f0bdyx8rf703nc61r3hz5yys9q-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "defaultBuildInputs": "",
+        "defaultNativeBuildInputs": "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook /nix/store/h9lc1dpi14z7is86ffhl3ld569138595-audit-tmpdir.sh /nix/store/m54bmrhj6fqz8nds5zcj97w9s9bckc9v-compress-man-pages.sh /nix/store/wgrbkkaldkrlrni33ccvm3b6vbxzb656-make-symlinks-relative.sh /nix/store/5yzw0vhkyszf2d179m0qfkgxmp5wjjx4-move-docs.sh /nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh /nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh /nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh /nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh /nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh /nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh /nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh /nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh /nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh /nix/store/gsbjw9yh9nbcys03wp1grrmv69rwwz1z-bootstrap-stage1-gcc-wrapper-",
+        "disallowedRequisites": "",
+        "initialPath": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "name": "bootstrap-stage1-stdenv-linux",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "preHook": "# Don't patch #!/interpreter because it leads to retained\n# dependencies on the bootstrapTools in the final stdenv.\ndontPatchShebangs=1\nexport NIX_ENFORCE_PURITY=\"${NIX_ENFORCE_PURITY-1}\"\nexport NIX_ENFORCE_NO_NATIVE=\"${NIX_ENFORCE_NO_NATIVE-1}\"\n\n",
+        "setup": "/nix/store/xrg4vv8pg061c8dvdg5v9vbfmaglb7yn-setup.sh",
+        "shell": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "system": "x86_64-linux"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh",
+        "/nix/store/5yzw0vhkyszf2d179m0qfkgxmp5wjjx4-move-docs.sh",
+        "/nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh",
+        "/nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh",
+        "/nix/store/ckzrg0f0bdyx8rf703nc61r3hz5yys9q-builder.sh",
+        "/nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh",
+        "/nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh",
+        "/nix/store/gsbjw9yh9nbcys03wp1grrmv69rwwz1z-bootstrap-stage1-gcc-wrapper-",
+        "/nix/store/h9lc1dpi14z7is86ffhl3ld569138595-audit-tmpdir.sh",
+        "/nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh",
+        "/nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh",
+        "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
+        "/nix/store/m54bmrhj6fqz8nds5zcj97w9s9bckc9v-compress-man-pages.sh",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh",
+        "/nix/store/wgrbkkaldkrlrni33ccvm3b6vbxzb656-make-symlinks-relative.sh",
+        "/nix/store/xrg4vv8pg061c8dvdg5v9vbfmaglb7yn-setup.sh",
+        "/nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh"
+      ],
+      "name": "bootstrap-stage1-stdenv-linux",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/b500xc5jhxz3vaa3fbzfv8r22alkf9ih-bootstrap-stage1-stdenv-linux.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/3q60makydbgd86gd3sizn1jxd4mc6gg7-bootstrap-stage1-stdenv-linux",
+        "hash": "sha256:06qrrx2pb9ayddlzx51bx6s087d095yhi3jwihd62nddpxw3sf98"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "mXqRn4NhLywsnI1zObaNZHPp3lh4ojt5mJbuV7r7PAk": {
+    "in": "mXqRn4NhLywsnI1zObaNZHPp3lh4ojt5mJbuV7r7PAk",
+    "in_preimage": {
+      "args": [
+        "ash",
+        "-e",
+        "/nix/store/i9nx0dp1khrgikqr95ryy2jkigr4c5yv-unpack-bootstrap-tools.sh"
+      ],
+      "builder": "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox",
+      "env": {
+        "builder": "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox",
+        "hardeningUnsupportedFlags": "fortify3 shadowstack pacret stackclashprotection trivialautovarinit zerocallusedregs",
+        "isGNU": "1",
+        "langC": "1",
+        "langCC": "1",
+        "name": "bootstrap-tools",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "system": "x86_64-linux",
+        "tarball": "/nix/store/2pizl7lq4awa7p9bklr8037yh1sca0hg-bootstrap-tools.tar.xz"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/2pizl7lq4awa7p9bklr8037yh1sca0hg-bootstrap-tools.tar.xz",
+        "/nix/store/i9nx0dp1khrgikqr95ryy2jkigr4c5yv-unpack-bootstrap-tools.sh",
+        "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox"
+      ],
+      "name": "bootstrap-tools",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "hash": "sha256:1w0h112a6l4qhkfiw4wg9gv5j3ysjchmxrf385l06xajaryawz9r"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "VZxDyCTuDPA5vlX4YyyR3wBgj5sQLz2E4CNp8CMzWPg": {
+    "in": "VZxDyCTuDPA5vlX4YyyR3wBgj5sQLz2E4CNp8CMzWPg",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/ckzrg0f0bdyx8rf703nc61r3hz5yys9q-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "defaultBuildInputs": "",
+        "defaultNativeBuildInputs": "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook /nix/store/h9lc1dpi14z7is86ffhl3ld569138595-audit-tmpdir.sh /nix/store/m54bmrhj6fqz8nds5zcj97w9s9bckc9v-compress-man-pages.sh /nix/store/wgrbkkaldkrlrni33ccvm3b6vbxzb656-make-symlinks-relative.sh /nix/store/5yzw0vhkyszf2d179m0qfkgxmp5wjjx4-move-docs.sh /nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh /nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh /nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh /nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh /nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh /nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh /nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh /nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh /nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh",
+        "disallowedRequisites": "",
+        "initialPath": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "name": "bootstrap-stage1-stdenv-linux",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "preHook": "# Don't patch #!/interpreter because it leads to retained\n# dependencies on the bootstrapTools in the final stdenv.\ndontPatchShebangs=1\nexport NIX_ENFORCE_PURITY=\"${NIX_ENFORCE_PURITY-1}\"\nexport NIX_ENFORCE_NO_NATIVE=\"${NIX_ENFORCE_NO_NATIVE-1}\"\n\n",
+        "setup": "/nix/store/xrg4vv8pg061c8dvdg5v9vbfmaglb7yn-setup.sh",
+        "shell": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "system": "x86_64-linux"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/12lvf0c7xric9cny7slvf9cmhypl1p67-patch-shebangs.sh",
+        "/nix/store/5yzw0vhkyszf2d179m0qfkgxmp5wjjx4-move-docs.sh",
+        "/nix/store/aazf105snicrlvyzzbdj85sx4179rpfp-set-source-date-epoch-to-latest.sh",
+        "/nix/store/cickvswrvann041nqxb0rxilc46svw1n-prune-libtool-files.sh",
+        "/nix/store/ckzrg0f0bdyx8rf703nc61r3hz5yys9q-builder.sh",
+        "/nix/store/fyaryjvghbkpfnsyw97hb3lyb37s1pd6-move-lib64.sh",
+        "/nix/store/gps9qrh99j7g02840wv5x78ykmz30byp-strip.sh",
+        "/nix/store/h9lc1dpi14z7is86ffhl3ld569138595-audit-tmpdir.sh",
+        "/nix/store/jivxp510zxakaaic7qkrb7v1dd2rdbw9-multiple-outputs.sh",
+        "/nix/store/kd4xwxjpjxi71jkm6ka0np72if9rm3y0-move-sbin.sh",
+        "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
+        "/nix/store/m54bmrhj6fqz8nds5zcj97w9s9bckc9v-compress-man-pages.sh",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/pag6l61paj1dc9sv15l7bm5c17xn5kyk-move-systemd-user-units.sh",
+        "/nix/store/wgrbkkaldkrlrni33ccvm3b6vbxzb656-make-symlinks-relative.sh",
+        "/nix/store/xrg4vv8pg061c8dvdg5v9vbfmaglb7yn-setup.sh",
+        "/nix/store/xyff06pkhki3qy1ls77w10s0v79c9il0-reproducible-builds.sh"
+      ],
+      "name": "bootstrap-stage1-stdenv-linux",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/z76mbrxq5pg0mb8rvqmzz2kb25lqm1ja-bootstrap-stage1-stdenv-linux.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/f8ryiqmf9rwg5iwxq9g6hyp1h62139cw-bootstrap-stage1-stdenv-linux",
+        "hash": "sha256:1n3glfhpk9acqc58bm4gkynq6p51s6mh9cnvvlx3jqx6wx5gizjg"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "O2yjhzSFI9Kj0JUktk5LoaEz5JNSMXD1wqRiVm63skU": {
+    "in": "O2yjhzSFI9Kj0JUktk5LoaEz5JNSMXD1wqRiVm63skU",
+    "in_preimage": {
+      "args": [
+        "-c",
+        "echo $RANDOM > $out"
+      ],
+      "builder": "/bin/sh",
+      "env": {
+        "builder": "/bin/sh",
+        "name": "test",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "system": "x86_64-linux"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [],
+      "name": "test",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/ssh512gy9hcb98f52zlf02sxi1l8plkb-test.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/b8sp9k91qv67xps32cw71k2zfvbnxmz6-test",
+        "hash": "sha256:0p3l2z3riilylr2rxb1aq2blxdfxg55wbgp4gxkns93srbr4bwyq"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  },
+  "nBA2nV7NvMWJbphA7JOctp0g5PFut2gNwMgRoUFAUrU": {
+    "in": "nBA2nV7NvMWJbphA7JOctp0g5PFut2gNwMgRoUFAUrU",
+    "in_preimage": {
+      "args": [
+        "-e",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+      "env": {
+        "__structuredAttrs": "",
+        "buildCommand": "mkdir -p $out/nix-support\ncp /nix/store/96rvfw5vlv1hwwm9sdxhdkkpjyym6p2x-update-autotools-gnu-config-scripts.sh $out/nix-support/setup-hook\nrecordPropagatedDependencies\nsubstituteAll /nix/store/96rvfw5vlv1hwwm9sdxhdkkpjyym6p2x-update-autotools-gnu-config-scripts.sh $out/nix-support/setup-hook\n",
+        "buildInputs": "",
+        "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+        "cmakeFlags": "",
+        "configureFlags": "",
+        "depsBuildBuild": "",
+        "depsBuildBuildPropagated": "",
+        "depsBuildTarget": "",
+        "depsBuildTargetPropagated": "",
+        "depsHostHost": "",
+        "depsHostHostPropagated": "",
+        "depsTargetTarget": "",
+        "depsTargetTargetPropagated": "",
+        "doCheck": "",
+        "doInstallCheck": "",
+        "enableParallelBuilding": "1",
+        "enableParallelChecking": "1",
+        "enableParallelInstalling": "1",
+        "gnu_config": "/nix/store/d5mrsvkgcdigbhqvw5cv4sqdv9h0jjg9-gnu-config-2024-01-01",
+        "mesonFlags": "",
+        "name": "update-autotools-gnu-config-scripts-hook",
+        "nativeBuildInputs": "",
+        "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+        "outputHashAlgo": "sha256",
+        "outputHashMode": "recursive",
+        "outputs": "out",
+        "passAsFile": "buildCommand",
+        "patches": "",
+        "propagatedBuildInputs": "",
+        "propagatedNativeBuildInputs": "",
+        "stdenv": "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "strictDeps": "1",
+        "system": "x86_64-linux"
+      },
+      "inputDrvs": {},
+      "inputSrcs": [
+        "/nix/store/96rvfw5vlv1hwwm9sdxhdkkpjyym6p2x-update-autotools-gnu-config-scripts.sh",
+        "/nix/store/d5mrsvkgcdigbhqvw5cv4sqdv9h0jjg9-gnu-config-2024-01-01",
+        "/nix/store/g3n1vhqpzcgjpxm8kzdfdpy7g91sqg1m-bootstrap-stage0-stdenv-linux",
+        "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+        "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+      ],
+      "name": "update-autotools-gnu-config-scripts-hook",
+      "outputs": {
+        "out": {
+          "hashAlgo": "sha256",
+          "method": "nar"
+        }
+      },
+      "system": "x86_64-linux"
+    },
+    "drv_path": "/nix/store/8gnyf7g3fyxrqkwm2jsk7vj35xc13ic1-update-autotools-gnu-config-scripts-hook.drv",
+    "out": {
+      "out": {
+        "hashAlgo": "sha256",
+        "method": "nar",
+        "path": "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
+        "hash": "sha256:18z4y845qypxpj02ryxrg4n29908ngmzvffmp9mklwvj6jsq5hcn"
+      }
+    },
+    "builder": {
+      "rebuild": "1"
+    }
+  }
+}

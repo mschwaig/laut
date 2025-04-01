@@ -33,7 +33,7 @@ def mock_signature_fetch(monkeypatch):
     """Fixture that mocks fetch_ct_signatures to return signature data from test files."""
     def _fetch_signatures_mock(input_hash: str) -> list:
         # Path to the signature file
-        signature_file = Path(__file__).parent.parent.parent / "tests" / "traces" / "out4" / "builderA.json"
+        signature_file = Path(__file__).parent.parent.parent / "tests" / "traces" / "out5" / "builderA.json"
         
         try:
             with open(signature_file) as f:
@@ -58,9 +58,9 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_signature_fetch):
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    #drv = build_unresolved_tree("/nix/store/iqzp8nwk1g18yi58hvp3plc8y2z1lwjz-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
+    #drv = build_unresolved_tree("/nix/store/5ym69wgz3r50xli70rjr4v7kri0zjxxb-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
     #drv = build_unresolved_tree("/nix/store/0m4y3j4pnivlhhpr5yqdvlly86p93fwc-busybox.drv", hello_recursive)
-    drv = build_unresolved_tree("/nix/store/wnylsz1bmayj1xprnbj7mg6wn5scmr2v-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/sr2srdqrrxghnqr64fbh8fvfr3xccqvw-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
     list = verify_tree(drv, trust_model)
     #tracemalloc.start()
     #snapshot = tracemalloc.take_snapshot()
@@ -71,7 +71,7 @@ def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
     with open(data_file) as f:
         hello_recursive = json.load(f)
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    drv = build_unresolved_tree("/nix/store/ini9yln97fpf7ccwdv8hqbj3crfqvrcm-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/jhwqw8cbw8xy84wbdhzmf337bxa7wdbj-hello-2.12.1.drv", hello_recursive)
     #tracemalloc.start()
     list = verify_tree(drv, trust_model)
     #snapshot = tracemalloc.take_snapshot()
