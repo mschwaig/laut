@@ -37,6 +37,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from .trust_model import TrustedKey
 from .fetch_signatures import fetch_ct_signatures
 from loguru import logger
+from laut.config import config
 
 def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed_drv: bool) -> Dict[str, UnresolvedOutput]:
     global _json
@@ -69,6 +70,7 @@ _json : Dict = {}
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
     _json = json
+    build_unresolved_tree_rec.cache_clear()
     root_node = build_unresolved_tree_rec(node_drv_path)
     cache_info = build_unresolved_tree_rec.cache_info()
     logger.debug(cache_info)
@@ -87,7 +89,7 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     logger.debug(f"inputs: {inputs}")
     if is_fixed_output:
         input_outputs : Set[UnresolvedReferencedInputs] = set()
-    else:
+    elif is_content_addressed_drv or config.allow_ia:
         input_outputs = {
             get_referenced_outputs_of_drv(
                 node_drv_path,
@@ -97,6 +99,8 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
             )
             for drv_path in inputs.keys()
         }
+    else:
+        raise ValueError("cannot handle IA derivations yet")
 
     unresolved_derivation = UnresolvedDerivation(
         drv_path=node_drv_path,

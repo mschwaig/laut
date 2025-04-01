@@ -20,7 +20,7 @@ from .nix.constructive_trace import (
 from laut.nix.commands import (
     get_derivation_type
 )
-from laut import config
+from laut.config import config
 from loguru import logger
 
 def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths):
