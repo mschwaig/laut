@@ -1,11 +1,15 @@
 from dataclasses import dataclass, field
+import json
+from pathlib import Path
 import time
 from typing import TypeVar, Dict, Iterator, Set, Iterator, Optional, List, Tuple, Hashable
 from itertools import product
 from functools import wraps, cache
-
+from .. import config
 import os
 import tempfile
+
+debug_dir = None
 
 from laut.nix.commands import (
     check_nixos_cache,
@@ -142,6 +146,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
     raise ValueError("Not supporting input addressed derivations for now!")
 
 def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[list[TrustlesslyResolvedDerivation], dict]:
+    global debug_dir
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
@@ -150,10 +155,17 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
     p = SwigInterface.newInstance("nix_verify")
     with tempfile.TemporaryDirectory() as temp_dir:
 
-        unresolved_deps_file = open(os.path.join(temp_dir, 'unresolved_deps.facts'), 'w')
-        drv_resolutions_file = open(os.path.join(temp_dir, 'drv_resolutions.facts'), 'w')
-        resolved_deps_file = open(os.path.join(temp_dir, 'resolved_deps.facts'), 'w')
-        builds_file = open(os.path.join(temp_dir, 'builds.facts'), 'w')
+        td = Path(temp_dir)
+
+        if config.debug:
+            dir_path = td / "debug"
+            os.mkdir(dir_path)
+            debug_dir = Path(dir_path).resolve()
+    
+        unresolved_deps_file = open(td / 'unresolved_deps.facts', 'w')
+        drv_resolutions_file = open(td / 'drv_resolutions.facts', 'w')
+        resolved_deps_file = open(td / 'resolved_deps.facts', 'w')
+        builds_file = open(td / 'builds.facts', 'w')
         
         root_result = verify_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         logger.warning(f"Closing files at {temp_dir}")
@@ -184,6 +196,7 @@ def remember_steps(func):
 
 @remember_steps
 def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> list[TrustlesslyResolvedDerivation]:
+    global debug_dir
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
 
@@ -230,6 +243,12 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
     # and consider valid to some degree
     # and then use constraint solving to figure out what we are missing
     plausible_resolutions: list[TrustlesslyResolvedDerivation] = []
+    if debug_dir:
+        udrv_path = debug_dir / Path(unresolved_derivation.drv_path).name
+        os.mkdir(udrv_path)
+        with open(udrv_path / "u.drv", 'w') as f:
+            f.write(json.dumps(unresolved_derivation.json_attrs))
+
     for resolution in resolutions:            
         ct_input_hash, ct_input_data = compute_CT_input_hash(
             unresolved_derivation.drv_path, 
@@ -247,6 +266,13 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
                 # TODO: add output name or change data structure in some way to accommodate it
                 builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
                 outputs[unresolved_derivation.outputs[o]] = signature["out"][o]["path"]
+            if debug_dir:
+                with open(udrv_path / signature["drv_path"], 'w') as f:
+                    f.write(json.dumps(signature["in_data"]))
+                if ct_input_hash:
+                    with open(udrv_path / str(ct_input_hash), 'w') as f:
+                        f.write(json.dumps(ct_input_data))
+                    
             drv_path=signature["drv_path"] # TODO: compute this ourselves
             resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,

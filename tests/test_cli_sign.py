@@ -24,6 +24,8 @@ def mock_derivation_lookup(monkeypatch):
             drv_file_name = "resolved.drv"
         elif drv_path == "/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv":
             drv_file_name = "unresolved.drv"
+        elif drv_path == '/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv':
+            drv_file_name = "resolved-problematic.drv"
         elif drv_path == "/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv":
             drv_file_name = "resolved-problematic-fixed.drv"
         else:
@@ -66,15 +68,15 @@ does not work in sandbox for some unknown reason
 def test_sign_resolved_problematic_derivaion_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
             '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
-            "/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.dr"
+            "/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv"
         ],
         env = {
             'OUT_PATHS': '',
-            'DRV_PATH': '/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.dr',
+            'DRV_PATH': '/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv',
         }
     )
-    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
-    mock_derivation_lookup.assert_called_with('/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.dr', False)
+    assert mock_derivation_lookup.call_count == 1 # TODO: make this 1
+    mock_derivation_lookup.assert_called_with('/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv', False)
     assert result.exit_code == 0
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
