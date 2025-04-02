@@ -243,8 +243,10 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
     # and consider valid to some degree
     # and then use constraint solving to figure out what we are missing
     plausible_resolutions: list[TrustlesslyResolvedDerivation] = []
+    udrv_path = None
     if debug_dir:
-        udrv_path = debug_dir / Path(unresolved_derivation.drv_path).name
+        filename =  Path(unresolved_derivation.drv_path).name
+        udrv_path = (debug_dir / filename).resolve()
         os.mkdir(udrv_path)
         with open(udrv_path / "u.drv", 'w') as f:
             f.write(json.dumps(unresolved_derivation.json_attrs))
@@ -258,6 +260,10 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
         drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
             resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
+
+        if debug_dir:
+            with open(udrv_path / ct_input_hash, 'w') as f:
+                f.write(json.dumps(ct_input_data))
         for signature in fetch_ct_signatures(ct_input_hash):
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
@@ -267,12 +273,10 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
                 builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
                 outputs[unresolved_derivation.outputs[o]] = signature["out"][o]["path"]
             if debug_dir:
-                with open(udrv_path / signature["drv_path"], 'w') as f:
-                    f.write(json.dumps(signature["in_data"]))
-                if ct_input_hash:
-                    with open(udrv_path / str(ct_input_hash), 'w') as f:
-                        f.write(json.dumps(ct_input_data))
-                    
+                filename =  Path(signature["drv_path"]).name
+                with open(udrv_path / filename, 'w') as f:
+                    f.write(json.dumps(signature["in_preimage"]))
+
             drv_path=signature["drv_path"] # TODO: compute this ourselves
             resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,

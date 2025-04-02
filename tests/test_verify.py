@@ -33,7 +33,7 @@ def mock_signature_fetch(monkeypatch):
     """Fixture that mocks fetch_ct_signatures to return signature data from test files."""
     def _fetch_signatures_mock(input_hash: str) -> list:
         # Path to the signature file
-        signature_file = Path(__file__).parent.parent.parent / "tests" / "traces" / "out5" / "builderA.json"
+        signature_file = Path(__file__).parent.parent / "tests" / "traces" / "out5" / "builderA.json"
         
         try:
             with open(signature_file) as f:
@@ -52,7 +52,11 @@ def mock_signature_fetch(monkeypatch):
     monkeypatch.setattr("laut.verification.verification.fetch_ct_signatures", mock)
     return mock
 
-def test_verify_ca_drv_small(mock_derivation_lookup, mock_signature_fetch):
+@pytest.fixture
+def mock_config_debug(monkeypatch):
+    monkeypatch.setattr('laut.config.config.debug', True)
+
+def test_verify_ca_drv_small(mock_derivation_lookup, mock_signature_fetch, mock_config_debug):
     data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
