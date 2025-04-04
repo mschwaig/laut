@@ -3,7 +3,9 @@ from pathlib import Path
 from ..storage import get_s3_client
 import json
 from loguru import logger
-from typing import Dict, Set, Optional, List
+from typing import Dict, Iterable, Set, Optional, List
+
+from laut.config import config
 
 @lru_cache(maxsize=None)
 def fetch_ct_signatures(input_hash: str) -> List[dict]:
@@ -32,5 +34,14 @@ def fetch_ct_signatures(input_hash: str) -> List[dict]:
 
     return all_signatures
 
-#def fetch_dct_signatures(input_hash: UnresolvedInputHash):
-#    return
+def fetch_preimage_from_index(drv_name) -> Iterable[tuple[str, str]]:
+    with open(config.preimage_index) as f:
+        index = json.load(f)
+   
+    one_or_many_drv = index[drv_name]
+    if one_or_many_drv is list:
+        for i in one_or_many_drv:
+            yield (Path(i["drv_path"]).name, i["in_preimage"])
+    else:
+        one = one_or_many_drv
+        yield (Path(one["drv_path"]).name, one["in_preimage"])

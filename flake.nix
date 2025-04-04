@@ -97,6 +97,11 @@
             nix-verify-souffle
           ]);
 
+          postInstall = if sign-only then "" else ''
+            wrapProgram $out/bin/laut \
+              --prefix PATH : ${lib.makeBinPath [ pkgs.diffoscope ]}
+          '';
+
           pythonImportsCheck = [ "laut" ];
         };
 
@@ -135,6 +140,10 @@
             nix-verify-souffle
           ]);
         in pkgs.mkShell {
+          shellHook = ''
+            export PATH=${lib.makeBinPath [ pkgs.diffoscope ]}:$PATH
+          '';
+
           PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
             pythonEnv

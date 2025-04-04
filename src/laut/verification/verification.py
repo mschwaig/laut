@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import subprocess
+import sys
 import time
 from typing import TypeVar, Dict, Iterator, Set, Iterator, Optional, List, Tuple, Hashable
 from itertools import product
@@ -39,7 +41,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
 from .trust_model import TrustedKey
-from .fetch_signatures import fetch_ct_signatures
+from .fetch_signatures import fetch_ct_signatures, fetch_preimage_from_index
 from loguru import logger
 from laut.config import config
 
@@ -153,7 +155,7 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
     #       the content of the memoization cache has a "log entry" for each build step
     from nix_verify_souffle import SwigInterface
     p = SwigInterface.newInstance("nix_verify")
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
         td = Path(temp_dir)
 
@@ -263,8 +265,26 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
 
         if debug_dir:
             with open(udrv_path / ct_input_hash, 'w') as f:
-                f.write(json.dumps(ct_input_data))
-        for signature in fetch_ct_signatures(ct_input_hash):
+                f.write(ct_input_data)
+        signatures = fetch_ct_signatures(ct_input_hash)
+        if not signatures and debug_dir and config.preimage_index:
+            # if we cannot find signatures for a specific derivation,
+            # we should do a another lookup in the builders file by the unresolved drv_hash for debugging purposes
+            # and write that to a debug file, where the name indicates what it is
+            # if we do not find such a file that might even lead to an exception,
+            # because it points to incomplete test data
+            # if we do find such a derivation, we should be able to use it to produce a sensible diff
+            # between the input hash preimage on the signing and verification side            
+            for i in fetch_preimage_from_index(unresolved_derivation.json_attrs["name"]):
+                drv_path, in_preimage = i
+                with open(udrv_path / drv_path, 'w') as f:
+                    f.write(json.dumps(in_preimage))
+                    process = subprocess.Popen(
+                        ['diffoscope', udrv_path / ct_input_hash, udrv_path / Path(drv_path).name],
+                        stdout=sys.stdout,
+                        stderr=sys.stdout)
+                    process.wait()
+        for signature in signatures:
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()

@@ -55,7 +55,10 @@ def _get_output(drv: TrustlesslyResolvedDerivation, out) -> UnresolvedOutput:
 
     raise KeyError("failed to find output §{drv_path}")
 
-
+# TODO: maybe we should fail dependency resolution
+#       if there is anything left in the derivation
+#       that looks like a placeholder
+#       except for the output ones, which I think are fine
 def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]):
     """
     Resolve all dependencies in a derivation by getting their content hashes
