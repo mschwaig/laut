@@ -97,6 +97,10 @@
             nix-verify-souffle
           ]);
 
+          preCheck = if sign-only then "" else ''
+            export PATH=${lib.makeBinPath [ pkgs.diffoscope ]}:$PATH
+          '';
+
           postInstall = if sign-only then "" else ''
             wrapProgram $out/bin/laut \
               --prefix PATH : ${lib.makeBinPath [ pkgs.diffoscope ]}
