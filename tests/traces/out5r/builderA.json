@@ -1,5 +1,5 @@
 {
-  "expand-response-params.drv": {
+  "expand-response-params": {
     "in": "2-3Y7pg6o2TK7hKdXvPL4SJu5EfmnPW4jlNSG4Ou1b8",
     "in_preimage": {
       "args": [
@@ -73,7 +73,7 @@
       "rebuild": "1"
     }
   },
-  "bootstrap-stage0-glibc-bootstrapFiles.drv": {
+  "bootstrap-stage0-glibc-bootstrapFiles": {
     "in": "zPgeG_WdqTKyronMEJq1by4U8qRIke199OxmpBHj1qA",
     "in_preimage": {
       "args": [
@@ -145,7 +145,7 @@
       "rebuild": "1"
     }
   },
-  "bootstrap-stage1-gcc-wrapper-.drv": {
+  "bootstrap-stage1-gcc-wrapper-": {
     "in": "XZ5xoJG9p55bBy7wAKxpJxm9hOTjgQbzRSNs1hG52Lk",
     "in_preimage": {
       "args": [
@@ -252,7 +252,7 @@
       "rebuild": "1"
     }
   },
-  "gnu-config-2024-01-01.drv": [
+  "gnu-config-2024-01-01": [
     {
       "in": "xFyJGN2FRBMQM21-qPTWbtNTMoxUuEUPUPJnuZHz-IM",
       "in_preimage": {
@@ -404,7 +404,7 @@
       }
     }
   ],
-  "patchelf-0.15.0.drv": {
+  "patchelf-0.15.0": {
     "in": "Np2ugyKLYg19NoKsYltsIgqTRmNtmBpZ7DTuC0P9x60",
     "in_preimage": {
       "args": [
@@ -479,7 +479,7 @@
       "rebuild": "1"
     }
   },
-  "bootstrap-stage0-binutils-wrapper-.drv": {
+  "bootstrap-stage0-binutils-wrapper-": {
     "in": "3Ug-5G5542Q0aTzvIkiN_xyP_9Uc6UJTqsmh3NP8T1k",
     "in_preimage": {
       "args": [
@@ -585,7 +585,7 @@
       "rebuild": "1"
     }
   },
-  "bootstrap-stage0-stdenv-linux.drv": {
+  "bootstrap-stage0-stdenv-linux": {
     "in": "s_GsImWpbce2Em_qbvgHg7KhaaCh3zRE7EGbRp3WEzM",
     "in_preimage": {
       "args": [
@@ -649,7 +649,7 @@
       "rebuild": "1"
     }
   },
-  "bootstrap-stage1-stdenv-linux.drv": [
+  "bootstrap-stage1-stdenv-linux": [
     {
       "in": "LKVzoy6Q1f2wIf-XCJsGX9dcXbK-CvbjFj0lG_XRuWI",
       "in_preimage": {
@@ -782,7 +782,7 @@
       }
     }
   ],
-  "bootstrap-tools.drv": {
+  "bootstrap-tools": {
     "in": "mXqRn4NhLywsnI1zObaNZHPp3lh4ojt5mJbuV7r7PAk",
     "in_preimage": {
       "args": [
@@ -832,7 +832,7 @@
       "rebuild": "1"
     }
   },
-  "test.drv": {
+  "test": {
     "in": "O2yjhzSFI9Kj0JUktk5LoaEz5JNSMXD1wqRiVm63skU",
     "in_preimage": {
       "args": [
@@ -870,7 +870,7 @@
       "rebuild": "1"
     }
   },
-  "update-autotools-gnu-config-scripts-hook.drv": {
+  "update-autotools-gnu-config-scripts-hook": {
     "in": "nBA2nV7NvMWJbphA7JOctp0g5PFut2gNwMgRoUFAUrU",
     "in_preimage": {
       "args": [

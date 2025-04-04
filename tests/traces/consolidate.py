@@ -4,32 +4,6 @@ import os
 import argparse
 from collections import defaultdict
 import base64
-import sys
-import re
-
-def extract_drv_name(drv_path):
-    """
-    Extract the full name portion from a derivation store path.
-
-    Args:
-        drv_path: The derivation store path
-
-    Returns:
-        The complete name portion that follows the hash in the store path
-
-    Example:
-        Input: "/nix/store/a1b2c3d4e5f6-package-name-1.2.3.drv"
-        Output: "package-name-1.2.3.drv"
-    """
-    if not drv_path:
-        return None
-
-    # Nix store paths follow the pattern: /nix/store/hash-name
-    # We need to extract the complete name part
-    match = re.search(r'/nix/store/[a-z0-9]+-(.+)$', drv_path)
-    if match:
-        return match.group(1)
-    return None
 
 def process_json_files(input_dir, output_dir, key_field='drv_path', allow_duplicate_keys=False, debug=False):
     """
@@ -177,16 +151,7 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', allow_duplic
                     if key_field == 'in':
                         key_value = payload_json.get('in')
                     elif key_field == 'drv_name':
-                        drv_path = payload_json.get('drv_path')
-                        if drv_path:
-                            key_value = extract_drv_name(drv_path)
-                            if not key_value:
-                                print(f"Warning: Could not extract name from drv_path '{drv_path}' in file {filename}, signature #{i+1}")
-                                continue
-                        else:
-                            print(f"Warning: No 'drv_path' found in payload for file {filename}, signature #{i+1}")
-                            print(f"Available payload keys: {list(payload_json.keys())}")
-                            continue
+                        key_value = payload_json.get('in_preimage').get('name')
                     else:  # Default to drv_path
                         key_value = payload_json.get('drv_path')
 
