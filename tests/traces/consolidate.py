@@ -5,22 +5,55 @@ import argparse
 from collections import defaultdict
 import base64
 import sys
+import re
 
-def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False):
+def extract_drv_name(drv_path):
+    """
+    Extract the full name portion from a derivation store path.
+
+    Args:
+        drv_path: The derivation store path
+
+    Returns:
+        The complete name portion that follows the hash in the store path
+
+    Example:
+        Input: "/nix/store/a1b2c3d4e5f6-package-name-1.2.3.drv"
+        Output: "package-name-1.2.3.drv"
+    """
+    if not drv_path:
+        return None
+
+    # Nix store paths follow the pattern: /nix/store/hash-name
+    # We need to extract the complete name part
+    match = re.search(r'/nix/store/[a-z0-9]+-(.+)$', drv_path)
+    if match:
+        return match.group(1)
+    return None
+
+def process_json_files(input_dir, output_dir, key_field='drv_path', allow_duplicate_keys=False, debug=False):
     """
     Process JSON files and build consolidated objects by 'kid'.
-    
+
     Args:
         input_dir: Directory containing the input JSON files
         output_dir: Directory to save the output JSON files
-        key_field: Field to use as keys in the output JSON ('drv_path' or 'in')
+        key_field: Field to use as keys in the output JSON ('drv_path', 'in', or 'drv_name')
+        allow_duplicate_keys: Allow duplicate keys in output by storing values in arrays
         debug: Enable detailed debugging output
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
     # Initialize data structure to hold consolidated data by kid
-    consolidated_data = defaultdict(dict)
+    # If we allow duplicate keys, we'll store lists of values for each key
+    if allow_duplicate_keys:
+        consolidated_data = defaultdict(lambda: defaultdict(list))
+    else:
+        consolidated_data = defaultdict(dict)
+
+    # Keep track of key collisions when using drv_name
+    key_collisions = defaultdict(list)
 
     # List to count files and successful parses
     file_count = 0
@@ -95,7 +128,7 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
                         header_bytes = base64.urlsafe_b64decode(padded_header)
                         header_json = json.loads(header_bytes.decode('utf-8'))
                         kid = header_json.get('kid')
-                        
+
                         if debug:
                             print(f"Header: {header_json}")
 
@@ -139,8 +172,21 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
 
                     # Get the key field value from payload
                     key_value = None
+                    drv_path = None
+
                     if key_field == 'in':
                         key_value = payload_json.get('in')
+                    elif key_field == 'drv_name':
+                        drv_path = payload_json.get('drv_path')
+                        if drv_path:
+                            key_value = extract_drv_name(drv_path)
+                            if not key_value:
+                                print(f"Warning: Could not extract name from drv_path '{drv_path}' in file {filename}, signature #{i+1}")
+                                continue
+                        else:
+                            print(f"Warning: No 'drv_path' found in payload for file {filename}, signature #{i+1}")
+                            print(f"Available payload keys: {list(payload_json.keys())}")
+                            continue
                     else:  # Default to drv_path
                         key_value = payload_json.get('drv_path')
 
@@ -150,13 +196,27 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
                         print(f"Available payload keys: {list(payload_json.keys())}")
                         continue
 
-                    # Store all payload data except the key field
+                    # Check for collisions when using drv_name
+                    if key_field == 'drv_name' and not allow_duplicate_keys:
+                        if kid in consolidated_data and key_value in consolidated_data[kid]:
+                            # In regular mode, this is a dict
+                            existing_drv_path = consolidated_data[kid][key_value].get('drv_path')
+                            if existing_drv_path != drv_path:
+                                key_collisions[kid].append((key_value, existing_drv_path, drv_path))
+                                if debug:
+                                    print(f"Warning: Name collision for kid={kid}, name={key_value}")
+                                    print(f"  Existing path: {existing_drv_path}")
+                                    print(f"  New path: {drv_path}")
+
+                    # Store all payload data
                     payload_copy = payload_json.copy()
-                    #if key_field in payload_copy:
-                    #    del payload_copy[key_field]
 
                     # Add to the consolidated data
-                    consolidated_data[kid][key_value] = payload_copy
+                    if allow_duplicate_keys:
+                        consolidated_data[kid][key_value].append(payload_copy)
+                    else:
+                        consolidated_data[kid][key_value] = payload_copy
+
                     successful_signatures += 1
 
                     if debug:
@@ -167,6 +227,18 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
 
         except Exception as e:
             print(f"Error processing file {filename}: {e}")
+
+    # Check for name collisions if not allowing duplicates
+    if not allow_duplicate_keys and key_field == 'drv_name' and key_collisions:
+        print("Error: Found name collisions (multiple different derivations with the same name):")
+        for kid, collisions in key_collisions.items():
+            print(f"  Kid: {kid}")
+            for name, path1, path2 in collisions:
+                print(f"    Name: {name}")
+                print(f"      Path 1: {path1}")
+                print(f"      Path 2: {path2}")
+        print("Aborting: Cannot proceed with ambiguous name mappings.")
+        return
 
     # Summary
     print(f"Processed {file_count} files")
@@ -181,8 +253,26 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', debug=False)
     for kid, data in consolidated_data.items():
         output_filename = os.path.join(output_dir, f"{kid}.json")
         try:
-            with open(output_filename, 'w') as f:
-                json.dump(data, f, indent=2)
+            # For allow_duplicate_keys mode, we need to handle the nested structure
+            if allow_duplicate_keys:
+                # Convert the defaultdict(list) to a regular dict
+                # If there's only one item in a list, extract it to maintain similar output
+                # format for cases without duplicates
+                formatted_data = {}
+                for key, items in data.items():
+                    if len(items) == 1:
+                        formatted_data[key] = items[0]  # Extract single items
+                    else:
+                        formatted_data[key] = items     # Keep list for duplicates
+
+                # Write the formatted data
+                with open(output_filename, 'w') as f:
+                    json.dump(formatted_data, f, indent=2)
+            else:
+                # Standard output for non-duplicate mode
+                with open(output_filename, 'w') as f:
+                    json.dump(data, f, indent=2)
+
             print(f"Created file {output_filename}")
         except Exception as e:
             print(f"Error writing output file {output_filename}: {e}")
@@ -192,13 +282,15 @@ def main():
     parser = argparse.ArgumentParser(description='Process JSON files and consolidate by kid')
     parser.add_argument('--input-dir', required=True, help='Directory containing input JSON files')
     parser.add_argument('--output-dir', required=True, help='Directory to save output JSON files')
-    parser.add_argument('--key-field', choices=['drv_path', 'in'], default='drv_path',
+    parser.add_argument('--key-field', choices=['drv_path', 'in', 'drv_name'], default='drv_path',
                         help='Field to use as keys in the output JSON (default: drv_path)')
+    parser.add_argument('--allow-duplicate-keys', action='store_true', 
+                        help='Allow duplicate keys in output. Only relevant when `--key_filed drv_path`')
     parser.add_argument('--debug', action='store_true', help='Enable detailed debugging output')
 
     args = parser.parse_args()
 
-    process_json_files(args.input_dir, args.output_dir, args.key_field, args.debug)
+    process_json_files(args.input_dir, args.output_dir, args.key_field, args.allow_duplicate_keys, args.debug)
 
 
 if __name__ == "__main__":
