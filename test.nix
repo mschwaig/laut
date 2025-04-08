@@ -18,8 +18,8 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
-#  trivialPackageCa = ".#hello";
-  trivialPackageCa = ".#stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
+#  trivialPackageCa = "hello";
+  trivialPackageCa = "stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
 
   cache = { ... }: {
       virtualisation.writableStore = true;
