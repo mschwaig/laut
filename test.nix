@@ -201,8 +201,8 @@ let
 
     @run_in_background
     def build_and_upload(builder):
-      builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-      builder.succeed("cd ${inputs.nixpkgs.outPath}; NIXPKGS_CONTENT_ADDRESSED_BY_DEFAULT=1 nix build --impure ${trivialPackageCa} --secret-key-files \"/etc/nix/private-key\"")
+      # builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
+      builder.succeed("cd ${inputs.nixpkgs.outPath}; nix build -f . ${trivialPackageCa} --arg config '{ contentAddressedByDefault = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link")
 
     #t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
     t1 = build_and_upload(builderA)

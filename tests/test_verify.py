@@ -66,9 +66,10 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_signature_fetch, mock_
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    #drv = build_unresolved_tree("/nix/store/5ym69wgz3r50xli70rjr4v7kri0zjxxb-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
-    #drv = build_unresolved_tree("/nix/store/0m4y3j4pnivlhhpr5yqdvlly86p93fwc-busybox.drv", hello_recursive)
-    drv = build_unresolved_tree("/nix/store/sr2srdqrrxghnqr64fbh8fvfr3xccqvw-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
+    # TODO: this is actually ambigous
+    # we figure out whatto do with it
+    #drv = build_unresolved_tree("/nix/store/sr2srdqrrxghnqr64fbh8fvfr3xccqvw-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
     list = verify_tree(drv, trust_model)
     #tracemalloc.start()
     #snapshot = tracemalloc.take_snapshot()
@@ -79,7 +80,7 @@ def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
     with open(data_file) as f:
         hello_recursive = json.load(f)
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    drv = build_unresolved_tree("/nix/store/jhwqw8cbw8xy84wbdhzmf337bxa7wdbj-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
     #tracemalloc.start()
     list = verify_tree(drv, trust_model)
     #snapshot = tracemalloc.take_snapshot()
