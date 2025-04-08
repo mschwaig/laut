@@ -63,6 +63,7 @@ let
       virtualisation.additionalPaths = [ pkgA ];
 
       nix = {
+        package = pkgs.lix;
         extraOptions =
         ''
           experimental-features = nix-command flakes ca-derivations
@@ -107,7 +108,7 @@ let
           "nix/public-key".source = publicKey;
         };
         systemPackages = with pkgs; [
-          nix
+          lix
           git
           laut
         ];
@@ -149,7 +150,7 @@ let
           '';
 
           environment.systemPackages = with pkgs; [
-            nix
+            lix
             git
             laut
           ];
@@ -202,7 +203,7 @@ let
     @run_in_background
     def build_and_upload(builder):
       # builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-      builder.succeed("cd ${inputs.nixpkgs.outPath}; nix build -f . ${trivialPackageCa} --arg config '{ contentAddressedByDefault = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link")
+      builder.succeed("cd ${inputs.nixpkgs.outPath}; nix build -f . ${trivialPackageCa} --arg config '{ contentAddressedByDefault = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link -L")
 
     #t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
     t1 = build_and_upload(builderA)
