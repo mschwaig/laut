@@ -27,11 +27,8 @@ def get_canonical_derivation(path):
 
 def compute_sha256_base64(data: bytes):
     """Compute SHA-256 hash and return URL-safe base64 encoded"""
-    logger.debug(f"Input type: {type(data)}")
-    logger.debug(f"Input data: {data}")
     hash_bytes = hashlib.sha256(data).digest()
     result = base64.urlsafe_b64encode(hash_bytes).decode('ascii').rstrip('=')
-    logger.debug(f"Computed hash: {result}")
     return result
 
 def _get_typed_derivation(dict: dict[UnresolvedDerivation, TrustlesslyResolvedDerivation], drv_path) -> TrustlesslyResolvedDerivation:
@@ -142,9 +139,8 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
     resolved_input_hash = compute_sha256_base64(resolved_canonical)
     hash_input = resolved_canonical.decode('utf-8')
 
-    logger.debug(f"Drv path: {drv_path}")
-    logger.debug(f"Resolved JSON: {hash_input}")
-    logger.debug(f"Final SHA-256 (base64): {resolved_input_hash}")
+    logger.debug(f"resolved rdv {drv_path} to {resolved_input_hash}")
+    #logger.info(f"Resolved JSON: {hash_input}")
 
     return resolved_input_hash, hash_input
 

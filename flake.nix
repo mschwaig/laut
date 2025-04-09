@@ -20,7 +20,7 @@
         };
 
         test-drv-json = pkgs.writeShellScriptBin "examine-derivation" ''
-          cd ${nixpkgs.outPath}; nix derivation show --recursive -f . hello --arg config '{ contentAddressedByDefault = true; }'
+          cd ${nixpkgs.outPath}; ${pkgs.lix}/bin/nix derivation show --recursive -f . hello --arg config '{ contentAddressedByDefault = true; }'
         '';
 
         nix-verify-souffle = pkgs.python3.pkgs.buildPythonApplication {

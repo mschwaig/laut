@@ -180,8 +180,10 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         p.loadAll(temp_dir)
         p.run()
         logger.warning(f"done EVALUATING datalog at {temp_dir}")
-        p.dumpInputs()
-        p.dumpOutputs()
+        # TODO: re-add this once we actually look into making it generate valid output
+        #p.dumpInputs()
+        #print("##delimiter")
+        #p.dumpOutputs()
 
         return (root_result,  verify_tree_rec.__wrapped__.cache)
 

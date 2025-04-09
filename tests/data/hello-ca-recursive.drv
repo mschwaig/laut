@@ -24,7 +24,6 @@
       "out": {
         "hash": "f2897779017189f1a94757705ef6f6e15dc9208ef079eea7f28abec577e08446",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/l5cki8s6v96yfxd4n2gmf9cbix9l0wf0-byacc-20240109.tgz"
       }
     },
@@ -55,7 +54,6 @@
       "out": {
         "hash": "db0590629b6f0fa36e74aea5f9731dc6f8df068ce7b7bafa45301832a5eebc3a",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/kzkr8srx0y1zqn6wpr522n6pvz6i9zya-xz-5.6.3.tar.xz"
       }
     },
@@ -124,8 +122,7 @@
     "name": "python-setup-hook.sh",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -219,8 +216,7 @@
     "name": "automake-1.16.5",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -333,16 +329,13 @@
     "name": "krb5-1.21.3",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -465,24 +458,19 @@
     "name": "binutils-2.43.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -562,8 +550,7 @@
     "name": "nuke-references",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -592,8 +579,7 @@
     "outputs": {
       "out": {
         "hash": "42b4c49d04c133563fa95f6876af22ad9910483f6e38c6ecd90e4d802bca08d4",
-        "hashAlgo": "sha256",
-        "method": "nar",
+        "hashAlgo": "r:sha256",
         "path": "/nix/store/p9wzypb84a60ymqnhqza17ws0dvlyprg-busybox"
       }
     },
@@ -691,24 +677,19 @@
     "name": "libidn2-2.3.7",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -782,8 +763,7 @@
     "name": "which-2.21",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -871,16 +851,13 @@
     "name": "zlib-1.3.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "static": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -959,8 +936,7 @@
     "name": "autoconf-archive-2024.10.16",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1035,8 +1011,7 @@
     "name": "patchelf-0.15.0",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1066,7 +1041,6 @@
       "out": {
         "hash": "1387e0b67ff247d2abde998f90dfbf70c1491391a59ddfecb8ae698789f0a4f5",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/4if50hvp9yp7xal62nn5sz9cql8pf6cr-findutils-4.10.0.tar.xz"
       }
     },
@@ -1097,7 +1071,6 @@
       "out": {
         "hash": "ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/mdrv8znlgnysqzq1hnv46vi9jmnsc1bc-mpc-1.3.1.tar.gz"
       }
     },
@@ -1128,7 +1101,6 @@
       "out": {
         "hash": "013ec6cc10ad98060a7c34ed5c11187bcc5bf4510f32de0d545db89a9a52a2e2",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/31z1ax17qipzx47iza7m1qwj2a095zc1-bash52-033"
       }
     },
@@ -1159,7 +1131,6 @@
       "out": {
         "hash": "15c93f4936a5e5b88301f3ede767a23d3dd19635af2f3a91fb4cc0e560ca9057",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/y6fzihps6xlg34rl8wrmcypjb0qzrj4n-bash52-036"
       }
     },
@@ -1232,8 +1203,7 @@
     "name": "bootstrap-stage0-glibc-iconv-bootstrapFiles",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1263,7 +1233,6 @@
       "out": {
         "hash": "d1e0566a257d149a0d99d450ce2885123f9995e9c01d0a5ef6df7044a72a468c",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/1fw5fcsjz9wcbf13a5xs4i2cjfircp3x-bash52-006"
       }
     },
@@ -1362,16 +1331,13 @@
     "name": "coreutils-9.5",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1467,12 +1433,10 @@
     "name": "autoconf-2.72",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1502,7 +1466,6 @@
       "out": {
         "hash": "2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/ci0jwzbixs95xx8am2h3pwdy8j2g275p-openssl-3.3.2.tar.gz"
       }
     },
@@ -1834,28 +1797,22 @@
     "name": "bash-5.2p37",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1885,7 +1842,6 @@
       "out": {
         "hash": "e8c3650e1d8cee875c4f355642382c1df83058bd5a11ee8555c0cf276d646d45",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/y2h7bqjpc4q9g887w8pbwncjrmr4g9sx-gettext-0.21.1.tar.gz"
       }
     },
@@ -1958,8 +1914,7 @@
     "name": "glibc-iconv-2.40",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -1989,7 +1944,6 @@
       "out": {
         "hash": "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/l468p3b6f5y9p928a91rrjvpyv4r6g3p-krb5-1.21.3.tar.gz"
       }
     },
@@ -2059,8 +2013,7 @@
     "name": "expand-response-params",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2145,16 +2098,13 @@
     "name": "libssh2-1.11.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2247,16 +2197,13 @@
     "name": "findutils-4.10.0",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "locate": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2349,8 +2296,7 @@
     "name": "linux-headers-6.10",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2424,8 +2370,7 @@
     "name": "update-autotools-gnu-config-scripts-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2507,24 +2452,19 @@
     "name": "attr-2.5.2",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2604,20 +2544,16 @@
     "name": "libffi-3.4.6",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2697,8 +2633,7 @@
     "name": "nuke-references",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2779,24 +2714,19 @@
     "name": "xz-5.6.3",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2868,8 +2798,7 @@
     "name": "glibc-iconv-2.40",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -2899,7 +2828,6 @@
       "out": {
         "hash": "f01d58cd6d9d77fbdca9eb4bbd5ead1988228fdb73d6f7a201f5f8d6b118b469",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/gmaq49vzfrkvr714y4fhfxv100ijihin-automake-1.16.5.tar.xz"
       }
     },
@@ -3113,28 +3041,22 @@
     "name": "xgcc-13.3.0",
     "outputs": {
       "checksum": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "libgcc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3219,8 +3141,7 @@
     "name": "libmpc-1.3.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3369,16 +3290,13 @@
     "name": "gcc-wrapper-13.3.0",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3480,8 +3398,7 @@
     "name": "texinfo-7.1.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3569,20 +3486,16 @@
     "name": "mpfr-4.2.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3694,8 +3607,7 @@
     "name": "bootstrap-stage1-gcc-wrapper-",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3801,16 +3713,13 @@
     "name": "perl-5.40.0",
     "outputs": {
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -3840,7 +3749,6 @@
       "out": {
         "hash": "19a890175e9263d748f627993de6f4b1af9cd21e03f080e4bfb3a1fac10205a2",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/l66b2j7crhj29wk7sx4nycbq55np9fvh-glibc-2.40.tar.xz"
       }
     },
@@ -3871,7 +3779,6 @@
       "out": {
         "hash": "a139c166df7ff4471c5e0733051642ee5556c1cc8a4a78f145583c5c81ab32fb",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/v28dv6l0qk3j382kp40bksa1v6h7dx9p-bash-5.2.tar.gz"
       }
     },
@@ -4001,28 +3908,22 @@
     "name": "curl-8.11.0",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4088,8 +3989,7 @@
     "name": "bootstrap-stage-xgcc-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4119,7 +4019,6 @@
       "out": {
         "hash": "3a670df378e852b85a2295f25e4f51cc28f56e0fcc496408b8c3764290537af5",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/i2j2zqqkghj1cg2rw4z7qyh2zbimciyg-nghttp2-1.64.0.tar.bz2"
       }
     },
@@ -4150,7 +4049,6 @@
       "out": {
         "hash": "6fc69c01688c9458a57eb9a1664c9aba372ccda420a02bf4429fe610e7e7d591",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/83haczzqmdmjjaf73y4fnk1zkcfai9zf-pkg-config-0.29.2.tar.gz"
       }
     },
@@ -4225,8 +4123,7 @@
     "name": "update-autotools-gnu-config-scripts-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4256,7 +4153,6 @@
       "out": {
         "hash": "6a090cdbd334306fceacd0e4a1b9e0b0678efdbbdedbd1f5842035990c8abaff",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/sxc8xmi7caxaiywzh15za9crpk3bw98z-bash52-003"
       }
     },
@@ -4351,16 +4247,13 @@
     "name": "pkg-config-wrapper-0.29.2",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4434,8 +4327,7 @@
     "name": "update-autotools-gnu-config-scripts-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4554,16 +4446,13 @@
     "name": "perl-5.40.0",
     "outputs": {
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4593,7 +4482,6 @@
       "out": {
         "hash": "5f2bdbad629707aa7d85c623f994aa8a1d2dec55a73de5205bac0bf6058a2f7c",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/kfa6p4i5dmvgirqw87557qbg53xif0qh-acl-2.3.2.tar.gz"
       }
     },
@@ -4624,7 +4512,6 @@
       "out": {
         "hash": "f95a817882eaeb0cb78bce82859a86bbb297a308ced730ebe449cd504211d3cd",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/j8vipdfzslz4aa7aj0amwd4msxa9hhpl-bash52-009"
       }
     },
@@ -4655,7 +4542,6 @@
       "out": {
         "hash": "4d62ff37342ec7aed748535323930c7cf94acf71c3591882b26a7ea50f3edc16",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/vijsp4ywmsvr6jk5ypbb8hszayn7bwdd-tar-1.35.tar.xz"
       }
     },
@@ -4686,7 +4572,6 @@
       "out": {
         "hash": "3ef9246f2906ef1e487a0a3f4c647ae1c289cbd8459caa7db5ce118ef136e624",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/cddj9qpc4l62qjy6vvf7gp50mfqaf506-bash52-014"
       }
     },
@@ -4762,8 +4647,7 @@
     "name": "patchelf-0.15.0",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -4793,7 +4677,6 @@
       "out": {
         "hash": "c3ff73230e123acdb5ac216921a386df8f74340459533d776d02811a1f76698f",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/xk6n2izv3fh8j02xx2pzp1bbw00ff9kp-bash52-030"
       }
     },
@@ -4860,8 +4743,7 @@
     "name": "bootstrap-stage3-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5038,12 +4920,10 @@
     "name": "python3-minimal-3.12.7",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5131,16 +5011,13 @@
     "name": "gmp-6.3.0",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5424,8 +5301,7 @@
     "name": "stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5506,20 +5382,16 @@
     "name": "mpdecimal-4.0.0",
     "outputs": {
       "cxx": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5590,8 +5462,7 @@
     "name": "locales-setup-hook.sh",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5660,8 +5531,7 @@
     "name": "expand-response-params",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5691,7 +5561,6 @@
       "out": {
         "hash": "1c48cecbc9b7b4217990580203b7e1de19c4979d0bd2c0e310167df748df2c89",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/in24890k6ybij0b63jisfmrwmmc6x7pv-bash52-017"
       }
     },
@@ -5795,12 +5664,10 @@
     "name": "libtool-2.4.7",
     "outputs": {
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -5894,16 +5761,13 @@
     "name": "pkg-config-wrapper-0.29.2",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6116,28 +5980,22 @@
     "name": "gcc-13.3.0",
     "outputs": {
       "checksum": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "libgcc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6167,7 +6025,6 @@
       "out": {
         "hash": "b0dea9df23c863a7a50e825440f3ebffabd65df1497108e5d437747843895a4e",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/fmb7qassjz0bydvkfrv7vi8d3s6y7kfx-libffi-3.4.6.tar.gz"
       }
     },
@@ -6245,16 +6102,13 @@
     "name": "lzip-1.24.1",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6284,7 +6138,6 @@
       "out": {
         "hash": "899fbb3b338048fe52a9c8252bf65ef1194cdff4f7a3fb3316f5f2396143232e",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/v35iblmbw28xfh8ia90zzh9h0k7g7zqq-bash52-034"
       }
     },
@@ -6339,8 +6192,7 @@
     "name": "bootstrap-stage0-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6370,7 +6222,6 @@
       "out": {
         "hash": "ece0eb544368b3b4359fb8464caa9d89c7a6743c8ed070be1c7d599c3675d357",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/z76vsdh69cvwkwhwg69k7d1znwjmx6hf-bash52-005"
       }
     },
@@ -6401,7 +6252,6 @@
       "out": {
         "hash": "2fb107ce1fb8e93f36997c8b0b2743fc1ca98a454c7cc5a3fcabec533f67d42c",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/x1sqwqn02c5mnpi8hbqlxpbm3rahq5dm-bash52-012"
       }
     },
@@ -6432,7 +6282,6 @@
       "out": {
         "hash": "ef73905169db67399a728e238a9413e0d689462cb9b72ab17a05dba51221358a",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/pjp935kxwai47zyx1wpwadls00m9nmib-bash52-015"
       }
     },
@@ -6514,8 +6363,7 @@
     "name": "binutils-patchelfed-ld-2.43.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6545,7 +6393,6 @@
       "out": {
         "hash": "ac610bda97abe0d9f6b7c963255a11dcb196c25e337c61f94e4778d632f1d8fd",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/hl7wxzav5znk5wxfqncdrzpcb3hqy0y0-patch-2.7.6.tar.xz"
       }
     },
@@ -6576,7 +6423,6 @@
       "out": {
         "hash": "24887b92e2afd4a2ac602419ad4b596372f67ac9b077190f459aba390faf5550",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/ixlxlyp22scrw1xhl9i6p4hz9knq8fk7-Python-3.12.7.tar.xz"
       }
     },
@@ -6607,7 +6453,6 @@
       "out": {
         "hash": "774698422ee54c5f1e704456f37c65c06b51b4e9a8b0866f34580d86fef8e226",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/hi4i4chlp63gsipfd64rv07gd00l862p-linux-6.10.tar.xz"
       }
     },
@@ -6688,8 +6533,7 @@
     "name": "make-shell-wrapper-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6719,7 +6563,6 @@
       "out": {
         "hash": "641cae3c0c74c49354d3ede009f3febd80febe1501a77c1d9fac8d42cc45b6cb",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/vq0j27nvpks679djbiykl8ikdyj6z5a9-config.guess-948ae97"
       }
     },
@@ -6799,8 +6642,7 @@
     "name": "autoconf-archive-2024.10.16",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6860,8 +6702,7 @@
     "name": "bootstrap-stage1-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -6928,8 +6769,7 @@
     "name": "die-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7014,8 +6854,7 @@
     "name": "libmpc-1.3.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7045,7 +6884,6 @@
       "out": {
         "hash": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/0avnvyc7pkcr4pjqws7hwpy87m6wlnjc-make-4.4.1.tar.gz"
       }
     },
@@ -7148,8 +6986,7 @@
     "name": "texinfo-7.1.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7216,8 +7053,7 @@
     "name": "bootstrap-stage0-glibc-bootstrapFiles",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7247,7 +7083,6 @@
       "out": {
         "hash": "942445c3245b22730fd41a67a7c5c231d11cb1b9936b9c0f76334fb7d0b4468c",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/vjv0x8rcs7rnw4glsd0hil5bh22sq33c-mpdecimal-4.0.0.tar.gz"
       }
     },
@@ -7379,16 +7214,13 @@
     "name": "bootstrap-stage4-gcc-wrapper-13.3.0",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7418,7 +7250,6 @@
       "out": {
         "hash": "0845e9621c9543a13f484e94584a49ffc0129970e9914624235fc1d061a0c083",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/sn5d80xj6k2p2bkzfpniz4rkv7j2akh9-gcc-13.3.0.tar.xz"
       }
     },
@@ -7496,8 +7327,7 @@
     "name": "hello-2.12.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7568,8 +7398,7 @@
     "name": "byacc-20240109",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7599,7 +7428,6 @@
       "out": {
         "hash": "3ab0bcd5ec0d860517fc3f710878aef66e1cfbd1ec593460a3853b2470e76fb1",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/d1xybymfx4ad0hy6zv97walg9v1dyzn6-raw"
       }
     },
@@ -7630,7 +7458,6 @@
       "out": {
         "hash": "e12a890a2e4f0d9c6ec1ce65b73da4fe116c8e4209bac8ac9dc4cd96f486ab39",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/8cayvdlq1xfnhwvamzx2zrp6z5i68s44-bash52-027"
       }
     },
@@ -7661,7 +7488,6 @@
       "out": {
         "hash": "125cacb37e625471924b3ee06c54cb1bf21b3b7fe0e569d24a681b0ec4a29987",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/xgs3sv3gph7wbwmgxkvym2lw0jsxdrw5-bash52-029"
       }
     },
@@ -7750,16 +7576,13 @@
     "name": "zlib-1.3.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "static": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7789,7 +7612,6 @@
       "out": {
         "hash": "971534490117eb05d97d7fd81f5f9d8daf927b4d581231844ffae485651b02c3",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/rihy7jn15hxaifb33v5p8w62gmw62k97-bash52-024"
       }
     },
@@ -7820,7 +7642,6 @@
       "out": {
         "hash": "1db2aedde89d0dea42b16d9528f894c8d15dae4e190b59aecc78f5a951276eab",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/hp60h60jc6n6c0krgmjqi60lqgl7kvij-grep-3.11.tar.xz"
       }
     },
@@ -7890,8 +7711,7 @@
     "name": "expand-response-params",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -7921,7 +7741,6 @@
       "out": {
         "hash": "6b4bd92fd0099d1bab436b941875e99e0cb3c320997587182d6267af1844b1e8",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/jn9f2mr2jdm9yn5hi0pws44nbfrah8d3-bash52-008"
       }
     },
@@ -8040,8 +7859,7 @@
     "name": "bootstrap-stage-xgcc-gcc-wrapper-",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8071,7 +7889,6 @@
       "out": {
         "hash": "325c26860ad4bba8558356c4ab914ac57e7b415dac6f5aae86b9b05ccb7ed282",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/d5qpl3kqrmv99fbw1cd09qj9jr7kb2rr-bash52-019"
       }
     },
@@ -8195,24 +8012,19 @@
     "name": "binutils-2.43.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8242,7 +8054,6 @@
       "out": {
         "hash": "31ae37e46283529432b61bee1ce01ed0090d599e606fc6a29dca1f77c76a6c82",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/5sy59hfc81jcyw6dgrq0dk198hvjsv0q-texinfo-7.1.1.tar.xz"
       }
     },
@@ -8329,8 +8140,7 @@
     "name": "bison-3.8.2",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8414,12 +8224,10 @@
     "name": "gnused-4.9",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8500,24 +8308,19 @@
     "name": "xz-5.6.3",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8633,16 +8436,13 @@
     "name": "coreutils-9.5",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8730,16 +8530,13 @@
     "name": "zlib-1.3.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "static": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8819,8 +8616,7 @@
     "name": "gnu-config-2024-01-01",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -8894,8 +8690,7 @@
     "name": "update-autotools-gnu-config-scripts-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9004,28 +8799,22 @@
     "name": "openssl-3.3.2",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9055,7 +8844,6 @@
       "out": {
         "hash": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/n22iqgfwr3jr08f9hl4140y3sqmrzf2z-zlib-1.3.1.tar.gz"
       }
     },
@@ -9123,8 +8911,7 @@
     "name": "die-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9208,12 +8995,10 @@
     "name": "expat-2.6.4",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9355,8 +9140,7 @@
     "name": "glibc-locales-2.40-36",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9386,7 +9170,6 @@
       "out": {
         "hash": "b6fc252aeb95ce67c9b017d29d81e8a5e285db4bf20d4ec8cdca35892be5c01d",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/pcdlxsb3mxfjnclg8rn8xy2ywbb5ra36-bash52-020"
       }
     },
@@ -9564,12 +9347,10 @@
     "name": "python3-minimal-3.12.7",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9654,16 +9435,13 @@
     "name": "pkg-config-0.29.2",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9693,7 +9471,6 @@
       "out": {
         "hash": "ba885c1319578d6c94d46e9b0dceb4014caafe2490e437a0dbca3f270a223f5a",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/hf5ab1paj4x99m48hnbnqn04n8nplkmr-autoconf-2.72.tar.xz"
       }
     },
@@ -9788,16 +9565,13 @@
     "name": "pkg-config-wrapper-0.29.2",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9877,8 +9651,7 @@
     "name": "gnu-config-2024-01-01",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -9960,12 +9733,10 @@
     "name": "libxcrypt-4.4.36",
     "outputs": {
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10043,8 +9814,7 @@
     "name": "bootstrap-stage4-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10074,7 +9844,6 @@
       "out": {
         "hash": "becaac5d295e037587b63a42fad57fe3d9d7b83f478eb24b67f9eec5d0f1872f",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/f88gm4mmhqaxg3ll7b148jgkk6iyabvd-binutils-2.43.1.tar.bz2"
       }
     },
@@ -10149,8 +9918,7 @@
     "name": "update-autotools-gnu-config-scripts-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10242,20 +10010,16 @@
     "name": "bzip2-1.0.8",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10335,8 +10099,7 @@
     "name": "gnu-config-2024-01-01",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10404,8 +10167,7 @@
     "name": "python-setup-hook.sh",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10435,7 +10197,6 @@
       "out": {
         "hash": "f4a245b94124b377d8b49646bf421f9155d36aa7614b6ebf83705d3ffc76eaad",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/349f140sh7m12vy9mp1wkp58axyp06c9-which-2.21.tar.gz"
       }
     },
@@ -10466,7 +10227,6 @@
       "out": {
         "hash": "45cc5e1b876550eee96f95bffb36c41b6cb7c07d33f671db5634405cd00fd7b8",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/xc3h9isl5566i6a4pvdsgin26rchijrq-bash52-002"
       }
     },
@@ -10546,8 +10306,7 @@
     "name": "isl-0.20",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10645,20 +10404,16 @@
     "name": "gettext-0.21.1",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10688,7 +10443,6 @@
       "out": {
         "hash": "40cb9f97a7df2555555597aca6f9026c5a41ebef91d659ead7af3b8c4b148ebd",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/ws73d521m0im6x7nhb0836i51z2yd9dq-bzip2-1.0.6.2-autoconfiscated.patch"
       }
     },
@@ -10779,20 +10533,16 @@
     "name": "gnumake-4.4.1",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10822,7 +10572,6 @@
       "out": {
         "hash": "db59cf0d671ca6e7f5c2c5ec177084a33a79e04c97e71cf183a5cdea235054eb",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/v8wdmc1gv4sjsfvs4il8cjsqy46fs3ld-curl-8.11.0.tar.xz"
       }
     },
@@ -10918,16 +10667,13 @@
     "name": "gzip-1.13",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -10957,7 +10703,6 @@
       "out": {
         "hash": "4c21a791b610b9519b9d0e12b8097bf2f359b12f8dd92647611a929e6bfd7d64",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/9r699x9fz6wlg89jlx6j1f4k1x26b6ld-libidn2-2.3.7.tar.gz"
       }
     },
@@ -11100,16 +10845,13 @@
     "name": "binutils-wrapper-2.43.1",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -11139,7 +10881,6 @@
       "out": {
         "hash": "8a2c1c3b5125d9ae5b47882f7d2ddf9648805f8c67c13aa5ea7efeac475cda94",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/yp6bfms6q369y93j622mqq6i6b02xwbq-bash52-037"
       }
     },
@@ -11252,12 +10993,10 @@
     "name": "gnugrep-3.11",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -11388,16 +11127,13 @@
     "name": "bootstrap-stage3-gcc-wrapper-13.3.0",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -11469,8 +11205,7 @@
     "name": "bootstrap-stage4-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -11556,12 +11291,10 @@
     "name": "gnutar-1.35",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -11648,24 +11381,19 @@
     "name": "nghttp2-1.64.0",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -11996,28 +11724,22 @@
     "name": "bash-5.2p37",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12091,8 +11813,7 @@
     "name": "update-autotools-gnu-config-scripts-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12172,8 +11893,7 @@
     "name": "nuke-references",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12203,7 +11923,6 @@
       "out": {
         "hash": "fc97f51029bb0e2c9f4e3bffefdaf678f0e039ee872b9de5c002a6d09c784d82",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/v0m59igyinq3qrbx7fibyal1dx5f6rcq-file-5.45.tar.gz"
       }
     },
@@ -12234,7 +11953,6 @@
       "out": {
         "hash": "fd6d5662fa706487c48349a758b57bc149ce94ec6c30624ec9fdc473ceabbc8e",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/g79261pc6nsyxa4sbf5cyi8lj7bsh4fv-libunistring-1.2.tar.gz"
       }
     },
@@ -12265,7 +11983,6 @@
       "out": {
         "hash": "094b4fd81bc488a26febba5d799689b64d52a5505b63e8ee854f48d356bc7ce6",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/wcpqrbsljh2x04qccs6jv9z8c9y1c3cd-bash52-013"
       }
     },
@@ -12358,20 +12075,16 @@
     "name": "bzip2-1.0.8",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12401,7 +12114,6 @@
       "out": {
         "hash": "d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/j04yfblg6sk5abb4n067xv0x0dfraf73-libssh2-1.11.1.tar.gz"
       }
     },
@@ -12515,16 +12227,13 @@
     "name": "perl-5.40.0",
     "outputs": {
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12554,7 +12263,6 @@
       "out": {
         "hash": "c7705e029f752507310ecd7270aef437e8043a9959e4d0c6065a82517996c1cd",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/24ygbbc9k6vjc4vhz2j6a9dkdgmqgc6n-bash52-010"
       }
     },
@@ -12643,20 +12351,16 @@
     "name": "mpfr-4.2.1",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12728,8 +12432,7 @@
     "name": "bootstrap-stage3-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12759,7 +12462,6 @@
       "out": {
         "hash": "30c9cb6a0605f479c496c376eb629a48b0a1696d167e3c1e090c5defa481b162",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/h5lhn3jfpph22n334j1c64jp2djm2knx-lzip-1.24.1.tar.gz"
       }
     },
@@ -12790,7 +12492,6 @@
       "out": {
         "hash": "a61d5706136ae4c05bd48f86186bcfdbd88dd8bd5107e3e195c924cfc1b39bb4",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/9n3d2g1pplp7bacghxkqb73z0fipgn2h-keyutils-1.6.3.tar.gz"
       }
     },
@@ -12872,24 +12573,19 @@
     "name": "xz-5.6.3",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12958,8 +12654,7 @@
     "name": "expand-response-params",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -12989,7 +12684,6 @@
       "out": {
         "hash": "78b5230a49594ec30811e72dcd0f56d1089710ec7828621022d08507aa57e470",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/a55mbgicwbpl17n7a4wklg214xbcgj3f-bash52-022"
       }
     },
@@ -13020,7 +12714,6 @@
       "out": {
         "hash": "96ee1f549aa0b530521e36bdc0ba7661602cfaee409f7023cac744dd42852eac",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/yzd1kmz6qlk3dxa82lwfbgqqxy2c4m1x-bash52-026"
       }
     },
@@ -13051,7 +12744,6 @@
       "out": {
         "hash": "e5e1f4caee0a01de2aee26e3138807d6d3ca2b8e67287966d1fefd65e1fd8943",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/f76sw6av28v3cv6nxmqw190pkpnfnw9b-libxcrypt-4.4.36.tar.xz"
       }
     },
@@ -13137,16 +12829,13 @@
     "name": "pkg-config-0.29.2",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13176,7 +12865,6 @@
       "out": {
         "hash": "277807353a6726978996945af13e52829e3abd7a9a5b7fb2793894e18f1fcbb2",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/7s2kcdbk0n0dpsq9gwkj8dqyw21yfyhp-mpfr-4.2.1.tar.xz"
       }
     },
@@ -13237,8 +12925,7 @@
     "name": "bootstrap-stage2-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13268,7 +12955,6 @@
       "out": {
         "hash": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/slpdqm3wlhwbkzyijjz3xpifa219ac0x-bzip2-1.0.8.tar.gz"
       }
     },
@@ -13356,24 +13042,19 @@
     "name": "acl-2.3.2",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13469,12 +13150,10 @@
     "name": "autoconf-2.72",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13554,8 +13233,7 @@
     "name": "nuke-references",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13634,8 +13312,7 @@
     "name": "isl-0.20",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13665,7 +13342,6 @@
       "out": {
         "hash": "4641dd49dd923b454dd0a346277907090410f5d60a29a2de3b82c98e49aaaa80",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/nffxsaniz7irz07z79cxwkhz97vgqwrx-bash52-018"
       }
     },
@@ -13696,7 +13372,6 @@
       "out": {
         "hash": "f42f2fee923bc2209f406a1892772121c467f44533bedfe00a176139da5d310a",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/a73wzcks7h2y814qxa1z3kv1hg205mpm-bash52-001"
       }
     },
@@ -13727,7 +13402,6 @@
       "out": {
         "hash": "fe3a2f32fbaff57848732549f48d983fd6526024ec2f0f5a9dc75c2f4359a3a6",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/1p61qjvlqmwrqab3zp5yh3z8rf3mvjmz-config.sub-948ae97"
       }
     },
@@ -13810,12 +13484,10 @@
     "name": "libxcrypt-4.4.36",
     "outputs": {
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13883,8 +13555,7 @@
     "name": "version-check-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -13914,7 +13585,6 @@
       "out": {
         "hash": "831b5f25bf3e88625f3ab315043be7498907c551f86041fa3b914123d79eb6f4",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/sim601rd1y3hsap9qkn25cwprsa9aipp-bash52-011"
       }
     },
@@ -13981,8 +13651,7 @@
     "name": "bootstrap-stage1-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14071,16 +13740,13 @@
     "name": "file-5.45",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14162,12 +13828,10 @@
     "name": "libxcrypt-4.4.36",
     "outputs": {
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14197,7 +13861,6 @@
       "out": {
         "hash": "38827724bba908cf5721bd8d4e595d80f02c05c35f3dd7dbc4cd3c5678a42512",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/2ynclzrdl0hy9miy6k8gcwgzw4mhsmd0-bash52-004"
       }
     },
@@ -14304,8 +13967,7 @@
     "name": "bootstrap-stage0-binutils-wrapper-",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14385,8 +14047,7 @@
     "name": "gnu-config-2024-01-01",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14489,8 +14150,7 @@
     "name": "mirrors-list",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14520,7 +14180,6 @@
       "out": {
         "hash": "f4036d3ee4d8e228dec1befff0f6e46d8a40e9e570e0068e39d77e62e2c8bdc2",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/447hvnlzzi9myri1iq3bijxgx6v6b592-patchelf-0.15.0.tar.bz2"
       }
     },
@@ -14612,8 +14271,7 @@
     "name": "autoreconf-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14643,7 +14301,6 @@
       "out": {
         "hash": "6e226b732e1cd739464ad6862bd1a1aba42d7982922da7a53519631d24975181",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/a2i83vprqrd9nkr116yy1ksrwz5y1vq9-sed-4.9.tar.xz"
       }
     },
@@ -14674,7 +14331,6 @@
       "out": {
         "hash": "af905502e2106c8510ba2085aa2b56e64830fc0fdf6ee67ebb459ac11696dcd3",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/kwf1fq1xvc5x883gjqsp439ayqffkx1f-bash52-023"
       }
     },
@@ -14759,12 +14415,10 @@
     "name": "expat-2.6.4",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14794,7 +14448,6 @@
       "out": {
         "hash": "a5596a9fb8a5b365cb612e4b9628735d6e67e9178fae134a816ae195017e77aa",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/x9v0hmr76dm68pijzldzxks01iqzag1z-isl-0.20.tar.xz"
       }
     },
@@ -14889,8 +14542,7 @@
     "name": "automake-1.16.5",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -14981,8 +14633,7 @@
     "name": "autoreconf-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -15071,16 +14722,13 @@
     "name": "file-5.45",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -15160,20 +14808,16 @@
     "name": "libffi-3.4.6",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -15255,8 +14899,7 @@
     "name": "ed-1.20.2",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -15409,28 +15052,22 @@
     "name": "glibc-2.40-36",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "getent": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "static": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -15460,7 +15097,6 @@
       "out": {
         "hash": "b306a91c0fd93bc4280cfc2e98cb7ab3981ff75a187bea3293811f452c89a8c8",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/mcayf992diwks293vs12iwx1ywgm4ijg-m4-1.4.19.tar.bz2"
       }
     },
@@ -15491,7 +15127,6 @@
       "out": {
         "hash": "7b9c77daeca93ff711781d7537234166e83ed9835ce1ee7dcd5742319c372a16",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/mr1mf5qdyw8v3rxy0w0pca94h5cmmvgr-bash52-032"
       }
     },
@@ -15522,7 +15157,6 @@
       "out": {
         "hash": "04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/ck70x6hdl1kgqa4a9ps8spw6ph9mfcj8-libtool-2.4.7.tar.gz"
       }
     },
@@ -15553,7 +15187,6 @@
       "out": {
         "hash": "2500a3fc21cb08133f06648a017cebfa27f30ea19c8cbe8dfefdf16227cfd490",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/rs1qdpy1nb3x07g4vqvb4s774qhq9f0w-bash52-007"
       }
     },
@@ -15584,7 +15217,6 @@
       "out": {
         "hash": "d34f02e113cf7193a1ebf2770d3ac527088d485d4e047ed10e5d217c6ef5de96",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/qcs6nyw2z9pginbawfaiibxrh3zfl8qb-pcre2-10.44.tar.bz2"
       }
     },
@@ -15674,12 +15306,10 @@
     "name": "diffutils-3.10",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16010,28 +15640,22 @@
     "name": "bash-5.2p37",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16160,16 +15784,13 @@
     "name": "bootstrap-stage2-gcc-wrapper-13.3.0",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16249,8 +15870,7 @@
     "name": "gnu-config-2024-01-01",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16280,7 +15900,6 @@
       "out": {
         "hash": "a695629dae047055b37d50a0ff4776d1d45d0a4c842cf4ccee158441f55ff7ee",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/4a7lhka1ijlxvwylkizl50yigyg4p74l-expat-2.6.4.tar.xz"
       }
     },
@@ -16403,16 +16022,13 @@
     "name": "binutils-wrapper-2.43.1",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16500,16 +16116,13 @@
     "name": "gawk-5.3.1",
     "outputs": {
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16539,7 +16152,6 @@
       "out": {
         "hash": "694db764812a6236423d4ff40ceb7b6c4c441301b72ad502bb5c27e00cd56f78",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/czi5kvrk91zfjbfjrgvzbw9pgqz5dwx7-gawk-5.3.1.tar.xz"
       }
     },
@@ -16600,8 +16212,7 @@
     "name": "bootstrap-stage-xgcc-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16690,8 +16301,7 @@
     "name": "patch-2.7.6",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16773,12 +16383,10 @@
     "name": "libxcrypt-4.4.36",
     "outputs": {
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16860,28 +16468,22 @@
     "name": "pcre2-10.44",
     "outputs": {
       "bin": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "devdoc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -16911,7 +16513,6 @@
       "out": {
         "hash": "155853bc5bd10e40a9bea369fb6f50a203a7d0358e9e32321be0d9fa21585915",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/0cr4hvmwbfablyhn58ba0lrfb44igq5y-bash52-016"
       }
     },
@@ -16942,7 +16543,6 @@
       "out": {
         "hash": "06c9e13bdf7eb24d4ceb6b59205a4f67c2c7e7213119644430fe82fbd14a0abb",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/9vm1ihdg1ysmrjdbb80g834iizzxb4yk-bison-3.8.2.tar.gz"
       }
     },
@@ -16973,7 +16573,6 @@
       "out": {
         "hash": "65fec7318f48c2ca17f334ac0f4703defe62037bb13cc23920de077b5fa24523",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/k9ghxfw1yw1kbj442di26hgkph8hjg6m-ed-1.20.2.tar.lz"
       }
     },
@@ -17004,7 +16603,6 @@
       "out": {
         "hash": "7454eb6935db17c6655576c2e1b0fabefd38b4d0936e0f87f48cd062ce91a057",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/b44vg9nm5f64fihql70jzjj7yd64q0sa-gzip-1.13.tar.xz"
       }
     },
@@ -17050,8 +16648,7 @@
     "name": "bootstrap-tools",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -17382,28 +16979,22 @@
     "name": "bash-5.2p37",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -17477,8 +17068,7 @@
     "name": "gnum4-1.4.19",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -17508,7 +17098,6 @@
       "out": {
         "hash": "5138f487e7cf71a6323dc81d22419906f1535b89835cc2ff68847e1a35613075",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/m9x6023c6a7wi91fm0624da2lww2wm5p-bash52-025"
       }
     },
@@ -17539,7 +17128,6 @@
       "out": {
         "hash": "821a0a47fa692bb0a39482728b1b396bf951e2912768fea6f3026c813c1913e5",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/7bp3mcv1k09c3kxcfjkqhwqi3zjqnm2g-bash52-035"
       }
     },
@@ -17606,8 +17194,7 @@
     "name": "bootstrap-stage2-stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -17710,12 +17297,10 @@
     "name": "libtool-2.4.7",
     "outputs": {
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -17796,20 +17381,16 @@
     "name": "mpdecimal-4.0.0",
     "outputs": {
       "cxx": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -17894,16 +17475,13 @@
     "name": "pkg-config-0.29.2",
     "outputs": {
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -18187,8 +17765,7 @@
     "name": "stdenv-linux",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -18284,20 +17861,16 @@
     "name": "libunistring-1.2",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -18327,7 +17900,6 @@
       "out": {
         "hash": "61096bd3cf073e8556054da3a4f86920cc8eca81036580f0d72eb448619b50cd",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/2pizl7lq4awa7p9bklr8037yh1sca0hg-bootstrap-tools.tar.xz"
       }
     },
@@ -18358,7 +17930,6 @@
       "out": {
         "hash": "7bcd5d001916f3a50ed7436f4f700e3d2b1bade3ed803219c592d62502a57363",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/05ikbmqa3rll8pq5ckpm8dmkfh7vvvx8-autoconf-archive-2024.10.16.tar.xz"
       }
     },
@@ -18389,7 +17960,6 @@
       "out": {
         "hash": "cd328edeac92f6a665de9f323c93b712af1858bc2e0d88f3f7100469470a1b8a",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/f5p28hbmwi3vx4bvsy1crqaiw0wrmnm3-coreutils-9.5.tar.xz"
       }
     },
@@ -18478,7 +18048,6 @@
       "out": {
         "hash": "8d99142afd92576f30b0cd7cb42a8dc6809998bc5d607d88761f512e26c7db20",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/pa10z4ngm0g83kx9mssrqzz30s84vq7k-hello-2.12.1.tar.gz"
       }
     },
@@ -18509,7 +18078,6 @@
       "out": {
         "hash": "39bf67452fa41d0948c2197601053f48b3d78a029389734332a6309a680c6c87",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/hskjhnyx00gy9hk9napqkv0qzvpa20sy-attr-2.5.2.tar.gz"
       }
     },
@@ -18540,7 +18108,6 @@
       "out": {
         "hash": "8334b88117ad047598f23581aeb0c66c0248cdd77abc3b4e259133aa307650cd",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/gnx16vs69p7fggsslnbg6v818497vvxl-bash52-021"
       }
     },
@@ -18616,8 +18183,7 @@
     "name": "patchelf-0.15.0",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -18647,7 +18213,6 @@
       "out": {
         "hash": "c2d1b7be2df771126105020af7fafa00fffd4deff4a4e45d60fc6a235bcba795",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/vlqwv68xp10r99xjqfa8vhj6ijlnbv4l-bash52-031"
       }
     },
@@ -18979,28 +18544,22 @@
     "name": "bash-5.2p37",
     "outputs": {
       "debug": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "doc": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -19030,7 +18589,6 @@
       "out": {
         "hash": "c740348f357396327a9795d3e8323bafd0fe8a5c7835fc1cbaba0cc8dfe7161f",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/4b4l8a41cvmz9z871gkc4jjpifxs8n8n-perl-5.40.0.tar.gz"
       }
     },
@@ -19061,7 +18619,6 @@
       "out": {
         "hash": "ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/n1djrrflvxnwdd735304l23r2qdnjrm6-gmp-6.3.0.tar.bz2"
       }
     },
@@ -19181,8 +18738,7 @@
     "name": "binutils-patchelfed-ld-wrapper-2.43.1",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -19270,20 +18826,16 @@
     "name": "keyutils-1.6.3",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "lib": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "man": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -19313,7 +18865,6 @@
       "out": {
         "hash": "6042780ba2893daca4a3f0f9b65728592cd7bb6d4cebe073855a6aad4d63aac1",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/m2vybc6frn326f6yxlhpkbvi7grjzna2-bash52-028"
       }
     },
@@ -19344,7 +18895,6 @@
       "out": {
         "hash": "90e5e93cc724e4ebe12ede80df1634063c7a855692685919bfe60b556c9bd09e",
         "hashAlgo": "sha256",
-        "method": "flat",
         "path": "/nix/store/la8rdnwivnjapn0bmr14pk28qv82d4zb-diffutils-3.10.tar.xz"
       }
     },
@@ -19425,8 +18975,7 @@
     "name": "make-binary-wrapper-hook",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -19506,8 +19055,7 @@
     "name": "gnu-config-2024-01-01",
     "outputs": {
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -19595,16 +19143,13 @@
     "name": "gmp-6.3.0",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
@@ -19692,16 +19237,13 @@
     "name": "gmp-with-cxx-6.3.0",
     "outputs": {
       "dev": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "info": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       },
       "out": {
-        "hashAlgo": "sha256",
-        "method": "nar"
+        "hashAlgo": "r:sha256"
       }
     },
     "system": "x86_64-linux"
