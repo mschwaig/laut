@@ -44,7 +44,6 @@ def runner():
     """Provides a Click CLI test runner."""
     return CliRunner(mix_stderr=False)
 
-@pytest.mark.skip(reason="does not work in sandbox for some unknown reason")
 def test_sign_resolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
             '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
@@ -55,9 +54,9 @@ def test_sign_resolved_hook(runner, mock_derivation_lookup):
             'DRV_PATH': '/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv',
         }
     )
+    assert result.exit_code == 0
     assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
     mock_derivation_lookup.assert_called_with('/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv', False)
-    assert result.exit_code == 0
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
 

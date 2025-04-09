@@ -78,6 +78,7 @@ def sign(drv_path, secret_key_file, out_paths):
             out_paths = os.environ.get('OUT_PATHS')
 
         # TODO: make sure that drv_path and out_paths are not None and not .isspace()
+        # TODO: eliminate duplication in argument handling between sign and sign-and-upload as much as possible
         paths_list = out_paths.split(" ")
         result = sign_impl(drv_path, secret_key_file, paths_list)
         if result:
@@ -106,10 +107,12 @@ def sign(drv_path, secret_key_file, out_paths):
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
     """Sign a derivation and upload the signature"""
     try:
-        # Get output paths
         if out_paths is None:
-            out_paths = os.environ.get('OUT_PATHS', '')
-        paths_list = [p for p in out_paths.split(',') if p]
+            out_paths = os.environ.get('OUT_PATHS')
+
+        # TODO: make sure that drv_path and out_paths are not None and not .isspace()
+        # TODO: eliminate duplication in argument handling between sign and sign-and-upload as much as possible
+        paths_list = out_paths.split(" ")
         sign_and_upload_impl(drv_path, secret_key_file, to, paths_list)
     except Exception as e:
         logger.exception(f"Error in sign command: {str(e)}")
