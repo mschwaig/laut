@@ -3,7 +3,7 @@ import os
 import click
 import subprocess
 from loguru import logger
-from . import config
+from laut.config import config
 
 from .verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
