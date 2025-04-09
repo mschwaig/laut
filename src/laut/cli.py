@@ -74,10 +74,11 @@ def cli(ctx: click.Context, debug: bool):
 def sign(drv_path, secret_key_file, out_paths):
     """Sign a derivation"""
     try:
-        # Get output paths
         if out_paths is None:
-            out_paths = os.environ.get('OUT_PATHS', '')
-        paths_list = [p for p in out_paths.split(',') if p]
+            out_paths = os.environ.get('OUT_PATHS')
+
+        # TODO: make sure that drv_path and out_paths are not None and not .isspace()
+        paths_list = out_paths.split(" ")
         result = sign_impl(drv_path, secret_key_file, paths_list)
         if result:
             input_hash, jws_token = result

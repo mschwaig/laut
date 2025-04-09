@@ -1,5 +1,5 @@
 import jwt
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import os
 import copy
 
@@ -23,13 +23,13 @@ from laut.nix.commands import (
 from laut.config import config
 from loguru import logger
 
-def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths):
+def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths: List[str]):
     result = sign_impl(drv_path, secret_key_file, out_paths)
     if result:
         input_hash, jws_token = result
         upload_signature(to, input_hash, jws_token)
 
-def sign_impl(drv_path, secret_key_file, out_paths) -> Optional[tuple[str, str]]:
+def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tuple[str, str]]:
     from laut.nix import commands
     drv_data = commands.get_derivation(drv_path, False)
     if drv_data['inputDrvs'] != {}:
