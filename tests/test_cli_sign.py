@@ -44,13 +44,15 @@ def runner():
     """Provides a Click CLI test runner."""
     return CliRunner(mix_stderr=False)
 
+## TODO: add a test for a drv with more than one output
+
 def test_sign_resolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
             '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
             "/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv"
         ],
         env = {
-            'OUT_PATHS': '',
+            'OUT_PATHS': '/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools',
             'DRV_PATH': '/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv',
         }
     )

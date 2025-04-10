@@ -11,12 +11,12 @@ import pytest
 @pytest.fixture
 def mock_derivation_lookup(monkeypatch):
     """
-    Fixture that mocks get_derivation to return appropriate data from hello-ca-recursive.drv
+    Fixture that mocks get_derivation to return appropriate data from hello-ca-recursive-unresolved.drv
     based on the requested derivation path.
     """
     def _get_derivation_mock(drv_path, recursive):
         # Load the entire recursive derivation data
-        data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+        data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
         with open(data_file) as f:
             all_derivations = json.load(f)
         if recursive:
@@ -61,22 +61,22 @@ def mock_config_preimage_index(monkeypatch):
     monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "traces" / "by_name" / "builderA.json")
 
 def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch, mock_config_preimage_index):
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
-    drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
+    #drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
     # TODO: this is actually ambigous
-    # we figure out whatto do with it
-    #drv = build_unresolved_tree("/nix/store/sr2srdqrrxghnqr64fbh8fvfr3xccqvw-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    # we figure out what to do with it
+    drv = build_unresolved_tree("/nix/store/p3y81mafk8jbj6r71xba1hailj5z0k09-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
     list = verify_tree(drv, trust_model)
     #tracemalloc.start()
     #snapshot = tracemalloc.take_snapshot()
     #display_top(snapshot)
 
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))

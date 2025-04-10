@@ -41,7 +41,7 @@ def mock_config_allow_ia(monkeypatch):
     monkeypatch.setattr('laut.config.config.allow_ia', True)
 
 def test_ia_drv_tree_small_ia_raises_exception():
-    data_file = Path(__file__).parent / "data" / "hello-ia-recursive.drv"
+    data_file = Path(__file__).parent / "data" / "hello-ia-recursive-unresolved.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
@@ -49,21 +49,21 @@ def test_ia_drv_tree_small_ia_raises_exception():
         build_unresolved_tree("/nix/store/fxz942i5pzia8cgha06swhq216l01p8d-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
 def test_ia_drv_tree_small_ia_allowed(mock_config_allow_ia):
-    data_file = Path(__file__).parent / "data" / "hello-ia-recursive.drv"
+    data_file = Path(__file__).parent / "data" / "hello-ia-recursive-unresolved.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
     drv = build_unresolved_tree("/nix/store/fxz942i5pzia8cgha06swhq216l01p8d-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
 def test_ca_drv_tree_small():
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
     drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
 
 def test_ca_large():
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive.drv"
+    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
     with open(data_file) as f:
         hello_recursive = json.load(f)
 
