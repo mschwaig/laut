@@ -31,7 +31,7 @@ def mock_derivation_lookup(monkeypatch):
         else:
             ValueError("invalid input to mock")
 
-        drv_file = Path(__file__).parent / "data" / "cli_sign" / drv_file_name
+        drv_file = Path(__file__).parent / "data" / "example_drvs" / drv_file_name
         drv = json.loads(drv_file.read_text())
         return drv
 

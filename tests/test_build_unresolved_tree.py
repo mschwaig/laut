@@ -36,35 +36,34 @@ def display_top(snapshot, key_type='lineno', limit=10):
     total = sum(stat.size for stat in top_stats)
     print("Total allocated size: %.1f KiB" % (total / 1024))
 
+ia_data_file = Path(__file__).parent / "data" / "input_drvs" / "hello-ia-recursive-unresolved.drv"
+ca_data_file = Path(__file__).parent / "data" /"input_drvs" /  "hello-ca-recursive-unresolved.drv"
+
 @pytest.fixture
 def mock_config_allow_ia(monkeypatch):
     monkeypatch.setattr('laut.config.config.allow_ia', True)
 
 def test_ia_drv_tree_small_ia_raises_exception():
-    data_file = Path(__file__).parent / "data" / "hello-ia-recursive-unresolved.drv"
-    with open(data_file) as f:
+    with open(ia_data_file) as f:
         hello_recursive = json.load(f)
 
     with pytest.raises(ValueError, match="cannot handle IA derivations yet"):
         build_unresolved_tree("/nix/store/fxz942i5pzia8cgha06swhq216l01p8d-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
 def test_ia_drv_tree_small_ia_allowed(mock_config_allow_ia):
-    data_file = Path(__file__).parent / "data" / "hello-ia-recursive-unresolved.drv"
-    with open(data_file) as f:
+    with open(ia_data_file) as f:
         hello_recursive = json.load(f)
 
     drv = build_unresolved_tree("/nix/store/fxz942i5pzia8cgha06swhq216l01p8d-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
 def test_ca_drv_tree_small():
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
-    with open(data_file) as f:
+    with open(ca_data_file) as f:
         hello_recursive = json.load(f)
 
     drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
 
 def test_ca_large():
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
-    with open(data_file) as f:
+    with open(ca_data_file) as f:
         hello_recursive = json.load(f)
 
     drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)

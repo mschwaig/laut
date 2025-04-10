@@ -8,6 +8,8 @@ from laut.cli import read_public_key
 
 import pytest
 
+ca_data_file = Path(__file__).parent / "data" / "input_drvs" / "hello-ca-recursive-unresolved.drv"
+
 @pytest.fixture
 def mock_derivation_lookup(monkeypatch):
     """
@@ -16,8 +18,7 @@ def mock_derivation_lookup(monkeypatch):
     """
     def _get_derivation_mock(drv_path, recursive):
         # Load the entire recursive derivation data
-        data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
-        with open(data_file) as f:
+        with open(ca_data_file) as f:
             all_derivations = json.load(f)
         if recursive:
             return all_derivations
@@ -33,7 +34,7 @@ def mock_signature_fetch(monkeypatch):
     """Fixture that mocks fetch_ct_signatures to return signature data from test files."""
     def _fetch_signatures_mock(input_hash: str) -> list:
         # Path to the signature file
-        signature_file = Path(__file__).parent.parent / "tests" / "traces" / "by_resolved_input_hash" / "builderA.json"
+        signature_file = Path(__file__).parent.parent / "tests" / "data" / "traces" / "by_resolved_input_hash" / "builderA.json"
         
         try:
             with open(signature_file) as f:
@@ -61,8 +62,7 @@ def mock_config_preimage_index(monkeypatch):
     monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "traces" / "by_name" / "builderA.json")
 
 def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch, mock_config_preimage_index):
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
-    with open(data_file) as f:
+    with open(ca_data_file) as f:
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
@@ -76,8 +76,7 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
     #display_top(snapshot)
 
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
-    data_file = Path(__file__).parent / "data" / "hello-ca-recursive-unresolved.drv"
-    with open(data_file) as f:
+    with open(ca_data_file) as f:
         hello_recursive = json.load(f)
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
     drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
