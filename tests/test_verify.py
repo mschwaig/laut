@@ -8,7 +8,7 @@ from laut.cli import read_public_key
 
 import pytest
 
-ca_data_file = Path(__file__).parent / "data" / "input_drvs" / "hello-ca-recursive-unresolved.drv"
+ca_data_file = Path(__file__).parent / "data" / "drv_lookup" / "hello-ca-recursive-unresolved.drv"
 
 @pytest.fixture
 def mock_derivation_lookup(monkeypatch):
@@ -34,7 +34,7 @@ def mock_signature_fetch(monkeypatch):
     """Fixture that mocks fetch_resolved_trace_signatures to return signature data from test files."""
     def _fetch_signatures_mock(input_hash: str) -> list:
         # Path to the signature file
-        signature_file = Path(__file__).parent.parent / "tests" / "data" / "traces" / "by_resolved_input_hash" / "builderA.json"
+        signature_file = Path(__file__).parent.parent / "tests" / "data" / "traces" / "lookup_by_resolved_input_hash" / "builderA.json"
         
         try:
             with open(signature_file) as f:
@@ -55,20 +55,21 @@ def mock_signature_fetch(monkeypatch):
 
 @pytest.fixture
 def mock_config_debug(monkeypatch):
+    trusted_keys = [ read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")) ]
     monkeypatch.setattr('laut.config.config.debug', True)
+    monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "traces" / "lookup_by_name" / "builderA.json")
+    #monkeypatch.setattr('laut.config.config.trusted_keys', trusted_keys)
 
-@pytest.fixture
-def mock_config_preimage_index(monkeypatch):
-    monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "traces" / "by_name" / "builderA.json")
-
-def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch, mock_config_preimage_index):
+def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch):
     with open(ca_data_file) as f:
         hello_recursive = json.load(f)
 
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
     #drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
-    # TODO: this is actually ambigous
-    # we figure out what to do with it
+
+    # there are multiple things that are called -bootstrap-stage1-stdenv-linux.drv
+    # I assume this is because two different 'versions' of a bunch of derivations are used
+    # as part of the bootstrap
     drv = build_unresolved_tree("/nix/store/p3y81mafk8jbj6r71xba1hailj5z0k09-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
     list = verify_tree(drv)
@@ -77,11 +78,11 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
     resolved_derivaiton = list[0]
     assert resolved_derivaiton.input_hash == "JYBmi8474Lbjr5PgVGchx7hnGSGOmkqNLJAXKw9Pca4"
 
-def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
+def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_config_debug):
     with open(ca_data_file) as f:
         hello_recursive = json.load(f)
     # TODO: pass this in via mock
-    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
+
     drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
 
     list = verify_tree(drv)
