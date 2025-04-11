@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Set
 
-from ..verification.verify_signatures import verify_trace_signatures
+from ..verification.verify_signatures import verify_resolved_trace_signature
 
 from ..nix.types import (
     UnresolvedDerivation,
@@ -26,7 +26,7 @@ class TrustedKey:
         # and then return the set of resolved derivations for which this holds
         # what we return here is basically {{drv1,drv2,drv3}} because they all belong to the same key
         # if the keys were different we would return {{drv1}, {drv2}, {drv3}}
-        output_mappings = verify_trace_signatures(self.key_bytes, ct_signatures, ct_input_hash)
+        output_mappings = verify_resolved_trace_signature(self.key_bytes, ct_signatures, ct_input_hash)
         # not sure if I can get rid of str(v) since v should already be a str
         typed_mappings = list(map(lambda mapping: {unresolved_drv.outputs[k]: ContentHash(v) for k, v in mapping.items()}, output_mappings))
         #typed_sets = set(map(lambda mapping: (map(lambda output: ResolvedOutput(resolved_drv, resolved_drv.resolves.outputs[output], mapping[output]), mapping)), output_mappings))

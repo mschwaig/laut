@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import Dict
 import click
 import subprocess
 from loguru import logger
@@ -153,11 +154,14 @@ def verify(target, cache, trusted_key):
     """
     try:
         # Read and validate trusted keys
-        trusted_keys = {}  # Dict[str, Ed25519PublicKey]
+        trusted_keys : Dict[str, Ed25519PublicKey] = {}
         for key_path in trusted_keys:
             name, public_key = read_public_key(key_path)
             trusted_keys[name] = public_key
             logger.debug(f"Added trusted key from {key_path}")
+            config.trusted_keys = trusted_keys
+
+        config.cache_urls = cache
 
         # Convert target to derivation path if needed
         if is_derivation_path(target):
@@ -175,14 +179,14 @@ def verify(target, cache, trusted_key):
             )
 
         # TODO: pass caches and trust model as parameter
-        success = verify_tree_from_drv_path(drv_path)
+        sucessfully_resolved = verify_tree_from_drv_path(drv_path)
 
-        if success:
-            click.echo("Verification successful!")
+        if sucessfully_resolved:
+            click.echo(f"successfully resolved {target} to {sucessfully_resolved}")
             sys.exit(0)
         else:
-            click.echo("Verification failed!", err=True)
-            sys.exit(1)
+            click.echo("failed to resolve {target}", err=True)
+            sys.exit(118)
 
     except Exception as e:
         logger.exception(f"Error in verify command.")

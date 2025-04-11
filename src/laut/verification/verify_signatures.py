@@ -45,7 +45,7 @@ def verify_signature_payload(key: Ed25519PublicKey, signature: str) -> Optional[
         logger.exception(f"error verifying signature")
         return None
 
-def verify_trace_signatures(key_bytes: bytes, signatures: List[str], input_hash: str) -> List[Dict[str, str]]:
+def verify_resolved_trace_signature(key_bytes: bytes, signature: str, input_hash: str) -> Dict[str, str]:
     """
     Verify signatures and collect valid output hashes
 
@@ -59,15 +59,13 @@ def verify_trace_signatures(key_bytes: bytes, signatures: List[str], input_hash:
     key = Ed25519PublicKey.from_public_bytes(key_bytes)
     valid_output_hashes = []
 
-    for sig in signatures:
-        payload = verify_signature_payload(key, sig)
-        if payload and payload.get("in") == input_hash:
-            output_hashes = payload.get("out")
-            if isinstance(output_hashes, dict):
-                logger.debug(f"found valid output hash mapping")
-                valid_output_hashes.append(output_hashes)
-            else:
-                logger.error(f"invalid signature payload: {payload}")
+    payload = verify_signature_payload(key, signature)
+    if payload and payload.get("in") == input_hash:
+        output_hashes = payload.get("out")
+        if isinstance(output_hashes, dict):
+            logger.debug(f"found valid output hash mapping")
+            valid_output_hashes.append(output_hashes)
+        else:
+            logger.error(f"invalid signature payload: {payload}")
 
-    logger.debug(f"Found {len(valid_output_hashes)} valid output hash mappings")
     return valid_output_hashes

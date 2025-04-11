@@ -31,7 +31,7 @@ def mock_derivation_lookup(monkeypatch):
 
 @pytest.fixture
 def mock_signature_fetch(monkeypatch):
-    """Fixture that mocks fetch_ct_signatures to return signature data from test files."""
+    """Fixture that mocks fetch_resolved_trace_signatures to return signature data from test files."""
     def _fetch_signatures_mock(input_hash: str) -> list:
         # Path to the signature file
         signature_file = Path(__file__).parent.parent / "tests" / "data" / "traces" / "by_resolved_input_hash" / "builderA.json"
@@ -50,7 +50,7 @@ def mock_signature_fetch(monkeypatch):
             return []
     
     mock = Mock(side_effect=_fetch_signatures_mock)
-    monkeypatch.setattr("laut.verification.verification.fetch_ct_signatures", mock)
+    monkeypatch.setattr("laut.verification.fetch_signatures.fetch_resolved_trace_signatures", mock)
     return mock
 
 @pytest.fixture
@@ -70,17 +70,22 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
     # TODO: this is actually ambigous
     # we figure out what to do with it
     drv = build_unresolved_tree("/nix/store/p3y81mafk8jbj6r71xba1hailj5z0k09-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
-    list = verify_tree(drv, trust_model)
-    #tracemalloc.start()
-    #snapshot = tracemalloc.take_snapshot()
-    #display_top(snapshot)
+
+    list = verify_tree(drv)
+
+    assert len(list) == 1
+    resolved_derivaiton = list[0]
+    assert resolved_derivaiton.input_hash == "JYBmi8474Lbjr5PgVGchx7hnGSGOmkqNLJAXKw9Pca4"
 
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch):
     with open(ca_data_file) as f:
         hello_recursive = json.load(f)
+    # TODO: pass this in via mock
     trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
     drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
-    #tracemalloc.start()
-    list = verify_tree(drv, trust_model)
-    #snapshot = tracemalloc.take_snapshot()
-    #display_top(snapshot)
+
+    list = verify_tree(drv)
+
+    assert len(list) == 1
+    resolved_derivaiton = list[0]
+    assert resolved_derivaiton.input_hash == "qAL8DbnetBrnMinLRt7mR4EusJo_w64fOUxo-pFT0ik"

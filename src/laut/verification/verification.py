@@ -41,7 +41,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
 from .trust_model import TrustedKey
-from .fetch_signatures import fetch_ct_signatures, fetch_preimage_from_index
+from .fetch_signatures import fetch_and_verify_signatures, fetch_preimage_from_index
 from loguru import logger
 from laut.config import config
 
@@ -147,7 +147,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tuple[list[TrustlesslyResolvedDerivation], dict]:
+def verify_tree(derivation: UnresolvedDerivation) -> Tuple[list[TrustlesslyResolvedDerivation], dict]:
     global debug_dir
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
@@ -169,7 +169,7 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         resolved_deps_file = open(td / 'resolved_deps.facts', 'w')
         builds_file = open(td / 'builds.facts', 'w')
         
-        root_result = verify_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        root_result = collect_valid_signatures_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         logger.warning(f"Closing files at {temp_dir}")
         unresolved_deps_file.close()
         resolved_deps_file.close()
@@ -185,21 +185,21 @@ def verify_tree(derivation: UnresolvedDerivation, trust_model: TrustedKey) -> Tu
         #print("##delimiter")
         #p.dumpOutputs()
 
-        return (root_result,  verify_tree_rec.__wrapped__.cache)
+        return (root_result,  collect_valid_signatures_tree_rec.__wrapped__.cache)
 
 def remember_steps(func):
     func.cache = dict()
     @wraps(func)
-    def wrap_verify_tree_rec(*args):
+    def wrap_collect_valid_signatures_tree_rec(*args):
         try:
             return func.cache[args[0]]
         except KeyError:
             func.cache[args[0]] = result = func(*args)
             return result
-    return wrap_verify_tree_rec
+    return wrap_collect_valid_signatures_tree_rec
 
 @remember_steps
-def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> list[TrustlesslyResolvedDerivation]:
+def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> list[TrustlesslyResolvedDerivation]:
     global debug_dir
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
@@ -211,7 +211,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
             dict() # tuple
         )
         # TODO: lookup expected output hash and return it
-        return {
+        return [
             TrustlesslyResolvedDerivation(
                 resolves = unresolved_derivation,
                 drv_path = None,
@@ -219,7 +219,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
                 # might not have to keep track of those two in python
                 # TODO: maybe change exactly which attributes of the output are added here and in other places
                 outputs = { unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["path"] }
-        )}
+        )]
 
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
@@ -230,7 +230,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
     failed = False
     for i in unresolved_derivation.inputs:
         unresolved_deps_file.write(f"{unresolved_derivation.drv_path}\t{i.derivation.drv_path}\n")
-        dep_result = verify_tree_rec(i.derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        dep_result = collect_valid_signatures_tree_rec(i.derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         # TODO: only tack outputs which we actually depend on
         if not dep_result:
             # nope out if we cannot resolve one of our dependencies
@@ -268,7 +268,7 @@ def verify_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions
         if debug_dir:
             with open(udrv_path / ct_input_hash, 'w') as f:
                 f.write(ct_input_data)
-        signatures = fetch_ct_signatures(ct_input_hash)
+        signatures = fetch_and_verify_signatures(ct_input_hash)
         if not signatures and debug_dir and config.preimage_index:
             # if we cannot find signatures for a specific derivation,
             # we should do a another lookup in the builders file by the unresolved drv_hash for debugging purposes
@@ -320,6 +320,6 @@ def verify_tree_from_drv_path(drv_path):
     from laut.nix import commands
     all_drv_json = commands.get_derivation(drv_path, True)
     drv = build_unresolved_tree(drv_path, all_drv_json)
-    success = verify_tree(drv, None)
-    # TODO: pass actual result back
-    return True
+    sucessfully_resolved = verify_tree(drv)
+
+    return sucessfully_resolved
