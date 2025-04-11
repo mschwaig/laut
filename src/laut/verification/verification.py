@@ -147,7 +147,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation) -> Tuple[list[TrustlesslyResolvedDerivation], dict]:
+def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDerivation]: #Tuple[list[TrustlesslyResolvedDerivation], dict]:
     global debug_dir
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
@@ -185,7 +185,8 @@ def verify_tree(derivation: UnresolvedDerivation) -> Tuple[list[TrustlesslyResol
         #print("##delimiter")
         #p.dumpOutputs()
 
-        return (root_result,  collect_valid_signatures_tree_rec.__wrapped__.cache)
+        return root_result
+        # return (root_result, collect_valid_signatures_tree_rec.__wrapped__.cache)
 
 def remember_steps(func):
     func.cache = dict()
