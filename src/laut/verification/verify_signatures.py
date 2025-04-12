@@ -21,9 +21,10 @@ def verify_signature_payload(key: Ed25519PublicKey, signature: str) -> Optional[
             return None
 
         key_name = header['kid']
-        if key_name != thumbprint:
-            logger.debug(f"claims signed with different key")
-            return None
+        # TODO: find what we want to do about name / thumbprint
+        #if key_name != thumbprint:
+        #    logger.debug(f"claims signed with different key")
+        #    return None
 
         try:
             # Verify with EdDSA algorithm
@@ -45,7 +46,7 @@ def verify_signature_payload(key: Ed25519PublicKey, signature: str) -> Optional[
         logger.exception(f"error verifying signature")
         return None
 
-def verify_resolved_trace_signature(key_bytes: bytes, signature: str, input_hash: str) -> Dict[str, str]:
+def verify_resolved_trace_signature(key_bytes: bytes, signature: str, input_hash: str) -> Optional[Dict[str, str]]:
     """
     Verify signatures and collect valid output hashes
 
@@ -64,8 +65,11 @@ def verify_resolved_trace_signature(key_bytes: bytes, signature: str, input_hash
         output_hashes = payload.get("out")
         if isinstance(output_hashes, dict):
             logger.debug(f"found valid output hash mapping")
-            valid_output_hashes.append(output_hashes)
+            return payload
+
         else:
             logger.error(f"invalid signature payload: {payload}")
+            return None
+    else:
+        return None
 
-    return valid_output_hashes

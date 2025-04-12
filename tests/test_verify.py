@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Optional
 from unittest.mock import Mock
 from laut.verification.verification import build_unresolved_tree, verify_tree
 from laut.nix import commands
@@ -9,6 +10,11 @@ from laut.cli import read_public_key
 import pytest
 
 ca_data_file = Path(__file__).parent / "data" / "drv_lookup" / "hello-ca-recursive-unresolved.drv"
+
+signature_folder = Path(__file__).parent.parent / "tests" / "data" / "traces" / "signatures"
+
+if not (signature_folder.exists() and signature_folder.is_dir()):
+    ValueError("Signature folder does not exist!")
 
 @pytest.fixture
 def mock_derivation_lookup(monkeypatch):
@@ -32,33 +38,29 @@ def mock_derivation_lookup(monkeypatch):
 @pytest.fixture
 def mock_signature_fetch(monkeypatch):
     """Fixture that mocks fetch_resolved_trace_signatures to return signature data from test files."""
-    def _fetch_signatures_mock(input_hash: str) -> list:
-        # Path to the signature file
-        signature_file = Path(__file__).parent.parent / "tests" / "data" / "traces" / "lookup_by_resolved_input_hash" / "builderA.json"
-        
+    def _fetch_signatures_mock(_cache_url, input_hash: str) -> Optional[str]:
+        signature_file = signature_folder / input_hash
         try:
             with open(signature_file) as f:
-                signature_data = json.load(f)
+                signature_data = f.read()
                 
-            # Return the signatures for the requested input hash if they exist
-            if input_hash in signature_data:
-                return [signature_data[input_hash]]
-            else:
-                return []
-        except Exception as e:
-            print(f"Error loading signatures: {e}")
-            return []
-    
+                return signature_data
+        except FileNotFoundError as e:
+            print(f"Signature not found: {e}")
+            return None
+
     mock = Mock(side_effect=_fetch_signatures_mock)
-    monkeypatch.setattr("laut.verification.fetch_signatures.fetch_resolved_trace_signatures", mock)
+    monkeypatch.setattr("laut.verification.fetch_signatures.fetch_resolved_trace_signature_from_s3_bucket", mock)
+    monkeypatch.setattr('laut.config.config.cache_urls', [ "mock_url" ])
+
     return mock
 
 @pytest.fixture
 def mock_config_debug(monkeypatch):
     trusted_keys = [ read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")) ]
     monkeypatch.setattr('laut.config.config.debug', True)
-    monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "traces" / "lookup_by_name" / "builderA.json")
-    #monkeypatch.setattr('laut.config.config.trusted_keys', trusted_keys)
+    monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "data" / "traces" / "lookup_by_name" / "builderA.json")
+    monkeypatch.setattr('laut.config.config.trusted_keys', trusted_keys)
 
 def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch):
     with open(ca_data_file) as f:
