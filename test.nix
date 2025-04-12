@@ -51,8 +51,8 @@ let
       networking.firewall.allowedTCPPorts = [ cachePort 9001 ];
   };
   makeBuilder  = { privateKey, publicKey, ... }: {
-      virtualisation.memorySize = 16384;
-      virtualisation.cores = 8;
+      virtualisation.memorySize = 6144;
+      virtualisation.cores = 4;
       virtualisation.writableStore = true;
       virtualisation.useNixStoreImage = true;
       systemd.services.nix-daemon.enable = true;
