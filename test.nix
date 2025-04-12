@@ -22,7 +22,6 @@ let
   trivialPackageCa = "stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.stdenv.__bootPackages.binutils";
 
   cache = { ... }: {
-      virtualisation.writableStore = true;
       virtualisation.additionalPaths = [ pkgA ];
       virtualisation.memorySize = 2048;
       virtualisation.cores = 2;
@@ -54,7 +53,6 @@ let
   makeBuilder  = { privateKey, publicKey, ... }: {
       virtualisation.memorySize = 16384;
       virtualisation.cores = 8;
-      virtualisation.diskSize = 4096;
       virtualisation.writableStore = true;
       virtualisation.useNixStoreImage = true;
       systemd.services.nix-daemon.enable = true;
@@ -138,7 +136,6 @@ let
       ${name} = { ... }: {
           virtualisation.memorySize = 2048;
           virtualisation.cores = 2;
-          virtualisation.diskSize = 4096;
           virtualisation.writableStore = true;
           virtualisation.useNixStoreImage = true;
           systemd.services.nix-daemon.enable = true;

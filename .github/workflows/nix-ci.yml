@@ -17,6 +17,8 @@ jobs:
         task: [ "checks", "packages" ]
     runs-on: ${{ matrix.os }}
     steps:
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
     - name: Checkout repository
       uses: actions/checkout@v4
     - name: Install Nix
@@ -29,8 +31,10 @@ jobs:
         authToken: '${{ secrets.CACHIX_TOKEN }}'
         name: laut
     - name: Build
+      id: build
       run: >
           nix run github:Mic92/nix-fast-build --
           --no-nom
           --skip-cached
           --flake ".#${{ matrix.task }}.$(nix eval --raw --impure --expr builtins.currentSystem)"
+
