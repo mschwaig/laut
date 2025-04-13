@@ -2,7 +2,7 @@ name: update-flake-lock
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 0' # runs weekly on Sunday at 00:00
+    - cron: '0 8 15 * 1' # runs weekly on Mondays at 08:15
 
 jobs:
   lockfile:
@@ -15,8 +15,5 @@ jobs:
       - name: Update flake.lock
         uses: DeterminateSystems/update-flake-lock@main
         with:
-          pr-title: "nix: update flake.lock"
-          pr-labels: |
-            nix
-          pr-reviewers: mschwaig
-          token: ${{ secrets.GITHUB_TOKEN }}
+          pr-title: "[bot] update flake.lock"
+          token: ${{ secrets.GH_ACTION_LAUT_FLAKE_UPDATE_TOKEN }}
