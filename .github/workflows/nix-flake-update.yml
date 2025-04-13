@@ -16,4 +16,6 @@ jobs:
         uses: DeterminateSystems/update-flake-lock@main
         with:
           pr-title: "[bot] update flake.lock"
+          pr-labels: |
+            bot
           token: ${{ secrets.GH_ACTION_LAUT_FLAKE_UPDATE_TOKEN }}
