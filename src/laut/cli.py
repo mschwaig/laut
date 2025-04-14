@@ -1,6 +1,6 @@
 import sys
 import os
-from typing import Dict
+from typing import Dict, List
 import click
 import subprocess
 from loguru import logger
@@ -152,16 +152,19 @@ def verify(target, cache, trusted_key):
             --trusted-key ./keys/trusted.public \\
             /nix/store/xxx.drv
     """
+    config.cache_urls = cache
+    logger.debug(f"configured cache urls: {config.cache_urls}")
+
     try:
         # Read and validate trusted keys
-        trusted_keys : Dict[str, Ed25519PublicKey] = {}
-        for key_path in trusted_keys:
-            name, public_key = read_public_key(key_path)
-            trusted_keys[name] = public_key
+        trusted_keys : List[TrustedKey] = []
+        for key_path in trusted_key:
+            public_key = read_public_key(key_path)
+            trusted_keys.append(public_key)
             logger.debug(f"Added trusted key from {key_path}")
             config.trusted_keys = trusted_keys
 
-        config.cache_urls = cache
+        logger.debug(f"configured trusted keys: {config.trusted_keys}")
 
         # Convert target to derivation path if needed
         if is_derivation_path(target):
@@ -178,14 +181,13 @@ def verify(target, cache, trusted_key):
                 "or a flake reference (e.g., nixpkgs#hello)"
             )
 
-        # TODO: pass caches and trust model as parameter
         sucessfully_resolved = verify_tree_from_drv_path(drv_path)
 
         if sucessfully_resolved:
             click.echo(f"successfully resolved {target} to {sucessfully_resolved}")
             sys.exit(0)
         else:
-            click.echo("failed to resolve {target}", err=True)
+            click.echo(f"failed to resolve {target}", err=True)
             sys.exit(118)
 
     except Exception as e:

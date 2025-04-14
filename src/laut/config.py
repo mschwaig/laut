@@ -7,6 +7,6 @@ class Config:
         self.allow_ia = False
         self.preimage_index = None
         self.cache_urls = []
-        self.trusted_keys : None | dict = dict()
+        self.trusted_keys = []
 
 config = Config()

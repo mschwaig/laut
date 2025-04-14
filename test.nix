@@ -215,7 +215,29 @@ let
             systemd.services.nix-daemon.enable = true;
             virtualisation.mountHostNixStore = false;
 
-            nix.extraOptions =
+            nix = {
+              package = pkgsIA.lix;
+              nixPath = [
+                "nixpkgs=${nixpkgs}"
+                "nixpkgs-ca=${
+                  pkgsIA.writeTextFile {
+                    name = "nixpkgs-ca";
+                    destination = "/default.nix";
+                    text =
+                    ''
+                      { ... }@args:
+                      let
+                        pkgs = import <nixpkgs> (args // {
+                          config = args.config or { } // {
+                            contentAddressedByDefault = true;
+                          };
+                        });
+                      in pkgs
+                    '';
+                  }
+                }"
+              ];
+              extraOptions =
               let
                 emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}''; # TODO: check if I should remove this
               in
@@ -223,6 +245,7 @@ let
                 experimental-features = nix-command flakes ca-derivations
                 flake-registry = ${emptyRegistry}
               '';
+            };
 
             environment.systemPackages = with pkgsIA; [
               lix
@@ -239,6 +262,7 @@ let
         from typing import Callable
         from functools import wraps
 
+        # TODO: make failing background thread fail CI# TODO: make failing background thread fail CI
         def run_in_background(func: Callable):
           @wraps(func)
           def wrapper(*args, **kwargs):
@@ -285,15 +309,15 @@ let
         t1.join()
         #t2.join()
 
-        #builderA.shutdown()
+        builderA.shutdown()
         #builderB.shutdown()
 
         # for now we only care about extracting the cache outputs from this test
         # and using them as input for the unit and integration tests in python
-        #${name}.start()
-        #${name}.wait_for_unit("network.target")
+        ${name}.start()
+        ${name}.wait_for_unit("network.target")
 
-        #${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} $(nix-instantiate -f '<nixpkgs-ca>' ${trivialPackageCaStr})")
+        ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} $(nix-instantiate '<nixpkgs-ca>' -A ${trivialPackageCaStr})")
 
         # ${name}.fail("nix path-info ${pkgA}")
         # ${name}.succeed("nix store info --store '${storeUrl}' >&2")

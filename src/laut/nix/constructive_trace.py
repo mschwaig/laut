@@ -139,7 +139,7 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
     resolved_input_hash = compute_sha256_base64(resolved_canonical)
     hash_input = resolved_canonical.decode('utf-8')
 
-    logger.debug(f"resolved rdv {drv_path} to {resolved_input_hash}")
+    logger.debug(f"resolved drv {drv_path} to {resolved_input_hash}")
     #logger.info(f"Resolved JSON: {hash_input}")
 
     return resolved_input_hash, hash_input
