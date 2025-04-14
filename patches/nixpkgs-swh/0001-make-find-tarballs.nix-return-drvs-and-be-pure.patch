@@ -1,0 +1,49 @@
+From 0a7806a9671412d4909165adf901bac1ba000347 Mon Sep 17 00:00:00 2001
+From: Martin Schwaighofer <3856390+mschwaig@users.noreply.github.com>
+Date: Mon, 14 Apr 2025 19:29:28 +0200
+Subject: [PATCH] make find-tarballs.nix return drvs and be pure
+
+---
+ scripts/find-tarballs.nix | 18 ++++--------------
+ 1 file changed, 4 insertions(+), 14 deletions(-)
+
+diff --git a/scripts/find-tarballs.nix b/scripts/find-tarballs.nix
+index d449fcf..d617a5d 100644
+--- a/scripts/find-tarballs.nix
++++ b/scripts/find-tarballs.nix
+@@ -1,28 +1,18 @@
+ # This expression returns a list of all fetchurl calls used by ‘expr’.
+ 
+-with import <nixpkgs> { };
+-with lib;
++{ pkgs, expr }:
+ 
+-{ expr }:
++with pkgs;
++with pkgs.lib;
+ 
+ let
+-
+   root = expr;
+ 
+   uniqueUrls = map (x: x.file) (genericClosure {
+-     startSet = map (file: { key = file.outputHash; inherit file; }) urls;
++     startSet = map (file: { key = file.outputHash; inherit file; }) fetchurlDependencies;
+      operator = const [ ];
+    });
+ 
+-  urls = map (drv: {
+-    url = head (drv.urls or [ drv.url ]);
+-    outputHash = drv.outputHash;
+-    outputHashAlgo = drv.outputHashAlgo;
+-    name = drv.name;
+-    outputHashMode = drv.outputHashMode;
+-    postFetch = drv.postFetch or "";
+-  }) fetchurlDependencies;
+-
+   fetchurlDependencies =
+     filter
+     (drv: drv.outputHash or "" != ""
+-- 
+2.47.0
+

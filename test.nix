@@ -19,6 +19,10 @@
     # config.contentAddressedByDefault = true;
     system = "x86_64-linux";
   },
+  nixpkgs-swh ? builtins.fetchTarball {
+    url = "https://github.com/nix-community/nixpkgs-swh/archive/552356958e70967398072e085e50fc675243e5c1.tar.gz";
+    sha256 = "1sxgwknm1a2yhb5njk2xl8lkyy600bcrra64m352gmdmilwjbd4s";
+  },
   ...
 }:
 
@@ -29,6 +33,12 @@
 let
   cachePort = 9000;
   testLib =  import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
+  nixpkgs-swh-patched = pkgsIA.applyPatches {
+    name = "patch-swh-find-tarballs";
+    src = nixpkgs-swh;
+    patches = [ ./patches/nixpkgs-swh/0001-make-find-tarballs.nix-return-drvs-and-be-pure.patch ];
+  };  
+  findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix" );
   pkgA = pkgsIA.cowsay;
 
   accessKey = "BKIKJAA5BMMU2RHO6IBB";
@@ -57,6 +67,8 @@ let
     "__bootPackages"
     "binutils"
   ];
+
+  prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath trivialPackageCa pkgsCA; });
 
   cache =
     { ... }:
@@ -104,7 +116,7 @@ let
       systemd.services.nix-daemon.enable = true;
       virtualisation.mountHostNixStore = false;
 
-      virtualisation.additionalPaths = [ pkgA ];
+      virtualisation.additionalPaths = [ pkgA ] ++ prefetchedSources;
 
       nix = {
         package = pkgsIA.lix;
