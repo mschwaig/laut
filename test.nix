@@ -258,17 +258,17 @@ let
 
       # Test script to verify the setup
       testScript = ''
-        from threading import Thread
+        from concurrent.futures import ThreadPoolExecutor
         from typing import Callable
         from functools import wraps
 
-        # TODO: make failing background thread fail CI# TODO: make failing background thread fail CI
+        executor = ThreadPoolExecutor(max_workers=5)
+
         def run_in_background(func: Callable):
           @wraps(func)
           def wrapper(*args, **kwargs):
-            thread = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
-            thread.start()
-            return thread
+            return executor.submit(func, *args, **kwargs)
+
           return wrapper
 
         cache.start()
@@ -292,22 +292,22 @@ let
 
           builder.wait_for_unit("default.target")
 
-        #t1, t2 = boot_and_configure(builderA), boot_and_configure(builderB)
-        t1 = boot_and_configure(builderA)
+        #future1, future2 = boot_and_configure(builderA), boot_and_configure(builderB)
+        future1 = boot_and_configure(builderA)
 
-        t1.join()
-        #t2.join()
+        future1.result()
+        #future2.result()
 
         @run_in_background
         def build_and_upload(builder):
           # builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
           builder.succeed("nix build -f '<nixpkgs-ca>' ${trivialPackageCaStr} --secret-key-files \"/etc/nix/private-key\" -L")
 
-        #t1, t2 =  build_and_upload(builderA), build_and_upload(builderB)
-        t1 = build_and_upload(builderA)
+        #future1, future2  =  build_and_upload(builderA), build_and_upload(builderB)
+        future1 = build_and_upload(builderA)
 
-        t1.join()
-        #t2.join()
+        future1.result()
+        #future2.result()
 
         builderA.shutdown()
         #builderB.shutdown()
