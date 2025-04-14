@@ -1,0 +1,78 @@
+{
+    "args": [
+    "-e",
+    "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+    ],
+    "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+    "env": {
+    "NIX_CFLAGS_COMPILE": "-static-libgcc",
+    "__structuredAttrs": "",
+    "buildInputs": "",
+    "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+    "cmakeFlags": "",
+    "configureFlags": "--static --shared",
+    "configurePlatforms": "",
+    "depsBuildBuild": "",
+    "depsBuildBuildPropagated": "",
+    "depsBuildTarget": "",
+    "depsBuildTargetPropagated": "",
+    "depsHostHost": "",
+    "depsHostHostPropagated": "",
+    "depsTargetTarget": "",
+    "depsTargetTargetPropagated": "",
+    "dev": "/02qcpld1y6xhs5gz9bchpxaw0xdhmsp5dv88lh25r2ss44kh8dxz",
+    "doCheck": "1",
+    "doInstallCheck": "",
+    "dontAddStaticConfigureFlags": "1",
+    "dontConfigure": "",
+    "dontDisableStatic": "1",
+    "dontStrip": "",
+    "enableParallelBuilding": "1",
+    "enableParallelChecking": "1",
+    "enableParallelInstalling": "1",
+    "installFlags": "",
+    "makeFlags": "PREFIX= SHARED_MODE=1",
+    "mesonFlags": "",
+    "name": "zlib-1.3.1",
+    "nativeBuildInputs": "",
+    "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+    "outputDoc": "dev",
+    "outputHashAlgo": "sha256",
+    "outputHashMode": "recursive",
+    "outputs": "out dev static",
+    "patches": "",
+    "pname": "zlib",
+    "postInstall": "moveToOutput lib/libz.a \"$static\"\n",
+    "postPatch": "",
+    "preConfigure": "",
+    "propagatedBuildInputs": "",
+    "propagatedNativeBuildInputs": "",
+    "setOutputFlags": "",
+    "src": "/nix/store/n22iqgfwr3jr08f9hl4140y3sqmrzf2z-zlib-1.3.1.tar.gz",
+    "static": "/1rk3cgkqcvdsapdc35lyidbrifq4gkcl71652d7v3hm4gps1sqsv",
+    "stdenv": "/nix/store/fbam9hkyv5wr99c6mf4kffnmybc7kijd-bootstrap-stage3-stdenv-linux",
+    "strictDeps": "1",
+    "system": "x86_64-linux",
+    "version": "1.3.1"
+    },
+    "inputDrvs": {},
+    "inputSrcs": [
+    "/nix/store/fbam9hkyv5wr99c6mf4kffnmybc7kijd-bootstrap-stage3-stdenv-linux",
+    "/nix/store/n22iqgfwr3jr08f9hl4140y3sqmrzf2z-zlib-1.3.1.tar.gz",
+    "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+    "/nix/store/v6x3cs394jgqfbi0a42pam708flxaphh-default-builder.sh"
+    ],
+    "name": "zlib-1.3.1",
+    "outputs": {
+    "dev": {
+        "hashAlgo": "r:sha256"
+    },
+    "out": {
+        "hashAlgo": "r:sha256"
+    },
+    "static": {
+        "hashAlgo": "r:sha256"
+    }
+    },
+    "system": "x86_64-linux"
+}
