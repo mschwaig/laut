@@ -119,7 +119,6 @@ let
       virtualisation.additionalPaths = [ pkgA ] ++ prefetchedSources;
 
       nix = {
-        package = pkgsIA.lix;
         nixPath = [
           "nixpkgs=${nixpkgs}"
           "nixpkgs-ca=${
@@ -188,7 +187,7 @@ let
           "nix/public-key".source = publicKey;
         };
         systemPackages = with pkgsIA; [
-          lix
+          nix
           git
           laut
         ];
@@ -228,7 +227,6 @@ let
             virtualisation.mountHostNixStore = false;
 
             nix = {
-              package = pkgsIA.lix;
               nixPath = [
                 "nixpkgs=${nixpkgs}"
                 "nixpkgs-ca=${
@@ -260,7 +258,7 @@ let
             };
 
             environment.systemPackages = with pkgsIA; [
-              lix
+              nix
               git
               laut
             ];
