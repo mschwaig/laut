@@ -113,10 +113,6 @@ We can also test our reasoning about trust relationships directly in datalog, in
 
 Here is a list of technical terms we use in this project with their definitions:
 
-### Glossary
-
-Here is a list of technical terms we use in this project with their definitions:
-
 <dl>
   <dt>derivation / drv</dt>
   <dd>Nix uses this term for build steps, which are identified and defined by their characteristic input hash. In this project we will define a derivation strictly as an element <code>i</code> in the domain of a function <code>build(i: input) -> output</code> and not as the pair of both input output <code>(i, build(i))</code>.</dd>
@@ -124,8 +120,8 @@ Here is a list of technical terms we use in this project with their definitions:
   <dd>A derivation, which depends on other derivations.</dd>
   <dt>resolved derivation</dt>
   <dd>A derivation, which does not depend on other derivations (anymore). The content-addressed derivation RFC also calls this a basic derivation.</dd>
-  <dt>output path / derivation output</dt>
-  <dd>Each derivation can have more than one derivation output, which show up in the Nix store as/at separate output paths, but were created by building the same derivation. The distinction between individual outputs of a derivation is not an important concern when reasoning about trust, but it shows up in the technical details sometimes. Derivation outputs refers to the abstract names of these outputs, written as <code>/nix/store/{hash}-{name}.drv$out</code>, while derivation (output) paths refers to their "physical manifestation" in terms of a path / address of those outputs in the store <code>/nix/store/{hash}-{name}</code>.</dd>
+  <dt>derivation output / output path</dt>
+  <dd>Each derivation can have more than one derivation output, which show up in the Nix store as/at separate output paths, but were created by building the same derivation. This step of indirection and distinction between individual outputs of a derivation is not an important concern when reasoning about trust, but it shows up in the technical details sometimes. Derivation outputs refers to the abstract names of these outputs, written as <code>/nix/store/{hash}-{name}.drv$out</code>, while output path refers to their "physical manifestation" in terms of a path / address and the contents of those outputs in the store, like <code>/nix/store/{hash}-{name}</code> and its content.</dd>
   <dt>content hash</dt>
   <dd>Describes the bitwise identity of a file or path by hashing it in a defined manner.</dd>
   <dt>dependency resolution / resolution</dt>
@@ -135,11 +131,11 @@ Here is a list of technical terms we use in this project with their definitions:
   For derivations using the CA derivation experimental feature, this is done explicitly by replacing entries in the <code>inputDrvs</code> attribute of the drv with entries in the <code>inputSrc</code> attribute of the drv. For IA derivations or CA derivations with IA dependencies, this happens implicitly every time the contents of an IA path are accessed.</dd>
   <dt>input hash</dt>
   <dd>The identifying and defining hash of a derivation.
-  If a derivation is a function the input hash describes an element in it's domain. All derivations in Nix have an input hash, even CA derivations.</dd>
+  If a derivation is the input to, and therefore an element in the domain of, a <code>build</code> function, the input hash is a lookup key, which identifies this element and can therfore be used to store and look up build outputs or their content hashes. All derivations in Nix have an input hash, even CA derivations.</dd>
   <dt>unresolved input hash</dt>
   <dd>A type of input hash which is constructed from the set of inputs recursively, so that reflects the bitwise identity of only the leaves in the dependency tree in question, and the <em>build recipe</em> identity of how they are put together. This is called a deep constructive trace up to terminal inputs in the build systems a la carte paper, and my first paper. In Nix it is the hash that is part of the store path of any regular (input-addressed derivation). It is why they are called input-addressed.</dd>
   <dt>resolved input hash</dt>
-  <dd>A type of input hash which is constructed from the set of inputs and incorporates the bitwise identity of direct dependencies only. This is called a constructive trace in the build systems a la carte paper, and my first paper. In Nix it is the hash of a resolved content-addressed derivation. The derivation itself is still input-addressed, and it has an input hash, but the individual inputs in that hash are direct dependencies that are included with their content hash.</dd>
+  <dd>A type of input hash which is constructed from the set of inputs and incorporates identity of all direct dependencies by a content hash. This is called a constructive trace in the build systems a la carte paper, and my first paper. In Nix it is the hash of a resolved content-addressed derivation. The derivation itself is still input-addressed, and it has an input hash, but the individual inputs that factor into that hash are direct dependencies that are included with their content hash.</dd>
   <dt>IA derivation</dt>
   <dd>A regular derivation in Nix is called input-addressed (IA), because it's path contains an unresolved input hash. This path containing the unresolved input hash is the lookup key to find the output of the derivation in the store. This means we look up o = build(unresolved_ia_i) in the store directly by accessing <code>/nix/store/{path(unresolved_ia_i, drv_output)}</code>, which contains <code>build(unresolved_ia_i)</code></dd>
   <dt>CA derivation</dt>
@@ -153,11 +149,13 @@ Here is a list of technical terms we use in this project with their definitions:
   <dt>CA path</dt>
   <dd>The output path a CA derivation or FOD.</dd>
   <dt>build trace</dt>
-  <dd>A statement which associates the resolved input hash of a derivation with the output hashes of the set of produced output, and additional metadata about the builder.</dd>
-  <dt>signed build trace / provenance log entry</dt>
-  <dd>A signed build trace, or build trace included in a transparency log.</dd>
+  <dd>A statement which associates the resolved input hash of a derivation with the output hashes of the set of produced output.</dd>
+  <dt>provenance log entry</dt>
+  <dd>A cyptograpically secured statement which associates the resolved input hash of a derivation with the output hashes of the set of produced output, and an open set of additional metadata about the builder.
+  This potentially includes a source reference for the builders claimed software state and maybe even a remote attestation of said software state.
+  This statement might be sigend, or be entered in a transparency log.</dd>
   <dt>nix legacy signature</dt>
-  <dd>A statement which associates the unresolved input hash of a derivation with the output hash of a specific produced output. This does not contain any data about the builder, and depends on all of those implicit dependency resolutions that happen with IA derivations, because it uses an unresolved input hash. I'm calling it legacy because I am trying to replace it as the load-bearing component when it comes to trust.</dd>
+  <dd>A statement which associates the unresolved input hash of a derivation with the output hash of a specific produced output. This does not contain any data about the builder, and depends on all of those implicit dependency resolutions that happen with IA derivations, because it uses an unresolved input hash. I'm calling it legacy because we are trying to replace it as the load-bearing component in terms of trust.</dd>
   <dt>trustlessly-resolved derivation</dt>
   <dd>We call a derivation, for which the validator resolves all dependencies and then looks up build traces trustlessly resolved.</dd>
   <dt>trustfully-resolved derivation</dt>
