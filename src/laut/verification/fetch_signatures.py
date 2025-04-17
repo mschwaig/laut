@@ -35,7 +35,7 @@ def fetch_resolved_trace_signatures(input_hash: str) -> List[dict]:
         except Exception:
             logger.exception(f"error fetching signatures from {cache_url}")
             continue
-    logger.debug(f"{len(all_signatures)} signatures found for input hash {input_hash}: {all_signatures}")
+    logger.debug(f"{len(all_signatures)} signatures found for input hash {input_hash}.")
 
     return all_signatures
 

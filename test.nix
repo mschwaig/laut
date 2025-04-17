@@ -304,32 +304,32 @@ let
 
           builder.wait_for_unit("default.target")
 
-        #future1, future2 = boot_and_configure(builderA), boot_and_configure(builderB)
-        future1 = boot_and_configure(builderA)
+        future1, future2 = boot_and_configure(builderA), boot_and_configure(builderB)
+        #future1 = boot_and_configure(builderA)
 
         future1.result()
-        #future2.result()
+        future2.result()
 
         @run_in_background
         def build_and_upload(builder):
           # builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
           builder.succeed("nix build -f '<nixpkgs-ca>' ${trivialPackageCaStr} --secret-key-files \"/etc/nix/private-key\" -L")
 
-        #future1, future2  =  build_and_upload(builderA), build_and_upload(builderB)
-        future1 = build_and_upload(builderA)
+        future1, future2  =  build_and_upload(builderA), build_and_upload(builderB)
+        #future1 = build_and_upload(builderA)
 
         future1.result()
-        #future2.result()
+        future2.result()
 
         builderA.shutdown()
-        #builderB.shutdown()
+        builderB.shutdown()
 
         # for now we only care about extracting the cache outputs from this test
         # and using them as input for the unit and integration tests in python
         ${name}.start()
         ${name}.wait_for_unit("network.target")
 
-        ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} $(nix-instantiate '<nixpkgs-ca>' -A ${trivialPackageCaStr})")
+        ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} $(nix-instantiate '<nixpkgs-ca>' -A ${trivialPackageCaStr})")
 
         # ${name}.fail("nix path-info ${pkgA}")
         # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
@@ -337,12 +337,6 @@ let
         # ${name}.succeed("nix path-info ${pkgA}")
 
         # ${name}.succeed("nix-store --verify")
-
-        # TODO: run test script
-        # using specific trust model
-
-        # run verification tool
-        # run nix build
       '';
     };
 in

@@ -3,6 +3,8 @@ from typing import Dict, List, Optional
 import os
 import copy
 
+from laut.thumbprint import get_ed25519_thumbprint
+
 from .storage import upload_signature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
@@ -69,8 +71,6 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     key_name = content.split(':', 1)[0]
     private_key = parse_nix_private_key(secret_key_file[0])
 
-    # TODO: construct resolution from all of the local derivation inputs >:(
-
     input_hash, input_data = compute_CT_input_hash(drv_path, None)
     jws_token = create_trace_signature(input_hash, input_data, drv_path, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
@@ -91,11 +91,12 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
     Returns:
         str: The JWS signature token
     """
+    thumbprint = get_ed25519_thumbprint(private_key.public_key())
     headers = {
         "alg": "EdDSA",
         "type": "ntrace",
         "v": "1",
-        "kid": key_name
+        "kid": f"{key_name}:{thumbprint[:8]}"
     }
 
     logger.debug(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")

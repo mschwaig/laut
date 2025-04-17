@@ -9,6 +9,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 from loguru import logger
 
+def shorthand(signature):
+    return signature.split(".", 2)[2]
+
+
 def verify_signature_payload(key: Ed25519PublicKey, signature: str) -> Optional[dict]:
     """Verify a JWS signature against trusted keys"""
     try:
@@ -20,26 +24,26 @@ def verify_signature_payload(key: Ed25519PublicKey, signature: str) -> Optional[
             logger.warning("no key ID in signature header")
             return None
 
-        key_name = header['kid']
-        # TODO: find what we want to do about name / thumbprint
-        #if key_name != thumbprint:
-        #    logger.debug(f"claims signed with different key")
-        #    return None
+        kid = header['kid']
+        key_name, received_thumbprint_head = kid.split(':', 1)
+        key_thumbprint_head = get_ed25519_thumbprint(key)[:8]
+        if received_thumbprint_head != key_thumbprint_head:
+            logger.info(f"claims signed with {received_thumbprint_head} and not {key_thumbprint_head}")
+            return None
 
         try:
-            # Verify with EdDSA algorithm
             payload = jwt.decode(
                 signature,
                 key=key,
                 algorithms=["EdDSA"]
             )
-            logger.debug(f"Signature {signature} is valid.")
+            logger.info(f"Signature {shorthand(signature)} is valid.")
             return payload
         except jwt.InvalidSignatureError:
-            logger.exception(f"invalid signature for key {key_name}")
+            logger.exception(f"invalid signature {shorthand(signature)} for key {key_name}")
             return None
         except Exception:
-            logger.exception(f"Error verifying with key {key_name}")
+            logger.exception(f"Error verifying signature {shorthand(signature)} with key {key_name}")
             return None
 
     except Exception:
@@ -58,7 +62,6 @@ def verify_resolved_trace_signature(key_bytes: bytes, signature: str, input_hash
         List[Dict[str, str]]: List of valid output hash mappings
     """
     key = Ed25519PublicKey.from_public_bytes(key_bytes)
-    valid_output_hashes = []
 
     payload = verify_signature_payload(key, signature)
     if payload and payload.get("in") == input_hash:

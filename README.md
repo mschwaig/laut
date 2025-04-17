@@ -161,7 +161,7 @@ Here is a list of technical terms we use in this project with their definitions:
   <dt>trustfully-resolved derivation</dt>
   <dd>We call a derivation, for which the validator looks up a legacy signature and thereby trusts however its builder resolved its immediate dependencies trustfully resolved.</dd>
   <dt>trust model</dt>
-  <dd>A set of trusted keys and additional validation criteria which must be met to consider a build trace signed with a specfic key valid.</dd>
+  <dd>A set of trusted keys and additional, per key, validation criteria which must be met to consider a provenance log entry or nix legacy signature valid.</dd>
   <dt>Threshold function</dt>
   <dd>The way trust models are constructed from trusted keys is using a threshold function. <code>threshold(m, n = len(keys), keys: set)</code>, where only the mapping from inputs to outputs are considered trustworthy, which m out of n keys agree on. This is used to build OR and AND functions. We actually also not only allow keys as input to the threshold function, but also trust models, which allows for more complex trust model, but also makes the definition of trust model recursive.</dd>
 </dl>
