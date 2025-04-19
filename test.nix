@@ -330,7 +330,7 @@ let
         # for now we only care about extracting the cache outputs from this test
         # and using them as input for the unit and integration tests in python
         ${name}.start()
-        ${name}.wait_for_unit("network.target")
+        ${name}.wait_for_unit("default.target")
 
         ${name}.succeed("laut verify --cache \"${storeUrl}\" --trusted-key ${./testkeys/builderA_key.public} --trusted-key ${./testkeys/builderB_key.public} $(nix-instantiate '<nixpkgs-ca>' -A ${trivialPackageCaStr})")
 
@@ -338,8 +338,6 @@ let
         # ${name}.succeed("nix store info --store '${storeUrl}' >&2")
         # ${name}.succeed("nix copy --no-check-sigs --from '${storeUrl}' ${pkgA}")
         # ${name}.succeed("nix path-info ${pkgA}")
-
-        # ${name}.succeed("nix-store --verify")
       '';
     };
 in
