@@ -1,0 +1,16 @@
+[package]
+name = "laut_reason"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies.datafrog]
+version = "2.0.1"
+
+[dependencies.pyo3]
+version = "0.24.1"
+features = ["extension-module"]
+
+[lib]
+name = "laut_reason"
+crate-type = ["cdylib"]

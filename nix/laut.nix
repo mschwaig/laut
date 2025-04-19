@@ -13,7 +13,7 @@
   sigstore,
   loguru,
   sign-only ? false,
-  nix-verify-souffle,
+  laut-reason,
 }:
 
 buildPythonApplication {
@@ -88,7 +88,7 @@ buildPythonApplication {
         [ ]
       else
         [
-          nix-verify-souffle
+          laut-reason
         ]
     );
 

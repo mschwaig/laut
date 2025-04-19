@@ -1,13 +1,10 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
 [project]
-name = "nix_verify_souffle"
-version = "0.1.0"
+name = "laut_reason"
+version = "0.2.0"
 
-[tool.hatch.build.targets.wheel]
-packages = ["nix_verify_souffle"]
-
-[tool.hatch.build.targets.wheel.sources]
-"nix_verify_souffle" = ["nix_verify_souffle.so"]
+[tool.maturin]
+features = ["pyo3/extension-module"]

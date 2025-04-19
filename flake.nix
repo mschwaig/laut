@@ -58,7 +58,7 @@
           ] ++ [
             pkgs.pyright
           ] ++ [
-            scope.nix-verify-souffle
+            scope.laut-reason
           ]);
         in pkgs.mkShell {
           shellHook = ''
@@ -67,9 +67,11 @@
 
           PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
           buildInputs = [
+            pkgs.cargo
+            pkgs.rustc
             pythonEnv
             pkgs.souffle
-            scope.nix-verify-souffle
+            scope.laut-reason
           ];
         };
     });

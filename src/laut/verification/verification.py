@@ -154,8 +154,8 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
-    from nix_verify_souffle import SwigInterface
-    p = SwigInterface.newInstance("nix_verify")
+    from laut_reason import simple_datafrog_example
+    result = simple_datafrog_example()
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
         td = Path(temp_dir)
@@ -176,15 +176,6 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
         resolved_deps_file.close()
         builds_file.close()
         drv_resolutions_file.close()
-        logger.warning(f"EVALUATING datalog at {temp_dir}")
-        p._last_run_time = time.time() # do this cursed thing to prevent python from caching the results of loadAll() and run()
-        p.loadAll(temp_dir)
-        p.run()
-        logger.warning(f"done EVALUATING datalog at {temp_dir}")
-        # TODO: re-add this once we actually look into making it generate valid output
-        #p.dumpInputs()
-        #print("##delimiter")
-        #p.dumpOutputs()
 
         return root_result
         # return (root_result, collect_valid_signatures_tree_rec.__wrapped__.cache)
