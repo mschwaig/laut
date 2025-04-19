@@ -49,24 +49,24 @@ let
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
   trivialPackageCaStr = lib.concatStringsSep "." trivialPackageCa;
-  #  trivialPackageCa = [ "hello" ];
-  trivialPackageCa = [
-    "stdenv"
-    "__bootPackages"
-    "stdenv"
-    "__bootPackages"
-    "stdenv"
-    "__bootPackages"
-    "stdenv"
-    "__bootPackages"
-    "stdenv"
-    "__bootPackages"
-    "stdenv"
-    "__bootPackages"
-    "stdenv"
-    "__bootPackages"
-    "binutils"
-  ];
+  trivialPackageCa = [ "hello" ];
+#  trivialPackageCa = [
+#    "stdenv"
+#    "__bootPackages"
+#    "stdenv"
+#    "__bootPackages"
+#    "stdenv"
+#    "__bootPackages"
+#    "stdenv"
+#    "__bootPackages"
+#    "stdenv"
+#    "__bootPackages"
+#    "stdenv"
+#    "__bootPackages"
+#    "stdenv"
+#    "__bootPackages"
+#    "binutils"
+#  ];
 
   prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath trivialPackageCa pkgsCA; });
 
@@ -110,7 +110,8 @@ let
     { privateKey, publicKey, ... }:
     {
       virtualisation.memorySize = 6144;
-      virtualisation.cores = 4;
+      virtualisation.cores = 8;
+      virtualisation.diskSize = 4096;
       virtualisation.writableStore = true;
       virtualisation.useNixStoreImage = true;
       systemd.services.nix-daemon.enable = true;
@@ -222,6 +223,8 @@ let
           {
             virtualisation.memorySize = 2048;
             virtualisation.cores = 2;
+            # we need to figure out why fact files are 100s of  MB large
+            virtualisation.diskSize = 4096; # this really should not be required
             virtualisation.writableStore = true;
             virtualisation.useNixStoreImage = true;
             systemd.services.nix-daemon.enable = true;

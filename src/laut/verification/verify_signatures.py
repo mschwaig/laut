@@ -26,7 +26,7 @@ def verify_signature_payload(key: Ed25519PublicKey, signature: str) -> Optional[
 
         kid = header['kid']
         key_name, received_thumbprint_head = kid.split(':', 1)
-        key_thumbprint_head = get_ed25519_thumbprint(key)[:8]
+        key_thumbprint_head = get_ed25519_thumbprint(key)[:16]
         if received_thumbprint_head != key_thumbprint_head:
             logger.info(f"claims signed with {received_thumbprint_head} and not {key_thumbprint_head}")
             return None

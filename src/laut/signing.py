@@ -96,7 +96,7 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
         "alg": "EdDSA",
         "type": "ntrace",
         "v": "1",
-        "kid": f"{key_name}:{thumbprint[:8]}"
+        "kid": f"{key_name}:{thumbprint[:16]}"
     }
 
     logger.debug(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")
