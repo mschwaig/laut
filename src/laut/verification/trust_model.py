@@ -56,39 +56,4 @@ class TrustedKey:
             self.name == other.name
         )
 
-@dataclass(frozen=True)
-class KeySetWithThreshold:
-    components: Set['TrustModel']
-    threshold: int # only outermost layer of threshold can have legacy keys maybe?
-
-    def __post_init__(self):
-        if self.threshold < 1 or self.threshold > len(self.components):
-            raise ValueError("invalid trust model")
-
-    #def contains_legacy_keys(self):
-    #    return any(map(lambda x: x.contains_legacy_keys(), self.components))
-
-    def ct_verify(self, ct_input_hash: ResolvedInputHash, ct_signatures) -> Set[Set[TrustlesslyResolvedDerivation]]:
-        # group by signed output
-        # do the sum thing for each output
-        # actually scratch those two lines, we probably need to just gather all
-        # of the signatures first and check if we have enough co-inciding transitive runtime closures
-        # return a set with those which surpass the threshold
-        #return sum(1 for x in self.components if x.ct_verify(ct_input_hash, ct_signatures)) >= self.threshold
-        return set()
-
-    def dct_verify(self, dct_input_hash: UnresolvedInputHash, dct_signatures) ->Set[Set[TrustlesslyResolvedDerivation]]:
-        # do the threshold thing for each combination of inputs
-        #return sum(1 for x in self.components if x.dct_verify(dct_input_hash, dct_signatures)) >= self.threshold
-        return set()
-
-    def __hash__(self):
-        return hash((self.components, self.threshold))
-
-    def __eq__(self, other):
-        if not isinstance(other, KeySetWithThreshold):
-            return False
-        return (self.components == other.components) and (
-            self.threshold == other.threshold)
-
-TrustModel = TrustedKey | KeySetWithThreshold
+TrustModel = TrustedKey
