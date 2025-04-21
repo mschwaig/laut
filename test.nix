@@ -223,8 +223,6 @@ let
           {
             virtualisation.memorySize = 2048;
             virtualisation.cores = 2;
-            # we need to figure out why fact files are 100s of  MB large
-            virtualisation.diskSize = 4096; # this really should not be required
             virtualisation.writableStore = true;
             virtualisation.useNixStoreImage = true;
             systemd.services.nix-daemon.enable = true;
