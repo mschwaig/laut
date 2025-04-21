@@ -58,7 +58,7 @@ def mock_signature_fetch(monkeypatch):
 @pytest.fixture
 def mock_config_debug(monkeypatch):
     trusted_keys = [
-        #read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")),
+        read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")),
         read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderB_key.public"))
     ]
     monkeypatch.setattr('laut.config.config.debug', True)
@@ -75,10 +75,10 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
     # as part of the bootstrap
     drv = build_unresolved_tree("/nix/store/p3y81mafk8jbj6r71xba1hailj5z0k09-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
-    list = verify_tree(drv)
+    set = verify_tree(drv)
 
-    assert len(list) == 1
-    resolved_derivaiton = list[0]
+    assert len(set) == 1
+    resolved_derivaiton = next(iter(set))
     assert resolved_derivaiton.input_hash == "JYBmi8474Lbjr5PgVGchx7hnGSGOmkqNLJAXKw9Pca4"
 
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_config_debug):
@@ -88,8 +88,8 @@ def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_
 
     drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
 
-    list = verify_tree(drv)
+    set = verify_tree(drv)
 
-    assert len(list) == 1
-    resolved_derivaiton = list[0]
+    assert len(set) == 1
+    resolved_derivaiton = next(iter(set))
     assert resolved_derivaiton.input_hash == "qAL8DbnetBrnMinLRt7mR4EusJo_w64fOUxo-pFT0ik"

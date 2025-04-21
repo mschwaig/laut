@@ -73,8 +73,6 @@ buildPythonApplication {
       ]
   );
 
-  doCheck = false;
-
   dependencies =
     [
       rfc8785

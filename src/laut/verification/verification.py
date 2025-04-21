@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from types import MappingProxyType
 from typing import TypeVar, Dict, Iterator, Set, Iterator, Optional, List, Tuple, Hashable
 from itertools import product
 from functools import wraps, cache
@@ -200,7 +201,7 @@ def remember_steps(func):
     return wrap_collect_valid_signatures_tree_rec
 
 @remember_steps
-def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> list[TrustlesslyResolvedDerivation]:
+def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
     global debug_dir
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
@@ -212,15 +213,15 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
             dict() # tuple
         )
         # TODO: lookup expected output hash and return it
-        return [
+        return {
             TrustlesslyResolvedDerivation(
                 resolves = unresolved_derivation,
                 drv_path = None,
                 input_hash = ct_input_hash,
                 # might not have to keep track of those two in python
                 # TODO: maybe change exactly which attributes of the output are added here and in other places
-                outputs = { unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["path"] }
-        )]
+                outputs = MappingProxyType({ unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["path"] })
+        )}
 
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
@@ -247,7 +248,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
     # so we just want to collect all of the resolutions that we know about
     # and consider valid to some degree
     # and then use constraint solving to figure out what we are missing
-    plausible_resolutions: list[TrustlesslyResolvedDerivation] = []
+    plausible_resolutions: set[TrustlesslyResolvedDerivation] = set()
     udrv_path = None
     if debug_dir:
         filename =  Path(unresolved_derivation.drv_path).name
@@ -305,9 +306,9 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
                 resolves=unresolved_derivation,
                 drv_path=drv_path,
                 input_hash=ct_input_hash,
-                outputs=outputs
+                outputs=MappingProxyType(outputs)
             )
-            plausible_resolutions.append(resolved_drv)
+            plausible_resolutions.add(resolved_drv)
 
     #    if valid:
     #        loguru.debug("validated {resolution} for {inputs.derivation.drv_path}")
