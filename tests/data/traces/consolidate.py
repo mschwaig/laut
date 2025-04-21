@@ -102,6 +102,7 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', allow_duplic
                         header_bytes = base64.urlsafe_b64decode(padded_header)
                         header_json = json.loads(header_bytes.decode('utf-8'))
                         kid = header_json.get('kid')
+                        kid = kid.replace(":", "_") # sanitize kid
 
                         if debug:
                             print(f"Header: {header_json}")

@@ -59,7 +59,7 @@ def mock_signature_fetch(monkeypatch):
 def mock_config_debug(monkeypatch):
     trusted_keys = [ read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")) ]
     monkeypatch.setattr('laut.config.config.debug', True)
-    monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "data" / "traces" / "lookup_by_name" / "builderA.json")
+    monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "data" / "traces" / "lookup_by_name" / "builderA_bcda8d54470fea3b.json")
     monkeypatch.setattr('laut.config.config.trusted_keys', trusted_keys)
 
 def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch):
