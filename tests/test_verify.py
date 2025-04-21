@@ -57,7 +57,10 @@ def mock_signature_fetch(monkeypatch):
 
 @pytest.fixture
 def mock_config_debug(monkeypatch):
-    trusted_keys = [ read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")) ]
+    trusted_keys = [
+        #read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public")),
+        read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderB_key.public"))
+    ]
     monkeypatch.setattr('laut.config.config.debug', True)
     monkeypatch.setattr('laut.config.config.preimage_index', Path(__file__).parent.parent / "tests" / "data" / "traces" / "lookup_by_name" / "builderA_bcda8d54470fea3b.json")
     monkeypatch.setattr('laut.config.config.trusted_keys', trusted_keys)
@@ -65,8 +68,6 @@ def mock_config_debug(monkeypatch):
 def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch):
     with open(ca_data_file) as f:
         hello_recursive = json.load(f)
-
-    trust_model = read_public_key(str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"))
     #drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
 
     # there are multiple things that are called -bootstrap-stage1-stdenv-linux.drv

@@ -60,7 +60,7 @@ def fetch_preimage_from_index(drv_name) -> Iterable[tuple[str, str]]:
         index = json.load(f)
    
     one_or_many_drv = index[drv_name]
-    if one_or_many_drv is list:
+    if isinstance(one_or_many_drv, list):
         for i in one_or_many_drv:
             yield (Path(i["drv_path"]).name, i["in_preimage"])
     else:

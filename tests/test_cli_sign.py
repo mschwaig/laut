@@ -90,11 +90,11 @@ def test_sign_resolved_problematic_derivaion_hook(runner, mock_derivation_lookup
             "/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv"
         ],
         env = {
-            'OUT_PATHS': '',
+            'OUT_PATHS': '/nix/store/bnyyaql5yvcrfw42k9kd5d10c2f10mnp-bootstrap-stage0-binutils-wrapper-',
             'DRV_PATH': '/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv',
         }
     )
-    assert mock_derivation_lookup.call_count == 1 # TODO: make this 1
+    assert mock_derivation_lookup.call_count == 1
     mock_derivation_lookup.assert_called_with('/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv', False)
     assert result.exit_code == 0
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
@@ -107,7 +107,7 @@ def test_sign_resolved_problematic_derivaion_fixed_hook(runner, mock_derivation_
             "/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv"
         ],
         env = {
-            'OUT_PATHS': '',
+            'OUT_PATHS': '/nix/store/bnyyaql5yvcrfw42k9kd5d10c2f10mnp-bootstrap-stage0-binutils-wrapper-',
             'DRV_PATH': '/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv',
         }
     )
