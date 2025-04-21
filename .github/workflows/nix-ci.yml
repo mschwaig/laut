@@ -2,9 +2,7 @@ name: Nix CI
 
 on:
   workflow_dispatch: # allows manual triggering
-  push:
-    branches:
-      - main
+  push: # on push to any branch
   pull_request:
     types: [opened, synchronize, reopened]
 
