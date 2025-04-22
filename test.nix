@@ -50,8 +50,8 @@ let
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
   flattenList = builtins.concatLists;
   trivialPackageCaStr = lib.concatStringsSep "." trivialPackageCa;
-#  trivialPackageCa = [ "hello" ];
-  trivialPackageCa = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+  trivialPackageCa = [ "hello" ];
+  #trivialPackageCa = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
 
   prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath trivialPackageCa pkgsCA; });
 
@@ -94,9 +94,9 @@ let
   makeBuilder =
     { privateKey, publicKey, ... }:
     {
-      virtualisation.memorySize = 6144;
-      virtualisation.cores = 8;
-      virtualisation.diskSize = 4096;
+      virtualisation.memorySize = 1024 * 8;
+      virtualisation.cores = 8; # should probably be 4 for GitHub Action Runner
+      virtualisation.diskSize = 1024 * 4;
       virtualisation.writableStore = true;
       virtualisation.useNixStoreImage = true;
       systemd.services.nix-daemon.enable = true;
@@ -307,8 +307,8 @@ let
         future1.result()
         future2.result()
 
-        builderA.shutdown()
-        builderB.shutdown()
+        #builderA.shutdown()
+        #builderB.shutdown()
 
         # for now we only care about extracting the cache outputs from this test
         # and using them as input for the unit and integration tests in python
