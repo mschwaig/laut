@@ -48,25 +48,10 @@ let
     AWS_SECRET_ACCESS_KEY = secretKey;
   };
   storeUrl = "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1";
+  flattenList = builtins.concatLists;
   trivialPackageCaStr = lib.concatStringsSep "." trivialPackageCa;
-  trivialPackageCa = [ "hello" ];
-#  trivialPackageCa = [
-#    "stdenv"
-#    "__bootPackages"
-#    "stdenv"
-#    "__bootPackages"
-#    "stdenv"
-#    "__bootPackages"
-#    "stdenv"
-#    "__bootPackages"
-#    "stdenv"
-#    "__bootPackages"
-#    "stdenv"
-#    "__bootPackages"
-#    "stdenv"
-#    "__bootPackages"
-#    "binutils"
-#  ];
+#  trivialPackageCa = [ "hello" ];
+  trivialPackageCa = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
 
   prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath trivialPackageCa pkgsCA; });
 
