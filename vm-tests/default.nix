@@ -39,11 +39,13 @@ in {
   small = import ./test-template.nix (fullArgs // {
     testName = "small";
     packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    isSmallTest = true;
   });
 
   large = import ./test-template.nix (fullArgs // {
     testName = "large";
     packageToBuild = [ "hello" ];
+    isSmallTest = false;
   });
 
 
