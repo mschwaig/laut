@@ -36,7 +36,7 @@
           # since trust models are not implemented yet
           # it makes no sense to run more than one VM test
           (name == "fullReproVM"))
-          (import ./test.nix {
+          (import ./vm-tests {
             pkgsIA = pkgs;
             inherit nixpkgs;
             inherit (scope) laut;
