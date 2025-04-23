@@ -32,24 +32,21 @@ def boot_and_configure(builder):
 
   builder.wait_for_unit("default.target")
 
-future1, future2 = boot_and_configure(builderA), boot_and_configure(builderB)
-#future1 = boot_and_configure(builderA)
-
-future1.result()
-future2.result()
-
 @run_in_background
 def build_and_upload(builder):
   # builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
   builder.succeed(f"nix build -f '<nixpkgs-ca>' {packageToBuild} --secret-key-files \"/etc/nix/private-key\" -L")
 
-future1, future2  =  build_and_upload(builderA), build_and_upload(builderB)
-#future1 = build_and_upload(builderA)
-
-future1.result()
-future2.result()
-
+future = boot_and_configure(builderA)
+future.result()
+future = build_and_upload(builderA)
+future.result()
 builderA.shutdown()
+
+future = boot_and_configure(builderB)
+future.result()
+future = build_and_upload(builderB)
+future.result()
 builderB.shutdown()
 
 # for now we only care about extracting the cache outputs from this test

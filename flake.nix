@@ -33,9 +33,10 @@
 
 
         checks = lib.filterAttrs (name: value:
-          # since trust models are not implemented yet
-          # it makes no sense to run more than one VM test
-          (name == "fullReproVM"))
+          # since AND for trust models is not implemented yet
+          # we only run one small and one large text
+          # using builderA OR builderB as the trust model
+          (name == "small") || (name == "large"))
           (import ./vm-tests {
             pkgsIA = pkgs;
             inherit nixpkgs;

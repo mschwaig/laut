@@ -26,12 +26,9 @@
   ...
 }@args:
 let
-  #packageToBuild = [ "hello" ];
   flattenList = builtins.concatLists;
-  packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   fullArgs = {
     inherit system scope laut nixpkgs nixpkgs-ca lib pkgsIA pkgsCA pkgsCA' nixpkgs-swh;
-    packageToBuild = packageToBuild;
     verifierExtraConfig = {};
   } // args;
 # this code is inspired by
@@ -39,6 +36,17 @@ let
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
 in {
+  small = import ./test-template.nix (fullArgs // {
+    testName = "small";
+    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+  });
+
+  large = import ./test-template.nix (fullArgs // {
+    testName = "large";
+    packageToBuild = [ "hello" ];
+  });
+
+
   # Full local reproducibility model - trusts only itself
   fullReproVM = import ./test-template.nix (fullArgs // {
     testName = "fullReproVM";

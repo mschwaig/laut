@@ -5,7 +5,6 @@
   testName,
   cachePort ? 9000,
   cacheStoreUrl ? "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1",
-  fitsInCi ? true,
   packageToBuild,
   verifierExtraConfig ? {},
   ...
@@ -13,7 +12,7 @@
 
 let
   fullArgs = {
-    inherit cacheStoreUrl cachePort fitsInCi verifierExtraConfig;
+    inherit cacheStoreUrl cachePort verifierExtraConfig;
     cacheAccessKey = "BKIKJAA5BMMU2RHO6IBB";
     cacheSecretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
   } // args;
@@ -43,7 +42,6 @@ in
 
     testScript = ''
         cachePort = ${builtins.toString cachePort}
-        fitsInCi = ${if fitsInCi then "True" else "False"}
         cacheAccessKey = "${fullArgs.cacheAccessKey}"
         cacheSecretKey = "${fullArgs.cacheSecretKey}"
         packageToBuild = "${packageToBuildStr}"

@@ -6,7 +6,6 @@
   pkgsIA,
   pkgsCA,
   nixpkgs-swh,
-  fitsInCi,
   packageToBuild,
   builderPublicKey,
   builderPrivateKey,
@@ -29,8 +28,8 @@ let
   findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix" );
   prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath packageToBuild pkgsCA; });
 in {
-  virtualisation.memorySize = if fitsInCi then 1024 * 8 else 1024 * 6;
-  virtualisation.cores = if fitsInCi then 4 else 8;
+  virtualisation.memorySize = 1024 * 8;
+  virtualisation.cores = 8;
   virtualisation.diskSize = 1024 * 4;
   virtualisation.writableStore = true;
   virtualisation.useNixStoreImage = true;
