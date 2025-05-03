@@ -156,14 +156,24 @@ Here is a list of technical terms we use in this project with their definitions:
   This statement might be sigend, or be entered in a transparency log.</dd>
   <dt>nix legacy signature</dt>
   <dd>A statement which associates the unresolved input hash of a derivation with the output hash of a specific produced output. This does not contain any data about the builder, and depends on all of those implicit dependency resolutions that happen with IA derivations, because it uses an unresolved input hash. I'm calling it legacy because we are trying to replace it as the load-bearing component in terms of trust.</dd>
+  <dt>laut signature</dt>
+  <dd>A signature in the format specified in this repository.</dd>
   <dt>trustlessly-resolved derivation</dt>
   <dd>We call a derivation, for which the validator resolves all dependencies and then looks up build traces trustlessly resolved.</dd>
   <dt>trustfully-resolved derivation</dt>
   <dd>We call a derivation, for which the validator looks up a legacy signature and thereby trusts however its builder resolved its immediate dependencies trustfully resolved.</dd>
   <dt>trust model</dt>
   <dd>A set of trusted keys and additional, per key, validation criteria which must be met to consider a provenance log entry or nix legacy signature valid.</dd>
-  <dt>Threshold function</dt>
+  <dt>threshold function</dt>
   <dd>The way trust models are constructed from trusted keys is using a threshold function. <code>threshold(m, n = len(keys), keys: set)</code>, where only the mapping from inputs to outputs are considered trustworthy, which m out of n keys agree on. This is used to build OR and AND functions. We actually also not only allow keys as input to the threshold function, but also trust models, which allows for more complex trust model, but also makes the definition of trust model recursive.</dd>
+  <dt>builder</dt>
+  <dd>A verifier of the inputs to its own builds, as well as a a signer of the outputs of its own builds.</dd>
+  <dt>signer / producer</dt>
+  <dd>A builder, which produces signatures they have built themselves, and potentially uploads  them to a cache.</dd>
+  <dt>verifier / consumer</dt>
+  <dd>A consumer (and verifier according to some trust model) of signatures, and possibly also build outputs, from a cache.</dd>
+  <dt>legacy signer</dt>
+  <dd>A builder or INTERMEDIARY, producing signatuers. While addressing this problem is out of scope for laut, signing intermediaries introduce transitive trust relationships that are difficult to revoke, which is why we think groups of builders should be organized around data structures like signed lists or transparency logs instead.</dd>
 </dl>
 
 [^1]: according to https://en.langenscheidt.com/german-english/laut 📖
