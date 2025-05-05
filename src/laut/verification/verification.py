@@ -292,16 +292,16 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
-            for o in signature["out"]:
+            for o in signature["out"]["nix"]:
                 # TODO: add output name or change data structure in some way to accommodate it
-                builds_file.write(f"\"{signature["in"]}\"\t\"{signature["out"][o]}\"\n")
-                outputs[unresolved_derivation.outputs[o]] = signature["out"][o]["path"]
+                builds_file.write(f"\"{signature["in"]["rdrv_json"]}\"\t\"{signature["out"]["nix"][o]}\"\n")
+                outputs[unresolved_derivation.outputs[o]] = signature["out"]["nix"][o]["path"]
             if debug_dir:
-                filename =  Path(signature["drv_path"]).name
+                filename =  Path(signature["in"]["debug"]["rdrv_path"]).name
                 with open(udrv_path / filename, 'w') as f:
-                    f.write(json.dumps(signature["in_preimage"]))
+                    f.write(json.dumps(signature["in"]["debug"]["rdrv_json_preimage"]))
 
-            drv_path=signature["drv_path"] # TODO: compute this ourselves
+            drv_path=signature["in"]["debug"]["rdrv_path"] # TODO: compute this ourselves
             resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,
                 drv_path=drv_path,

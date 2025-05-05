@@ -64,8 +64,8 @@ def verify_resolved_trace_signature(key_bytes: bytes, signature: str, input_hash
     key = Ed25519PublicKey.from_public_bytes(key_bytes)
 
     payload = verify_signature_payload(key, signature)
-    if payload and payload.get("in") == input_hash:
-        output_hashes = payload.get("out")
+    if payload and payload.get("in").get('rdrv_json') == input_hash:
+        output_hashes = payload.get("out").get('nix')
         if isinstance(output_hashes, dict):
             logger.debug(f"found valid output hash mapping")
             return payload

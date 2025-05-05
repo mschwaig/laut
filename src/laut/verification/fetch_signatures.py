@@ -62,7 +62,7 @@ def fetch_preimage_from_index(drv_name) -> Iterable[tuple[str, str]]:
     one_or_many_drv = index[drv_name]
     if isinstance(one_or_many_drv, list):
         for i in one_or_many_drv:
-            yield (Path(i["drv_path"]).name, i["in_preimage"])
+            yield (Path(i["in"]["debug"]["rdrv_path"]).name, i["in"]["debug"]["rdrv_path"])
     else:
         one = one_or_many_drv
-        yield (Path(one["drv_path"]).name, one["in_preimage"])
+        yield (Path(one["in"]["debug"]["rdrv_path"]).name, one["in"]["debug"]["rdrv_path"])
