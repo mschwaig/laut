@@ -132,15 +132,17 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', allow_duplic
                             print(f"Payload base64: {payload_b64[:50]}...")
                         continue
 
+                    debug_json = payload_json['in']['debug']
                     # Parse in_preimage if it exists and is a string
-                    if 'in_preimage' in payload_json and isinstance(payload_json['in_preimage'], str):
+                    if 'rdrv_json_preimage' in payload_json['in']['debug'] and isinstance(debug_json['rdrv_json_preimage'], str):
                         try:
-                            in_preimage_json = json.loads(payload_json['in_preimage'])
+                            in_preimage_json = json.loads(debug_json['rdrv_json_preimage'])
                             if debug:
                                 print(f"Successfully parsed in_preimage as JSON")
 
                             # Replace the string with the parsed JSON object
-                            payload_json['in_preimage'] = in_preimage_json
+                            payload_json['in']['debug']['rdrv_json_preimage'] = in_preimage_json
+                            debug_json = payload_json['in']['debug']
                         except json.JSONDecodeError as e:
                             if debug:
                                 print(f"Could not parse in_preimage as JSON: {e}")
@@ -150,23 +152,21 @@ def process_json_files(input_dir, output_dir, key_field='drv_path', allow_duplic
                     drv_path = None
 
                     if key_field == 'in':
-                        key_value = payload_json.get('in')
+                        key_value = payload_json.get('in').get('rdrv_json')
                     elif key_field == 'drv_name':
-                        key_value = payload_json.get('in_preimage').get('name')
+                        key_value = debug_json.get('rdrv_json_preimage').get('name')
                     else:  # Default to drv_path
-                        key_value = payload_json.get('drv_path')
+                        key_value = debug_json.get('rdrv_path')
 
                     if not key_value:
                         print(f"Warning: No '{key_field}' found in payload for file {filename}, signature #{i+1}")
-                        # Print available keys to help debugging
-                        print(f"Available payload keys: {list(payload_json.keys())}")
                         continue
 
                     # Check for collisions when using drv_name
                     if key_field == 'drv_name' and not allow_duplicate_keys:
                         if kid in consolidated_data and key_value in consolidated_data[kid]:
                             # In regular mode, this is a dict
-                            existing_drv_path = consolidated_data[kid][key_value].get('drv_path')
+                            existing_drv_path = consolidated_data[kid][key_value].get('in').get('debug').get('rdrv_path')
                             if existing_drv_path != drv_path:
                                 key_collisions[kid].append((key_value, existing_drv_path, drv_path))
                                 if debug:
