@@ -116,9 +116,9 @@ Here is a list of technical terms we use in this project with their definitions:
 <dl>
   <dt>derivation / drv</dt>
   <dd>Nix uses this term for build steps, which are identified and defined by their characteristic input hash. In this project we will define a derivation strictly as an element <code>i</code> in the domain of a function <code>build(i: input) -> output</code> and not as the pair of both input output <code>(i, build(i))</code>.</dd>
-  <dt>unresolved derivation</dt>
+  <dt>unresolved derivation / udrv</dt>
   <dd>A derivation, which depends on other derivations.</dd>
-  <dt>resolved derivation</dt>
+  <dt>resolved derivation / rdrv</dt>
   <dd>A derivation, which does not depend on other derivations (anymore). The content-addressed derivation RFC also calls this a basic derivation.</dd>
   <dt>derivation output / output path</dt>
   <dd>Each derivation can have more than one derivation output, which show up in the Nix store as/at separate output paths, but were created by building the same derivation. This step of indirection and distinction between individual outputs of a derivation is not an important concern when reasoning about trust, but it shows up in the technical details sometimes. Derivation outputs refers to the abstract names of these outputs, written as <code>/nix/store/{hash}-{name}.drv$out</code>, while output path refers to their "physical manifestation" in terms of a path / address and the contents of those outputs in the store, like <code>/nix/store/{hash}-{name}</code> and its content.</dd>
