@@ -2,6 +2,7 @@ import jwt
 from typing import Dict, List, Optional
 import os
 import copy
+import struct
 
 from laut.thumbprint import get_ed25519_thumbprint
 
@@ -92,28 +93,51 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
         str: The JWS signature token
     """
     thumbprint = get_ed25519_thumbprint(private_key.public_key())
+    alg = "EdDSA"
     headers = {
-        "alg": "EdDSA",
-        "type": "ntrace",
-        "v": "1",
-        "kid": f"{key_name}:{thumbprint[:16]}"
+        "type": "laut",
+        "alg": alg,
+        "crv": "Ed25519",
+        "v": "2",
+        "kid": f"{key_name}:{thumbprint[:16]}",
+        "detachHash": "nix-ca-path"
     }
 
     logger.debug(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")
 
+    rebuild_id_bytes = os.urandom(4)
+    rebuild_id = struct.unpack('I', rebuild_id_bytes)[0]
+
     payload = {
-        "in": input_hash,
-        **({"in_preimage": input_data} if config.debug else {}),
-        "drv_path": drv_path,
-        "out": output_hashes,
+        "in": {
+            # "snix": for hash of canonicalized build request?
+            # "rdrv-aterm" for stable hash across nix implementations
+            # we could also make up any other representation of the state here if we wanted to
+            "rdrv_json": input_hash, # will be replaced due to brittleness
+            **({
+                "debug": {
+                    "udrv_path": drv_path,
+                    "rdrv_json_preimage": input_data
+                }
+            } if config.debug else {}),
+        },
+        "out": {
+            # "snix": for castore blake3 hash
+            "nix": output_hashes
+        },
         "builder": {
-            "rebuild": "1",
+            # a random rebuild id so we can reason about reproducibility on the same machine
+            "rebuild_id": rebuild_id,
+            #"logHash": log
+            # "version" = "lix",
+            # "src":  ̛{ "flake": builder_flake_url}
+            # nix.systemFeature.cudaCrit = "v1";
         }
     }
 
     return jwt.encode(
         payload,
         private_key,
-        algorithm="EdDSA",
+        algorithm=alg,
         headers=headers
     )
