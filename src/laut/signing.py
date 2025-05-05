@@ -116,7 +116,7 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
             "rdrv_json": input_hash, # will be replaced due to brittleness
             **({
                 "debug": {
-                    "udrv_path": drv_path,
+                    "rdrv_path": drv_path,
                     "rdrv_json_preimage": input_data
                 }
             } if config.debug else {}),
