@@ -8,5 +8,5 @@
 pkgs.lib.makeScope pkgs.python3Packages.newScope (self: {
   laut = self.callPackage ./nix/laut.nix { };
   laut-sign-only = self.laut.override { sign-only = true; };
-  laut-reason = self.callPackage ./nix/laut-reason.nix { };
+  lautr = self.callPackage ./nix/lautr.nix { };
 })

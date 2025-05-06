@@ -1,7 +1,9 @@
+cargo-features = ["edition2024"]
+
 [package]
-name = "laut_reason"
+name = "lautr"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 
 [dependencies.datafrog]
@@ -11,6 +13,9 @@ version = "2.0.1"
 version = "0.24.1"
 features = ["extension-module"]
 
+[dependencies]
+nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
+
 [lib]
-name = "laut_reason"
+name = "lautr"
 crate-type = ["cdylib"]

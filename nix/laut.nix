@@ -13,7 +13,7 @@
   sigstore,
   loguru,
   sign-only ? false,
-  laut-reason,
+  lautr,
 }:
 
 buildPythonApplication {
@@ -80,7 +80,7 @@ buildPythonApplication {
       cryptography
       boto3
       click
-      sigstore
+      #sigstore
       loguru
     ]
     ++ (
@@ -88,7 +88,7 @@ buildPythonApplication {
         [ ]
       else
         [
-          laut-reason
+          lautr
         ]
     );
 

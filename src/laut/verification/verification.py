@@ -154,8 +154,6 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
-    from laut_reason import simple_datafrog_example
-    result = simple_datafrog_example()
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
         td = Path(temp_dir)

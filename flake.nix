@@ -2,7 +2,7 @@
   description = "Verifiable SBOM VM Tests";
 
   inputs = {
-    nixpkgs.url = "github:mschwaig/nixpkgs/fix-swig-option-for-souffle-before-rebase";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     bombon.url = "github:nikstur/bombon";
     flake-utils.url = "github:numtide/flake-utils";
   };
@@ -51,14 +51,14 @@
             boto3
             click
             loguru
-            sigstore
+            #sigstore
             pytest
             debugpy
             memory_profiler
           ] ++ [
             pkgs.pyright
           ] ++ [
-            scope.laut-reason
+            scope.lautr
           ]);
         in pkgs.mkShell {
           shellHook = ''
@@ -71,7 +71,7 @@
             pkgs.rustc
             pythonEnv
             pkgs.souffle
-            scope.laut-reason
+            scope.lautr
           ];
         };
     });

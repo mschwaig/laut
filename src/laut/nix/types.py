@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Set, Tuple
 from types import MappingProxyType
-from laut.nix.placeholder import from_drv_path_and_output
+from lautr import hash_upstream_placeholder
 
 UnresolvedInputHash = str
 ResolvedInputHash = str
@@ -78,7 +78,7 @@ class TrustlesslyResolvedDerivation:
     outputs: MappingProxyType['UnresolvedOutput', ContentHash]
 
     def placeholder_for(self, output: str):
-        return from_drv_path_and_output(self.drv_path, output)
+        return hash_upstream_placeholder(self.drv_path, output)
 
     def __hash__(self):
         hashable_outputs = frozenset(self.outputs.items())
@@ -100,7 +100,7 @@ class UnresolvedOutput:
     unresolved_path: str # this only exists for input addressed derivations
 
     def placeholder(self):
-        return from_drv_path_and_output(self.drv_path, self.output_name)
+        return hash_upstream_placeholder(self.drv_path, self.output_name)
 
     def __hash__(self):
         return hash((self.input_hash, self.unresolved_path, self.output_name))

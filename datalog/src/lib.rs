@@ -1,10 +1,18 @@
 use pyo3::prelude::*;
 use datafrog::{Iteration, Relation};
+use nix_compat::store_path;
 
 #[pymodule]
-fn laut_reason(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(simple_datafrog_example, m)?)?;
+    m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
     Ok(())
+}
+
+#[pyfunction]
+fn hash_upstream_placeholder(drv_path: &str, output_name: &str) -> PyResult<String> {
+   return store_path::hash_upstream_placeholder("/nix/store/", drv_path, output_name)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(err));
 }
 
 #[pyfunction]

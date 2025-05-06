@@ -6,7 +6,7 @@
 }:
 
 buildPythonPackage {
-  pname = "laut_reason";
+  pname = "lautr";
   version = "0.2.0";
 
   src = ../datalog;
@@ -15,6 +15,9 @@ buildPythonPackage {
 
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ../datalog/Cargo.lock;
+    outputHashes = {
+      "nix-compat-0.1.0" = "sha256-vSC6VxiRCtscfPuhejivMtinZXuj5tin9Mr7XW5cgJs=";
+    };
   };
 
   nativeBuildInputs = with rustPlatform; [
@@ -22,5 +25,5 @@ buildPythonPackage {
     maturinBuildHook
   ];
 
-  pythonImportsCheck = [ "laut_reason" ];
+  pythonImportsCheck = [ "lautr" ];
 }
