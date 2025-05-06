@@ -1,6 +1,6 @@
 {
   system,
-  laut,
+  laut-sign-only,
   nixpkgs,
   lib,
   pkgsIA,
@@ -105,7 +105,7 @@ in {
     systemPackages = with pkgsIA; [
       lix
       git
-      laut
+      laut-sign-only
     ];
   };
 }

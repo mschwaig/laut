@@ -25,17 +25,21 @@ buildPythonApplication {
     let
       fs = lib.fileset;
     in
-    fs.toSource {
-      root = ../.;
-      fileset = fs.unions [
-        ../src/laut
-        ../tests
-        ../testkeys
-        ../pyproject.toml
-        ../LICENSE.md
-        ../README.md
-      ];
-    };
+      fs.toSource {
+        root = ../.;
+        fileset = fs.difference (fs.unions [
+            ../src/laut
+            ../tests
+            ../testkeys
+            ../pyproject.toml
+            ../LICENSE.md
+            ../README.md
+          ]) (
+            if sign-only then
+              ../src/laut/verification
+            else
+              fs.unions []);
+      };
 
   build-system = [
     setuptools
@@ -82,15 +86,8 @@ buildPythonApplication {
       click
       #sigstore
       loguru
-    ]
-    ++ (
-      if sign-only then
-        [ ]
-      else
-        [
-          lautr
-        ]
-    );
+      lautr
+    ];
 
   pythonImportsCheck = [ "laut" ];
 }

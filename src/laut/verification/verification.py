@@ -41,7 +41,6 @@ from ..storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
-from .trust_model import TrustedKey
 from .fetch_signatures import fetch_and_verify_signatures, fetch_preimage_from_index
 from loguru import logger
 from laut.config import config

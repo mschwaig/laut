@@ -1,7 +1,8 @@
 {
   system ? "x86_64-linux",
-  scope ? pkgsIA.callPackage ./default.nix { },
+  scope ? pkgsIA.callPackage ../default.nix { },
   laut ? scope.laut,
+  laut-sign-only ? scope.laut-sign-only,
   nixpkgs ? builtins.fetchTarball {
     url = "https://github.com/NixOS/nixpkgs/archive/4633a7c72337ea8fd23a4f2ba3972865e3ec685d.tar.gz";
     sha256 = "sha256:0z9jlamk8krq097a375qqhyj7ljzb6nlqh652rl4s00p2mf60f6r";
@@ -28,7 +29,7 @@
 let
   flattenList = builtins.concatLists;
   fullArgs = {
-    inherit system scope laut nixpkgs nixpkgs-ca lib pkgsIA pkgsCA pkgsCA' nixpkgs-swh;
+    inherit system scope laut laut-sign-only nixpkgs nixpkgs-ca lib pkgsIA pkgsCA pkgsCA' nixpkgs-swh;
     verifierExtraConfig = {};
   } // args;
 # this code is inspired by

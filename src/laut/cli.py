@@ -5,19 +5,17 @@ import click
 import subprocess
 from loguru import logger
 from laut.config import config
-
-from .verification.verification import verify_tree_from_drv_path
 from .nix.keyfiles import parse_nix_public_key
 from .signing import (
     sign_impl,
     sign_and_upload_impl
 )
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PublicKey
-)
-from .verification.trust_model import TrustedKey
+from laut.nix.keyfiles import TrustedKey
+
 from . import build_config
 
+if not build_config.sign_only:
+    from .verification.verification import verify_tree_from_drv_path
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """
@@ -60,7 +58,7 @@ def cli(ctx: click.Context, debug: bool):
     """Nix build trace signature tool"""
     logger.info("CLI group initialized")
 
-    if build_config.sign_only and ctx.invoked_subcommand and (not ctx.invoked_subcommand in [ "sign" ]):
+    if build_config.sign_only and ctx.invoked_subcommand and (not ctx.invoked_subcommand in [ "sign", "sign-and-upload" ]):
         logger.error(f"invoked subcommand '{ctx.invoked_subcommand}' unavailable in 'sign-only' configuration of laut")
         ctx.exit(1)
     pass
@@ -123,9 +121,9 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
 @cli.command()
 @click.argument('target', required=True)
 @click.option('--cache', required=False, multiple=True,
-              help='URL of signature cache to query (can be specified multiple times)')
+            help='URL of signature cache to query (can be specified multiple times)')
 @click.option('--trusted-key', required=False, multiple=True, type=click.Path(exists=True),
-              help='Path to trusted public key file (can be specified multiple times)')
+            help='Path to trusted public key file (can be specified multiple times)')
 def verify(target, cache, trusted_key):
     """
     Verify signatures for a derivation or flake reference

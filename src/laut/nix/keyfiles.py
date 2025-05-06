@@ -4,7 +4,21 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, 
     Ed25519PublicKey
 )
-from ..verification.trust_model import TrustedKey
+from dataclasses import dataclass
+
+@dataclass (frozen=True)
+class TrustedKey:
+    key_bytes: bytes
+    name: str
+
+    def __hash__(self):
+        return hash((self.key_bytes, self.name))
+    def __eq__(self, other):
+        if not isinstance(other, TrustedKey):
+            return False
+        return (self.key_bytes == other.key_bytes) and (
+            self.name == other.name
+        )
 
 def parse_nix_private_key(key_path: str) -> Ed25519PrivateKey:
     """
