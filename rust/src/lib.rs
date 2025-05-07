@@ -1,12 +1,90 @@
 use pyo3::prelude::*;
+use pyo3::types::{PyList, PyTuple};
 use datafrog::{Iteration, Relation};
 use nix_compat::store_path;
 
+use pyo3::impl_::pymethods::IterBaseKind;
+
+mod string_interner;
+use string_interner::StringInterner;
+
+use std::collections::HashMap;
+
 #[pymodule]
 fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
+
+    m.add_class::<TrustModelReasoner>()?;
+
     m.add_function(wrap_pyfunction!(simple_datafrog_example, m)?)?;
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
+
     Ok(())
+}
+
+#[pyclass]
+struct TrustModelReasoner {
+    interner: StringInterner,
+}
+
+#[pymethods]
+impl TrustModelReasoner {
+    #[new]
+    fn new() -> Self {
+        TrustModelReasoner {
+            interner: StringInterner::new(),
+        }
+    }
+    
+    fn add_fod(&mut self) -> Result<(), PyErr> {
+        // add to FOD relation
+        Ok(())
+    }
+    
+    fn add_unresolved_derivation(&mut self, py: Python, to_add_udrv: &str, depends_on: Vec<String>) -> Result<(), PyErr> {
+        // Extract strings from PyList as needed
+        for item in depends_on.iter() {
+            // Use dep_str
+        }
+        // add to unresolved derivation relation
+        Ok(())
+    }
+    
+    fn add_resolved_derivation(&mut self, py: Python, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
+        // Extract tuples from PyList as needed
+        for (key, value) in &resolving_x_with_y {
+            // Use key and value
+        }
+       // add to resolved derivation relation
+       Ok(())
+    }
+    
+    fn add_build_output_claim(&mut self, py: Python, from_resolved: &str, to_built: &str) -> Result<(), PyErr> {
+        // add to build output claim
+        Ok(())
+    }
+    
+    //#[pyfunction]
+    //fn add_target(build_output, trust_model) -> Result<(), PyErr>  {
+        // add to build output claim
+    //    Ok(())
+    //}
+    
+    //#[pyfunction]
+    //fn add_treshold(tm_name, treshold, constituents) -> Result<(), PyErr> {
+        // add to build output claim
+    //    Ok(())
+    //}
+
+    fn compute_result(&mut self, py: Python) -> Result<(), PyErr> {
+    // compute build output variable
+    
+    // if this a 1:1 relationship unification is total, or we reject builds - no frankenbuilds
+    // if it is a 1:n relationship unification is partial, and we have to do rewriting
+    
+    // in parctice we could make unification only total in terms of runtime closures
+    // and have it be ok if it is not total for build time closures
+        Ok(())
+    }
 }
 
 // let's use a hash map to store all of the actual hashes :D
@@ -30,55 +108,10 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
 // it could drive the build process
 
 #[pyfunction]
-fn setup() -> PyResult<usize> {
-}
-
-#[pyfunction]
-fn add_fod() -> PyResult<usize> {
-    // add to FOD relation
-}
-
-#[pyfunction]
-fn add_unresolved_derivation() -> PyResult<usize> {
-    // add to unresolved derivation relation
-}
-
-7#[pyfunction]
-fn add_resolved_derivation(resolves, with, resolving x with y) -> PyResult<usize> {
-   // add to resolved derivation relation
-}
-
-
-fn add_build_output_claim(resolved, built) -> PyResult<usize> {
-    // add to build output claim
-}
-
-#[pyfunction]
-fn add_target(build_output, trust_model) -> PyResult<usize> {
-    // add to build output claim
-}
-
-#[pyfunction]
-fn add_treshold(tm_name, treshold, constituents) -> PyResult<usize> {
-    // add to build output claim
-}
-
-#[pyfunction]
-fn compute_result() -> PyResult<usize> {
-// compute build output variable
-
-// if this a 1:1 relationship unification is total, or we reject builds - no frankenbuilds
-// if it is a 1:n relationship unification is partial, and we have to do rewriting
-
-// in parctice we could make unification only total in terms of runtime closures
-// and have it be ok if it is not total for build time closures
-}
-
-#[pyfunction]
 fn hash_upstream_placeholder(drv_path: &str, output_name: &str) -> PyResult<String> {
-   return store_path::hash_upstream_placeholder("/nix/store/", drv_path, output_name)
-        .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(err));
-}
+    return store_path::hash_upstream_placeholder("/nix/store/", drv_path, output_name)
+         .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(err));
+ }
 
 #[pyfunction]
 fn simple_datafrog_example() -> PyResult<usize> {
