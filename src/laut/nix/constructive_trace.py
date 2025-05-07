@@ -1,23 +1,23 @@
 from functools import lru_cache
 import json
-import subprocess
 import hashlib
 import base64
 from typing import Optional
+
 from loguru import logger
+import rfc8785
+
 from laut.nix.types import (
     TrustlesslyResolvedDerivation,
     UnresolvedDerivation,
-    ResolvedDerivation,
     ResolvedInputHash,
     UnresolvedOutput,
     ContentHash
 )
 from laut.nix.commands import (
-    get_output_hash_from_disk,
     get_derivation_type
 )
-import rfc8785
+
 
 def get_canonical_derivation(path):
     """Get canonicalized JSON representation of a Nix derivation"""

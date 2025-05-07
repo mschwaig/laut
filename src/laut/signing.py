@@ -1,30 +1,28 @@
-import jwt
 from typing import Dict, List, Optional
 import os
 import copy
 import struct
 
-from laut.thumbprint import get_ed25519_thumbprint
-
-from .storage import upload_signature
+from loguru import logger
+import jwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey
 )
-from .nix.keyfiles import (
+
+from laut.thumbprint import get_ed25519_thumbprint
+from laut.storage import upload_signature
+from laut.nix.keyfiles import (
     parse_nix_private_key,
 )
-from .nix.commands import (
-    get_output_path,
-    get_output_hash_from_disk,
-)
-from .nix.constructive_trace import (
+from laut.nix.constructive_trace import (
     compute_CT_input_hash,
 )
 from laut.nix.commands import (
-    get_derivation_type
+    get_derivation_type,
+    get_output_hash_from_disk,
 )
 from laut.config import config
-from loguru import logger
+
 
 def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths: List[str]):
     result = sign_impl(drv_path, secret_key_file, out_paths)

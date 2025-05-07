@@ -1,21 +1,23 @@
 import sys
 import os
-from typing import Dict, List
-import click
+from typing import List
 import subprocess
+
+import click
 from loguru import logger
+
 from laut.config import config
-from .nix.keyfiles import parse_nix_public_key
-from .signing import (
+from laut.nix.keyfiles import parse_nix_public_key
+from laut.signing import (
     sign_impl,
     sign_and_upload_impl
 )
 from laut.nix.keyfiles import TrustedKey
 
-from . import build_config
+from laut import build_config
 
 if not build_config.sign_only:
-    from .verification.verification import verify_tree_from_drv_path
+    from laut.verification.verification import verify_tree_from_drv_path
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """

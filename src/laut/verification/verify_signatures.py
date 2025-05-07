@@ -1,13 +1,12 @@
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 
+from loguru import logger
 import jwt
-from ..thumbprint import get_ed25519_thumbprint
-
-from ..storage import get_s3_client
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey
 )
-from loguru import logger
+
+from laut.thumbprint import get_ed25519_thumbprint
 
 def shorthand(signature):
     return signature.split(".", 2)[2]

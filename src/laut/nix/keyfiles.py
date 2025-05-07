@@ -1,10 +1,11 @@
 import base64
+from dataclasses import dataclass
+
 from loguru import logger
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, 
     Ed25519PublicKey
 )
-from dataclasses import dataclass
 
 @dataclass (frozen=True)
 class TrustedKey:

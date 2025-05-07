@@ -1,12 +1,12 @@
 from functools import lru_cache
 from pathlib import Path
-
-from laut.verification.verify_signatures import verify_resolved_trace_signature
-from ..storage import get_s3_client
 import json
-from loguru import logger
-from typing import Dict, Iterable, Set, Optional, List
+from typing import Iterable, Optional, List
 
+from loguru import logger
+
+from laut.storage import get_s3_client
+from laut.verification.verify_signatures import verify_resolved_trace_signature
 from laut.config import config
 
 def fetch_resolved_trace_signature_from_s3_bucket(cache_url, input_hash: str) -> Optional[str]:
