@@ -28,8 +28,9 @@
     in {
         packages = {
           inherit nix nix-vsbom test-drv-json;
+          inherit (scope) laut laut-sign-only lautr;
           default = scope.laut;
-        } // scope;
+        };
 
 
         checks = lib.filterAttrs (name: value:
