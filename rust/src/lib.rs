@@ -21,17 +21,25 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+// on a philosopical level I do not think we would need the ability to model
+// resolving different outputs of the same derivation differently
+// but practically thats exactly what legacy signatures end up allowing
+// so I am not sure where we land there
+
 #[pyclass(unsendable)]
 struct TrustModelReasoner {
     interner: StringInterner,
     fill_iteration: Iteration,
     fods: Variable<(usize,usize)>,
-    content_hashes: Variable<usize>,
+    build_outputs: Variable<usize>,
     udrvs: Variable<usize>,
+    udrv_outputs: Variable<usize>,
+    udrvs_has_output_x: Variable<(usize,usize)>,
     udrvs_depends_on_x: Variable<(usize,usize)>,
     rdrvs: Variable<usize>,
+    rdrvs_resolves_x: Variable<(usize,usize)>,
     rdrvs_resolve_x_with_y: Variable<(usize,usize,usize)>,
-    rdrvs_outputs_x: Variable<(usize,usize)>,
+    rdrvs_outputs_x_as_y: Variable<(usize,usize,usize)>,
 }
 
 #[pymethods]
@@ -41,39 +49,49 @@ impl TrustModelReasoner {
         let mut fill_iteration = Iteration::new();
 
         let fods = fill_iteration.variable::<(usize,usize)>("fods");
-        let content_hashes = fill_iteration.variable::<usize>("content_hashes");
+        let build_outputs = fill_iteration.variable::<usize>("build_outputs");
         let udrvs = fill_iteration.variable::<usize>("udrvs");
+        let udrv_outputs = fill_iteration.variable::<>("udrvs_outputs");
+        let udrvs_has_output_x = fill_iteration.variable::<>("udrvs_has_output_x");
         let udrvs_depends_on_x = fill_iteration.variable::<(usize,usize)>("udrvs_depends_on_x");
         let rdrvs = fill_iteration.variable::<usize>("rdrvs");
+        let rdrvs_resolves_x = fill_iteration.variable::<>("rdrvs_resolves_x");
         let rdrvs_resolve_x_with_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_resolve_x_with_y");
-        let rdrvs_outputs_x = fill_iteration.variable::<(usize,usize)>("rdrvs_outputs_x");
+        let rdrvs_outputs_x_as_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_outputs_x_as_y");
 
         TrustModelReasoner {
             interner: StringInterner::new(),
             fill_iteration,
             fods,
-            content_hashes,
+            build_outputs,
             udrvs,
+            udrv_outputs,
+            udrvs_has_output_x,
             udrvs_depends_on_x,
             rdrvs,
+            rdrvs_resolves_x,
             rdrvs_resolve_x_with_y,
-            rdrvs_outputs_x,
+            rdrvs_outputs_x_as_y,
         }
     }
     
     fn add_fod(&mut self, fod_to_add: &str, fod_hash_to_add: &str) -> Result<(), PyErr> {
         self.fods.extend(vec![(self.interner.intern(fod_to_add),self.interner.intern(fod_hash_to_add))]);
         self.udrvs.extend(vec![(self.interner.intern(fod_to_add))]);
-        self.content_hashes.extend(vec![(self.interner.intern(fod_hash_to_add))]);
+        self.build_outputs.extend(vec![(self.interner.intern(fod_hash_to_add))]);
 
         Ok(())
     }
     
-    fn add_unresolved_derivation(&mut self, udrv_to_add: &str, depends_on: Vec<String>) -> Result<(), PyErr> {
+    fn add_unresolved_derivation(&mut self, udrv_to_add: &str, depends_on: Vec<String>, outputs: Vec<String>) -> Result<(), PyErr> {
         self.udrvs.extend(vec![(self.interner.intern(udrv_to_add))]);
         for item in depends_on.iter() {
-            self.udrvs.extend(vec![(self.interner.intern(item))]);
+            self.udrv_outputs.extend(vec![(self.interner.intern(item))]);
             self.udrvs_depends_on_x.extend(vec![(self.interner.intern(udrv_to_add), self.interner.intern(item))]);
+        }
+        for item in outputs.iter() {
+            self.udrv_outputs.extend(vec![(self.interner.intern(item))]);
+            self.udrvs_has_output_x.extend(vec![(self.interner.intern(udrv_to_add), self.interner.intern(item))]);
         }
         Ok(())
     }
@@ -81,10 +99,11 @@ impl TrustModelReasoner {
     fn add_resolved_derivation(&mut self, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
         self.udrvs.extend(vec![(self.interner.intern(resolves_udrv))]);
         self.rdrvs.extend(vec![(self.interner.intern(with_rdrv))]);
+        self.rdrvs_resolves_x.extend(vec![(self.interner.intern(with_rdrv),self.interner.intern(resolves_udrv))]);
 
         for (key, value) in &resolving_x_with_y {
-            self.udrvs.extend(vec![(self.interner.intern(key))]);
-            self.rdrvs.extend(vec![(self.interner.intern(value))]);
+            self.udrv_outputs.extend(vec![(self.interner.intern(key))]);
+            self.build_outputs.extend(vec![(self.interner.intern(value))]);
 
             self.udrvs_depends_on_x.extend(vec![(self.interner.intern(resolves_udrv), self.interner.intern(key))]);
             self.rdrvs_resolve_x_with_y.extend(vec![(self.interner.intern(with_rdrv), self.interner.intern(key), self.interner.intern(value))]);
@@ -93,11 +112,14 @@ impl TrustModelReasoner {
        Ok(())
     }
     
-    fn add_build_output_claim(&mut self, from_resolved: &str, to_built: &str) -> Result<(), PyErr> {
+    fn add_build_output_claim(&mut self, from_resolved: &str, building_x_into_y: HashMap<String, String>) -> Result<(), PyErr> {
         self.rdrvs.extend(vec![(self.interner.intern(from_resolved))]);
-        self.content_hashes.extend(vec![(self.interner.intern(to_built))]);
+        for (as_output, to_built) in &building_x_into_y {
+            self.udrv_outputs.extend(vec![(self.interner.intern(as_output))]);
+            self.build_outputs.extend(vec![(self.interner.intern(to_built))]);
+            self.rdrvs_outputs_x_as_y.extend(vec![(self.interner.intern(from_resolved), self.interner.intern(to_built), self.interner.intern(as_output))]);
+        }
 
-        self.rdrvs_outputs_x.extend(vec![(self.interner.intern(from_resolved), self.interner.intern(to_built))]);
         Ok(())
     }
     
