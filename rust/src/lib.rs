@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
-use datafrog::{Iteration, Relation};
+use datafrog::{Iteration, Relation, Variable};
 use nix_compat::store_path;
 
 use pyo3::impl_::pymethods::IterBaseKind;
@@ -21,27 +21,41 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[pyclass]
+#[pyclass(unsendable)]
 struct TrustModelReasoner {
     interner: StringInterner,
+    fill_iteration: Iteration,
+    fods: Variable<usize>,
+    udrvs: Variable<usize>,
+    rdrvs: Variable<usize>,
 }
 
 #[pymethods]
 impl TrustModelReasoner {
     #[new]
     fn new() -> Self {
+        let mut fill_iteration = Iteration::new();
+
+        let fods = fill_iteration.variable::<usize>("fods");
+        let udrvs = fill_iteration.variable::<usize>("udrvs");
+        let rdrvs = fill_iteration.variable::<usize>("rdrvs");
+
         TrustModelReasoner {
             interner: StringInterner::new(),
+            fill_iteration,
+            fods,
+            udrvs,
+            rdrvs,
         }
     }
     
-    fn add_fod(&mut self) -> Result<(), PyErr> {
-        // add to FOD relation
+    fn add_fod(&mut self, fod_to_add: &str) -> Result<(), PyErr> {
+        self.fods.extend(vec![(self.interner.intern(fod_to_add))]);
         Ok(())
     }
     
-    fn add_unresolved_derivation(&mut self, py: Python, to_add_udrv: &str, depends_on: Vec<String>) -> Result<(), PyErr> {
-        // Extract strings from PyList as needed
+    fn add_unresolved_derivation(&mut self, py: Python, udrv_to_add: &str, depends_on: Vec<String>) -> Result<(), PyErr> {
+        self.udrvs.extend(vec![(self.interner.intern(udrv_to_add))]);
         for item in depends_on.iter() {
             // Use dep_str
         }
@@ -50,7 +64,7 @@ impl TrustModelReasoner {
     }
     
     fn add_resolved_derivation(&mut self, py: Python, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
-        // Extract tuples from PyList as needed
+        self.rdrvs.extend(vec![(self.interner.intern(with_rdrv))]);
         for (key, value) in &resolving_x_with_y {
             // Use key and value
         }

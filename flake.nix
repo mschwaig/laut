@@ -71,7 +71,6 @@
             pkgs.rustc
             pythonEnv
             pkgs.souffle
-            scope.lautr
           ];
         };
     });
