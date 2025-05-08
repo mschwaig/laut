@@ -25,9 +25,13 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
 struct TrustModelReasoner {
     interner: StringInterner,
     fill_iteration: Iteration,
-    fods: Variable<usize>,
+    fods: Variable<(usize,usize)>,
+    content_hashes: Variable<usize>,
     udrvs: Variable<usize>,
+    udrvs_depends_on_x: Variable<(usize,usize)>,
     rdrvs: Variable<usize>,
+    rdrvs_resolve_x_with_y: Variable<(usize,usize,usize)>,
+    rdrvs_outputs_x: Variable<(usize,usize)>,
 }
 
 #[pymethods]
@@ -36,44 +40,64 @@ impl TrustModelReasoner {
     fn new() -> Self {
         let mut fill_iteration = Iteration::new();
 
-        let fods = fill_iteration.variable::<usize>("fods");
+        let fods = fill_iteration.variable::<(usize,usize)>("fods");
+        let content_hashes = fill_iteration.variable::<usize>("content_hashes");
         let udrvs = fill_iteration.variable::<usize>("udrvs");
+        let udrvs_depends_on_x = fill_iteration.variable::<(usize,usize)>("udrvs_depends_on_x");
         let rdrvs = fill_iteration.variable::<usize>("rdrvs");
+        let rdrvs_resolve_x_with_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_resolve_x_with_y");
+        let rdrvs_outputs_x = fill_iteration.variable::<(usize,usize)>("rdrvs_outputs_x");
 
         TrustModelReasoner {
             interner: StringInterner::new(),
             fill_iteration,
             fods,
+            content_hashes,
             udrvs,
+            udrvs_depends_on_x,
             rdrvs,
+            rdrvs_resolve_x_with_y,
+            rdrvs_outputs_x,
         }
     }
     
-    fn add_fod(&mut self, fod_to_add: &str) -> Result<(), PyErr> {
-        self.fods.extend(vec![(self.interner.intern(fod_to_add))]);
+    fn add_fod(&mut self, fod_to_add: &str, fod_hash_to_add: &str) -> Result<(), PyErr> {
+        self.fods.extend(vec![(self.interner.intern(fod_to_add),self.interner.intern(fod_hash_to_add))]);
+        self.udrvs.extend(vec![(self.interner.intern(fod_to_add))]);
+        self.content_hashes.extend(vec![(self.interner.intern(fod_hash_to_add))]);
+
         Ok(())
     }
     
-    fn add_unresolved_derivation(&mut self, py: Python, udrv_to_add: &str, depends_on: Vec<String>) -> Result<(), PyErr> {
+    fn add_unresolved_derivation(&mut self, udrv_to_add: &str, depends_on: Vec<String>) -> Result<(), PyErr> {
         self.udrvs.extend(vec![(self.interner.intern(udrv_to_add))]);
         for item in depends_on.iter() {
-            // Use dep_str
+            self.udrvs.extend(vec![(self.interner.intern(item))]);
+            self.udrvs_depends_on_x.extend(vec![(self.interner.intern(udrv_to_add), self.interner.intern(item))]);
         }
-        // add to unresolved derivation relation
         Ok(())
     }
     
-    fn add_resolved_derivation(&mut self, py: Python, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
+    fn add_resolved_derivation(&mut self, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
+        self.udrvs.extend(vec![(self.interner.intern(resolves_udrv))]);
         self.rdrvs.extend(vec![(self.interner.intern(with_rdrv))]);
+
         for (key, value) in &resolving_x_with_y {
-            // Use key and value
+            self.udrvs.extend(vec![(self.interner.intern(key))]);
+            self.rdrvs.extend(vec![(self.interner.intern(value))]);
+
+            self.udrvs_depends_on_x.extend(vec![(self.interner.intern(resolves_udrv), self.interner.intern(key))]);
+            self.rdrvs_resolve_x_with_y.extend(vec![(self.interner.intern(with_rdrv), self.interner.intern(key), self.interner.intern(value))]);
         }
-       // add to resolved derivation relation
+
        Ok(())
     }
     
-    fn add_build_output_claim(&mut self, py: Python, from_resolved: &str, to_built: &str) -> Result<(), PyErr> {
-        // add to build output claim
+    fn add_build_output_claim(&mut self, from_resolved: &str, to_built: &str) -> Result<(), PyErr> {
+        self.rdrvs.extend(vec![(self.interner.intern(from_resolved))]);
+        self.content_hashes.extend(vec![(self.interner.intern(to_built))]);
+
+        self.rdrvs_outputs_x.extend(vec![(self.interner.intern(from_resolved), self.interner.intern(to_built))]);
         Ok(())
     }
     

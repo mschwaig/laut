@@ -32,6 +32,7 @@ from laut.verification.fetch_signatures import (
 )
 from loguru import logger
 from laut.config import config
+from lautr import TrustModelReasoner
 
 debug_dir = None
 
@@ -143,6 +144,7 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
+    reasoner = TrustModelReasoner()
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
         td = Path(temp_dir)
@@ -157,7 +159,7 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
         resolved_deps_file = open(td / 'resolved_deps.facts', 'w')
         builds_file = open(td / 'builds.facts', 'w')
         
-        root_result = collect_valid_signatures_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        root_result = collect_valid_signatures_tree_rec(derivation, reasoner, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         logger.warning(f"Closing files at {temp_dir}")
         unresolved_deps_file.close()
         resolved_deps_file.close()
@@ -179,7 +181,7 @@ def remember_steps(func):
     return wrap_collect_valid_signatures_tree_rec
 
 @remember_steps
-def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
+def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivation, reasoner: TrustModelReasoner, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
     global debug_dir
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
@@ -190,6 +192,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
             unresolved_derivation.drv_path, 
             dict() # tuple
         )
+        reasoner.add_fod(unresolved_derivation.drv_path, unresolved_derivation.json_attrs["outputs"]["out"]["path"])
         # TODO: lookup expected output hash and return it
         return {
             TrustlesslyResolvedDerivation(
@@ -201,6 +204,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
                 outputs = MappingProxyType({ unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["path"] })
         )}
 
+    #reasoner.add_unresolved_derivation(unresolved_derivation.drv_path, unresolved_derivation)
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
     # TODO: re-enable DCT verification
@@ -210,7 +214,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
     failed = False
     for i in unresolved_derivation.inputs:
         unresolved_deps_file.write(f"{unresolved_derivation.drv_path}\t{i.derivation.drv_path}\n")
-        dep_result = collect_valid_signatures_tree_rec(i.derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        dep_result = collect_valid_signatures_tree_rec(i.derivation, reasoner, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         # TODO: only tack outputs which we actually depend on
         if not dep_result:
             # nope out if we cannot resolve one of our dependencies
@@ -241,6 +245,8 @@ def collect_valid_signatures_tree_rec(unresolved_derivation, unresolved_deps_fil
             resolution
         )
 
+        resolution_str = {k.drv_path: v.input_hash for k, v in resolution.items()}
+        reasoner.add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
         drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
             resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
