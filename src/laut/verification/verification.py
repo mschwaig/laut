@@ -34,6 +34,12 @@ from loguru import logger
 from laut.config import config
 from lautr import TrustModelReasoner
 
+from laut.verification.frogification import (
+    inputs_to_string_list,
+    outputs_to_string_list,
+    signature_to_string_map,
+)
+
 debug_dir = None
 
 def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed_drv: bool) -> Dict[str, UnresolvedOutput]:
@@ -63,6 +69,7 @@ def get_referenced_outputs_of_drv(depender: str, dedpendee_obj: UnresolvedDeriva
     return referenced_obj
 
 _json : Dict = {}
+_reasoner : TrustModelReasoner = TrustModelReasoner()
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
@@ -127,7 +134,7 @@ def get_resolution_combinations(input_resolutions: Dict[K, Set[V]]) -> Iterator[
         return
 
     keys = list(input_resolutions.keys())
-    
+
     resolution_lists = [list(input_resolutions[key]) for key in keys]
 
     for combination in product(*resolution_lists):
@@ -144,7 +151,6 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
-    reasoner = TrustModelReasoner()
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
         td = Path(temp_dir)
@@ -153,13 +159,13 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
             dir_path = td / "debug"
             os.mkdir(dir_path)
             debug_dir = Path(dir_path).resolve()
-    
+
         unresolved_deps_file = open(td / 'unresolved_deps.facts', 'w')
         drv_resolutions_file = open(td / 'drv_resolutions.facts', 'w')
         resolved_deps_file = open(td / 'resolved_deps.facts', 'w')
         builds_file = open(td / 'builds.facts', 'w')
-        
-        root_result = collect_valid_signatures_tree_rec(derivation, reasoner, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+
+        root_result = collect_valid_signatures_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         logger.warning(f"Closing files at {temp_dir}")
         unresolved_deps_file.close()
         resolved_deps_file.close()
@@ -181,18 +187,19 @@ def remember_steps(func):
     return wrap_collect_valid_signatures_tree_rec
 
 @remember_steps
-def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivation, reasoner: TrustModelReasoner, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
+def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
     global debug_dir
+    global _reasoner
     # if we invoke this with a FOD that should probably be an error?
     # we also should not recurse into FODs
 
     if unresolved_derivation.is_fixed_output:
-        
+
         ct_input_hash, ct_input_data = compute_CT_input_hash(
             unresolved_derivation.drv_path, 
             dict() # tuple
         )
-        reasoner.add_fod(unresolved_derivation.drv_path, unresolved_derivation.json_attrs["outputs"]["out"]["path"])
+        _reasoner.add_fod(unresolved_derivation.drv_path, unresolved_derivation.json_attrs["outputs"]["out"]["path"])
         # TODO: lookup expected output hash and return it
         return {
             TrustlesslyResolvedDerivation(
@@ -204,7 +211,10 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
                 outputs = MappingProxyType({ unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["path"] })
         )}
 
-    #reasoner.add_unresolved_derivation(unresolved_derivation.drv_path, unresolved_derivation)
+    _reasoner.add_unresolved_derivation(
+        unresolved_derivation.drv_path,
+        inputs_to_string_list(unresolved_derivation.inputs),
+        outputs_to_string_list(unresolved_derivation.outputs))
     # use allowed DCT input hashes for verification before recursive descent
     # then check if result is sufficient so you can skip recursing
     # TODO: re-enable DCT verification
@@ -214,7 +224,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
     failed = False
     for i in unresolved_derivation.inputs:
         unresolved_deps_file.write(f"{unresolved_derivation.drv_path}\t{i.derivation.drv_path}\n")
-        dep_result = collect_valid_signatures_tree_rec(i.derivation, reasoner, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        dep_result = collect_valid_signatures_tree_rec(i.derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
         # TODO: only tack outputs which we actually depend on
         if not dep_result:
             # nope out if we cannot resolve one of our dependencies
@@ -239,14 +249,14 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
         with open(udrv_path / "u.drv", 'w') as f:
             f.write(json.dumps(unresolved_derivation.json_attrs))
 
-    for resolution in resolutions:            
+    for resolution in resolutions:
         ct_input_hash, ct_input_data = compute_CT_input_hash(
             unresolved_derivation.drv_path, 
             resolution
         )
 
         resolution_str = {k.drv_path: v.input_hash for k, v in resolution.items()}
-        reasoner.add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
+        _reasoner.add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
         drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
             resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
@@ -262,7 +272,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             # if we do not find such a file that might even lead to an exception,
             # because it points to incomplete test data
             # if we do find such a derivation, we should be able to use it to produce a sensible diff
-            # between the input hash preimage on the signing and verification side            
+            # between the input hash preimage on the signing and verification side
             for i in fetch_preimage_from_index(unresolved_derivation.json_attrs["name"]):
                 drv_path, in_preimage = i
                 with open(udrv_path / drv_path, 'w') as f:
@@ -276,6 +286,10 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
+            _reasoner.add_build_output_claim(
+                signature["in"]["rdrv_json"],
+                signature_to_string_map(signature)
+            )
             for o in signature["out"]["nix"]:
                 # TODO: add output name or change data structure in some way to accommodate it
                 builds_file.write(f"\"{signature["in"]["rdrv_json"]}\"\t\"{signature["out"]["nix"][o]}\"\n")
