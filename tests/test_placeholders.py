@@ -1,4 +1,4 @@
-from laut.nix.deep_constructive_trace import get_DCT_input_hash
+from laut.nix.deep_constructive_trace import get_nix_path_input_hash
 from lautr import (
     hash_upstream_placeholder
 )

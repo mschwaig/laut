@@ -17,7 +17,7 @@ from laut.nix.types import (
 from laut.nix.commands import (
     get_derivation_type
 )
-
+from lautr import calculate_drv_path_from_aterm
 
 def get_canonical_derivation(path):
     """Get canonicalized JSON representation of a Nix derivation"""
@@ -127,7 +127,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
     ret_str = json.loads(drv_str)
     return ret_str
 
-def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]) -> tuple[ResolvedInputHash, str]:
+def compute_JSONbased_resolved_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDerivation, TrustlesslyResolvedDerivation]]) -> tuple[ResolvedInputHash, str]:
     """
     Compute the input hash for a derivation path.
     This is the central function that should be used by both signing and verification.
@@ -144,7 +144,15 @@ def compute_CT_input_hash(drv_path: str, resolutions: Optional[dict[UnresolvedDe
 
     return resolved_input_hash, hash_input
 
+def compute_ATERMbased_resolved_input_hash_like_nix(drv_name: str, drv_path: str) -> tuple[ResolvedInputHash, str]:
+    with open(drv_path, 'r') as content_file:
+        drv_aterm = content_file.read()
+
+    path = calculate_drv_path_from_aterm(drv_name, drv_aterm)
+
+    return path, drv_aterm
+
 @lru_cache(maxsize=None)
-def cached_compute_CT_input_hash(drv_path, resolution_tuple):
+def cached_compute_JSONbased_resolved_input_hash(drv_path, resolution_tuple):
     resolution_dict = dict(resolution_tuple)
-    return compute_CT_input_hash(drv_path, resolution_dict)
+    return compute_JSONbased_resolved_input_hash(drv_path, resolution_dict)

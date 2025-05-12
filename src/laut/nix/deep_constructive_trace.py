@@ -1,4 +1,4 @@
-def get_DCT_input_hash(drv_path: str) -> str:
+def get_nix_path_input_hash(drv_path: str) -> str:
     """
     Extract the deep contructive trace based input hash from a derivation path.
     """

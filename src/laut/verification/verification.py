@@ -14,10 +14,10 @@ from laut.nix.commands import (
     get_derivation_type
 )
 from laut.nix.constructive_trace import (
-    compute_CT_input_hash
+    compute_JSONbased_resolved_input_hash
 )
 from laut.nix.deep_constructive_trace import (
-    get_DCT_input_hash,
+    get_nix_path_input_hash,
 )
 from laut.nix.types import (
     UnresolvedDerivation,
@@ -56,7 +56,7 @@ def get_all_outputs_of_drv(node_drv_path: str, is_content_addressed_drv: bool) -
         outputs = {k: UnresolvedOutput(
             output_name=k,
             drv_path=node_drv_path,
-            input_hash = get_DCT_input_hash(v["path"]),
+            input_hash = get_nix_path_input_hash(v["path"]),
             unresolved_path = v["path"]
         ) for k, v in output_json.items()}
     return outputs
@@ -109,7 +109,7 @@ def build_unresolved_tree_rec(node_drv_path: str) -> UnresolvedDerivation:
     unresolved_derivation = UnresolvedDerivation(
         drv_path=node_drv_path,
         json_attrs=json_attrs,
-        input_hash=get_DCT_input_hash(node_drv_path),
+        input_hash=get_nix_path_input_hash(node_drv_path),
         inputs=input_outputs,
         outputs=outputs,
         is_content_addressed=is_content_addressed_drv, # this field should not really mater for FODs because they are leaves in the tree
@@ -195,7 +195,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
 
     if unresolved_derivation.is_fixed_output:
 
-        ct_input_hash, ct_input_data = compute_CT_input_hash(
+        ct_input_hash, ct_input_data = compute_JSONbased_resolved_input_hash(
             unresolved_derivation.drv_path, 
             dict() # tuple
         )
@@ -250,7 +250,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             f.write(json.dumps(unresolved_derivation.json_attrs))
 
     for resolution in resolutions:
-        ct_input_hash, ct_input_data = compute_CT_input_hash(
+        ct_input_hash, ct_input_data = compute_JSONbased_resolved_input_hash(
             unresolved_derivation.drv_path, 
             resolution
         )

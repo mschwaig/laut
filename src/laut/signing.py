@@ -3,6 +3,7 @@ import os
 import copy
 import struct
 
+from laut.nix.deep_constructive_trace import get_nix_path_input_hash
 from loguru import logger
 import jwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -15,7 +16,8 @@ from laut.nix.keyfiles import (
     parse_nix_private_key,
 )
 from laut.nix.constructive_trace import (
-    compute_CT_input_hash,
+    compute_JSONbased_resolved_input_hash,
+    compute_ATERMbased_resolved_input_hash_like_nix
 )
 from laut.nix.commands import (
     get_derivation_type,
@@ -70,13 +72,28 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     key_name = content.split(':', 1)[0]
     private_key = parse_nix_private_key(secret_key_file[0])
 
-    input_hash, input_data = compute_CT_input_hash(drv_path, None)
-    jws_token = create_trace_signature(input_hash, input_data, drv_path, output_hashes, private_key, key_name)
+    input_hash, input_data = compute_JSONbased_resolved_input_hash(drv_path, None)
+
+    computed_drv_path, aterm_bytes = compute_ATERMbased_resolved_input_hash_like_nix(drv_data["name"], drv_path)
+
+    debug_data = {
+        "rdrv_path": drv_path,
+        "rdrv_json_preimage": input_data,
+        "rdrv_computed_path": computed_drv_path,
+        "rdrv_aterm_ca_preimage": aterm_bytes
+    }
+
+    # if a derivation were not able to observe its own name
+    # we could factor out  the name before hashing
+    # to get more cache hits
+    input_hash_aterm = get_nix_path_input_hash(drv_path)
+    
+    jws_token = create_trace_signature(input_hash, input_hash_aterm, debug_data, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
 
     return input_hash, jws_token
 
-def create_trace_signature(input_hash: str, input_data, drv_path: str, output_hashes: Dict,
+def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: dict[str,str], output_hashes: Dict,
                          private_key: Ed25519PrivateKey, key_name: str) -> str:
     """
     Create a JWS signature for outputs
@@ -109,14 +126,12 @@ def create_trace_signature(input_hash: str, input_data, drv_path: str, output_ha
     payload = {
         "in": {
             # "snix": for hash of canonicalized build request?
-            # "rdrv-aterm" for stable hash across nix implementations
-            # we could also make up any other representation of the state here if we wanted to
             "rdrv_json": input_hash, # will be replaced due to brittleness
+            # the best we have right now, unless we define our own competing format
+            # we could also make up any other representation of the state here if we wanted to
+            "rdrv_aterm_ca": input_hash_aterm,
             **({
-                "debug": {
-                    "rdrv_path": drv_path,
-                    "rdrv_json_preimage": input_data
-                }
+                "debug": debug_data
             } if config.debug else {}),
         },
         "out": {
