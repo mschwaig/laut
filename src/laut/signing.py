@@ -141,6 +141,8 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
         "builder": {
             # a random rebuild id so we can reason about reproducibility on the same machine
             "rebuild_id": rebuild_id,
+            # TODO: compute this or get it from config
+            "store_root": "/nix/store",
             #"logHash": log
             # "version" = "lix",
             # "src":  ̛{ "flake": builder_flake_url}
