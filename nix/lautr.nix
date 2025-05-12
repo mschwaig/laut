@@ -16,7 +16,7 @@ buildPythonPackage {
   cargoDeps = rustPlatform.importCargoLock {
     lockFile = ../rust/Cargo.lock;
     outputHashes = {
-      "nix-compat-0.1.0" = "sha256-vSC6VxiRCtscfPuhejivMtinZXuj5tin9Mr7XW5cgJs=";
+      "nix-compat-0.1.0" = "sha256-FsRKjSRobT52NCRSfPs9mUKP4SE17f1f6eyOOrsnXOU=";
     };
   };
 

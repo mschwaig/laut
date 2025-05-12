@@ -1,7 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
+use pyo3::exceptions::PyValueError;
 use datafrog::{Iteration, Relation, Variable};
 use nix_compat::store_path;
+use nix_compat::derivation::calculate_derivation_path_from_aterm;
 
 use pyo3::impl_::pymethods::IterBaseKind;
 
@@ -17,6 +19,7 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(simple_datafrog_example, m)?)?;
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
+    m.add_function(wrap_pyfunction!(calculate_drv_path_from_aterm, m)?)?;
 
     Ok(())
 }
@@ -170,7 +173,15 @@ impl TrustModelReasoner {
 #[pyfunction]
 fn hash_upstream_placeholder(drv_path: &str, output_name: &str) -> PyResult<String> {
     return store_path::hash_upstream_placeholder("/nix/store/", drv_path, output_name)
-         .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(err));
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(err));
+ }
+
+ #[pyfunction]
+fn calculate_drv_path_from_aterm(drv_name: &str, drv_aterm: &str) -> PyResult<String> {
+    let drv_path = calculate_derivation_path_from_aterm(drv_name, drv_aterm.as_bytes())
+        .map_err(|e| PyValueError::new_err(format!("{:?}", e)))?;
+        
+    Ok(drv_path)
  }
 
 #[pyfunction]

@@ -439,7 +439,7 @@ dependencies = [
 [[package]]
 name = "nix-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#526697519abd0b0517926d6782c7b0a608b32734"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#a2ce2577012f82d8db90ef770f34cac1a600022a"
 dependencies = [
  "bitflags",
  "bstr",
@@ -467,7 +467,7 @@ dependencies = [
 [[package]]
 name = "nix-compat-derive"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#526697519abd0b0517926d6782c7b0a608b32734"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#a2ce2577012f82d8db90ef770f34cac1a600022a"
 dependencies = [
  "proc-macro2",
  "quote",
