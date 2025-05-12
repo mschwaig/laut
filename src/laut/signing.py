@@ -77,6 +77,7 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     computed_drv_path, aterm_bytes = compute_ATERMbased_resolved_input_hash_like_nix(drv_data["name"], drv_path)
 
     debug_data = {
+        "drv_name": drv_data["name"],
         "rdrv_path": drv_path,
         "rdrv_json_preimage": input_data,
         "rdrv_computed_path": computed_drv_path,
