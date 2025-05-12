@@ -72,6 +72,10 @@
           pythonEnv
           pkgs.souffle
         ];
+
+        nativeBuildInputs = [
+          pkgs.protobuf
+        ];
       };
   };
 }
