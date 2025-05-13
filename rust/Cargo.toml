@@ -16,7 +16,6 @@ features = ["extension-module"]
 [dependencies]
 nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
 laut-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "laut-compat" }
-#wu-manber = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "wu-manber" }
 
 [lib]
 name = "lautr"
