@@ -1,11 +1,10 @@
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyTuple};
 use pyo3::exceptions::PyValueError;
 use datafrog::{Iteration, Relation, Variable};
 use nix_compat::store_path;
+use laut_compat::content_hash;
 use nix_compat::derivation::calculate_derivation_path_from_aterm;
-
-use pyo3::impl_::pymethods::IterBaseKind;
+use std::path::Path;
 
 mod string_interner;
 use string_interner::StringInterner;
@@ -20,6 +19,8 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(simple_datafrog_example, m)?)?;
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_drv_path_from_aterm, m)?)?;
+    m.add_function(wrap_pyfunction!(calculate_nar_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(calculate_castore_hash, m)?)?;
 
     Ok(())
 }
@@ -182,6 +183,22 @@ fn calculate_drv_path_from_aterm(drv_name: &str, drv_aterm: &str) -> PyResult<St
         .map_err(|e| PyValueError::new_err(format!("{:?}", e)))?;
         
     Ok(drv_path)
+ }
+
+#[pyfunction]
+ fn calculate_nar_hash(path: &str) -> PyResult<String> {
+    let path = Path::new(path);
+    let (hash, _size) = content_hash::calculate_nar_hash(path, None)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", err)))?;
+    Ok(content_hash::format_nar_hash(&hash))
+ }
+
+#[pyfunction]
+ fn calculate_castore_hash(path: &str) -> PyResult<String> {
+    let path = Path::new(path);
+    let result = content_hash::calculate_castore_hash(path)
+        .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", err)))?;
+    Ok(result)
  }
 
 #[pyfunction]

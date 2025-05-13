@@ -24,7 +24,10 @@ from laut.nix.commands import (
     get_output_hash_from_disk,
 )
 from laut.config import config
-
+from lautr import (
+    calculate_nar_hash,
+    calculate_castore_hash,
+)
 
 def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths: List[str]):
     result = sign_impl(drv_path, secret_key_file, out_paths)
@@ -120,6 +123,7 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
     }
 
     logger.debug(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")
+    castore_outputs = { k: calculate_castore_hash(v["path"]) for k,v in output_hashes.items() }
 
     rebuild_id_bytes = os.urandom(4)
     rebuild_id = struct.unpack('I', rebuild_id_bytes)[0]
@@ -136,8 +140,9 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
             } if config.debug else {}),
         },
         "out": {
-            # "snix": for castore blake3 hash
-            "nix": output_hashes
+             # TODO: need to wrap the raw messages in protobuf messages
+            "snix-castore-raw": castore_outputs,
+            "nix": output_hashes,
         },
         "builder": {
             # a random rebuild id so we can reason about reproducibility on the same machine
