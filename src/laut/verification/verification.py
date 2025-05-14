@@ -145,8 +145,9 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDerivation]: #Tuple[list[TrustlesslyResolvedDerivation], dict]:
+def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDerivation]:
     global debug_dir
+    global _reasoner
     # if our goal is not resolving a particular output
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
@@ -172,8 +173,14 @@ def verify_tree(derivation: UnresolvedDerivation) -> list[TrustlesslyResolvedDer
         builds_file.close()
         drv_resolutions_file.close()
 
+        # Compute final results using the trust model reasoner
+        # The Rust code will print the verification results directly
+        resolved_roots = _reasoner.compute_result()
+
+        # Consider verification successful if we have at least one resolved root
+        verification_success = len(resolved_roots) > 0
+
         return root_result
-        # return (root_result, collect_valid_signatures_tree_rec.__wrapped__.cache)
 
 def remember_steps(func):
     func.cache = dict()
@@ -320,6 +327,6 @@ def verify_tree_from_drv_path(drv_path):
     from laut.nix import commands
     all_drv_json = commands.get_derivation(drv_path, True)
     drv = build_unresolved_tree(drv_path, all_drv_json)
-    sucessfully_resolved = verify_tree(drv)
+    resolved_derivations = verify_tree(drv)
 
-    return sucessfully_resolved
+    return resolved_derivations

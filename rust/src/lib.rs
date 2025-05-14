@@ -80,7 +80,7 @@ impl TrustModelReasoner {
     }
     
     fn add_fod(&mut self, fod_to_add: &str, fod_hash_to_add: &str) -> Result<(), PyErr> {
-        self.fods.extend(vec![(self.interner.intern(fod_to_add),self.interner.intern(fod_hash_to_add))]);
+        self.fods.extend(vec![(self.interner.intern(fod_to_add), self.interner.intern(fod_hash_to_add))]);
         self.udrvs.extend(vec![(self.interner.intern(fod_to_add))]);
         self.build_outputs.extend(vec![(self.interner.intern(fod_hash_to_add))]);
 
@@ -103,7 +103,7 @@ impl TrustModelReasoner {
     fn add_resolved_derivation(&mut self, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
         self.udrvs.extend(vec![(self.interner.intern(resolves_udrv))]);
         self.rdrvs.extend(vec![(self.interner.intern(with_rdrv))]);
-        self.rdrvs_resolves_x.extend(vec![(self.interner.intern(with_rdrv),self.interner.intern(resolves_udrv))]);
+        self.rdrvs_resolves_x.extend(vec![(self.interner.intern(with_rdrv), self.interner.intern(resolves_udrv))]);
 
         for (key, value) in &resolving_x_with_y {
             self.udrv_outputs.extend(vec![(self.interner.intern(key))]);
@@ -113,7 +113,7 @@ impl TrustModelReasoner {
             self.rdrvs_resolve_x_with_y.extend(vec![(self.interner.intern(with_rdrv), self.interner.intern(key), self.interner.intern(value))]);
         }
 
-       Ok(())
+        Ok(())
     }
     
     fn add_build_output_claim(&mut self, from_resolved: &str, building_x_into_y: HashMap<String, String>) -> Result<(), PyErr> {
@@ -139,37 +139,150 @@ impl TrustModelReasoner {
     //    Ok(())
     //}
 
-    fn compute_result(&mut self, py: Python) -> Result<(), PyErr> {
-    // compute build output variable
-    
-    // if this a 1:1 relationship unification is total, or we reject builds - no frankenbuilds
-    // if it is a 1:n relationship unification is partial, and we have to do rewriting
-    
-    // in parctice we could make unification only total in terms of runtime closures
-    // and have it be ok if it is not total for build time closures
-        Ok(())
+    fn compute_result(&mut self) -> Result<Vec<String>, PyErr> {
+
+        while self.fill_iteration.changed() {
+            // run empty loop for datalog to reach fixed point
+        }
+
+        // clone into relations so we can do stuff
+        let fods_relation = self.fods.clone().complete();
+        let build_outputs_relation = self.build_outputs.clone().complete();
+        let udrvs_relation = self.udrvs.clone().complete();
+        let udrv_outputs_relation = self.udrv_outputs.clone().complete();
+        let udrvs_has_output_x_relation = self.udrvs_has_output_x.clone().complete();
+        let udrvs_depends_on_x_relation = self.udrvs_depends_on_x.clone().complete();
+        let rdrvs_relation = self.rdrvs.clone().complete();
+        let rdrvs_resolves_x_relation = self.rdrvs_resolves_x.clone().complete();
+        let rdrvs_resolve_x_with_y_relation = self.rdrvs_resolve_x_with_y.clone().complete();
+        let rdrvs_outputs_x_as_y_relation = self.rdrvs_outputs_x_as_y.clone().complete();
+
+        //
+        // do some consistency checks
+        //
+
+        let mut root_candidates: Vec<usize> = Vec::new();
+        let mut dependency_targets: Vec<usize> = Vec::new();
+
+        for &(_, dep) in udrvs_depends_on_x_relation.iter() {
+            dependency_targets.push(dep);
+        }
+        for &udrv in udrvs_relation.iter() {
+            if !dependency_targets.contains(&udrv) {
+                root_candidates.push(udrv);
+            }
+        }
+
+        // (1) unresolved tree has one unique root
+        if root_candidates.len() != 1 {
+            println!("\n=== Verification Results ===\n");
+            println!("❌ Could not find sufficient evidence for verification:");
+            println!("  - Expected exactly one root derivation, found {}", root_candidates.len());
+            return Ok(Vec::new());
+        }
+
+        let root_derivation = root_candidates[0];
+
+        // (1) all leaves are fods
+        // TODO: all fods are leaves
+        let leaf_derivations: Vec<usize> = udrvs_relation.iter()
+            .filter(|&&udrv| {
+                // Count outgoing dependencies for this derivation
+                udrvs_depends_on_x_relation.iter()
+                    .filter(|&&(d, _)| d == udrv)
+                    .count() == 0
+            })
+            .cloned()
+            .collect();
+        for &leaf in &leaf_derivations {
+            let is_fod = fods_relation.iter().any(|&(fod, _)| fod == leaf);
+            if !is_fod {
+                println!("\n=== Verification Results ===\n");
+                println!("❌ Could not find sufficient evidence for verification:");
+                println!("  - Leaf derivation {} is not a fixed-output derivation", self.interner.get_string(leaf).unwrap_or("unknown"));
+                return Ok(Vec::new());
+            }
+        }
+
+        let resolved_roots: Vec<usize> = rdrvs_resolves_x_relation.iter()
+            .filter(|&(_, udrv)| *udrv == root_derivation)
+            .map(|&(rdrv, _)| rdrv)
+            .collect();
+        if resolved_roots.is_empty() {
+            // Root was not resolved, find out what evidence is missing
+            // TODO: do this better
+            println!("\n=== Verification Results ===\n");
+            println!("❌ Could not find sufficient evidence for verification:");
+            println!("  - Root derivation {} was not resolved. Missing evidence.", self.interner.get_string(root_derivation).unwrap_or("unknown"));
+            return Ok(Vec::new());
+        }
+
+        // print outputs
+        let mut root_outputs: Vec<String> = Vec::new();
+
+        for &rdrv in &resolved_roots {
+            let outputs: Vec<(usize, usize)> = rdrvs_outputs_x_as_y_relation.iter()
+                .filter(|&(r, _, _)| *r == rdrv)
+                .map(|&(_, output, name)| (output, name))
+                .collect();
+
+            for (output, name) in outputs {
+                root_outputs.push(format!(
+                    "Output {} of {} resolves to {}",
+                    self.interner.get_string(name).unwrap_or("unknown"),
+                    self.interner.get_string(rdrv).unwrap_or("unknown"),
+                    self.interner.get_string(output).unwrap_or("unknown")
+                ));
+            }
+        }
+
+        println!("\n=== Verification Results ===\n");
+
+        let udrvs_count = udrvs_relation.len();
+        let fods_count = fods_relation.len();
+        let rdrvs_count = rdrvs_relation.len();
+
+        let resolvable_count = udrvs_count - fods_count;
+
+        println!("Build consists of {} unresolved derivations", udrvs_count);
+        println!("with {} fixed-output derivations as leaves", fods_count);
+
+        if resolvable_count > 0 {
+            println!("Resolved {}/{} derivations via signatures",
+                     rdrvs_count, resolvable_count, resolution_ratio);
+        }
+
+        println!("\nVerification status:");
+        println!("✅ The root derivation [{}] was successfully resolved to:",
+                 self.interner.get_string(root_derivation).unwrap_or("unknown"));
+
+        for output in &root_outputs {
+            println!("  - {}", output);
+        }
+
+        if !resolved_roots.is_empty() {
+            println!("\nResolved via:");
+            for &rdrv in &resolved_roots {
+                println!("  - {}", self.interner.get_string(rdrv).unwrap_or("unknown"));
+            }
+        }
+
+        let resolved_root_strings: Vec<String> = resolved_roots
+            .iter()
+            .map(|&rdrv| self.interner.get_string(rdrv).unwrap_or("unknown").to_string())
+            .collect();
+
+        Ok(resolved_root_strings)
+
+        // TODO: take into account different possible ways of unification
+        // if this a 1:1 relationship unification is total, or we reject builds - no frankenbuilds
+        // if it is a 1:n relationship unification is partial, and we have to do rewriting
+        
+        // in parctice we could make unification only total in terms of runtime closures
+        // and have it be ok if it is not total for build time closures
+
     }
 }
-
-// let's use a hash map to store all of the actual hashes :D
-// insetad of mucking around with extracting the correct bits
-// from the inputs and storing them efficiently
-// this way we can feed in correctly formatted production data
-// but also abbreviated test data
-// and if we want, we can still do vaildation on the test data
-
-// we could also be ultra lazy and say we take hashing seriously and if hashes collide then we consider things to be the same
-// that way we can either do the hash function thing I just supposed, and assign increasing integers that way
-// or we can just use the hash values raw, if that is faster
-// we just cannot shorten them, because that makes us prone to collisions in the validation
-
-// I also like datafrog, because I think we could get nice error messages out if it
-// and maybe even a set of next actions if we are in the process of building stuff
-// and already specified the unresolved graph
-
-// it could tell us to fetch signatures
-// or build stuff
-// it could drive the build process
 
 #[pyfunction]
 fn hash_upstream_placeholder(drv_path: &str, output_name: &str) -> PyResult<String> {
@@ -223,7 +336,7 @@ fn simple_datafrog_example() -> PyResult<usize> {
         nodes_var.from_join(&nodes_var, &edges_var, |_b, &a, &c| (c,a));
     }
 
-    let reachable: Relation<(u32,u32)> = nodes_var.complete();
+    let _reachable: Relation<(u32,u32)> = nodes_var.complete();
 
     Ok(66)
 }
