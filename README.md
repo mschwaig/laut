@@ -61,9 +61,7 @@ It's a python program. The signing is very straightforward python code.
 
 The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree and emits facts about the dependency tree to some files.
 As part of this verification phase, the tool also gathers signatures from a set of caches, taking into account possible combinations of inputs by content hash, which could satisfy the dependency on those same inputs by input hash.
-These files then serve as the input to a datalog program using SWIG, to make the actual determination about the validity of the dependency tree.
-
-The datalog program is compiled using souffle inside of its own derivation.
+These files then serve as the input to a datalog program, to make the actual determination about the validity of the dependency tree.
 
 ### How can I test it
 

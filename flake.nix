@@ -70,7 +70,6 @@
           pkgs.cargo
           pkgs.rustc
           pythonEnv
-          pkgs.souffle
         ];
 
         nativeBuildInputs = [
