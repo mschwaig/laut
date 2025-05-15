@@ -40,6 +40,8 @@ in {
 
   nix = {
     package = pkgsIA.lix;
+    # see https://jade.fyi/blog/pinning-nixos-with-npins/ for an explanation
+    # and how to do something similar with flakes
     nixPath = [
       "nixpkgs=${nixpkgs}"
       "nixpkgs-ca=${
