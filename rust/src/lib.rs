@@ -21,7 +21,7 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_drv_path_from_aterm, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_nar_hash, m)?)?;
-    m.add_function(wrap_pyfunction!(calculate_castore_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(create_castore_entry, m)?)?;
 
     Ok(())
 }
@@ -49,9 +49,9 @@ fn calculate_drv_path_from_aterm(drv_name: &str, drv_aterm: &str) -> PyResult<St
  }
 
 #[pyfunction]
- fn calculate_castore_hash(path: &str) -> PyResult<String> {
+ fn create_castore_entry(path: &str) -> PyResult<String> {
     let path = Path::new(path);
-    let result = content_hash::calculate_castore_hash(path)
+    let result = content_hash::create_castore_entry(path)
         .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", err)))?;
     Ok(result)
  }
