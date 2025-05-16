@@ -206,6 +206,54 @@ impl TrustModelReasoner {
             return Ok(Vec::new());
         }
 
+        // Verify that all trusted keys have signed all the build output claims
+        let trusted_keys_set: Vec<usize> = trusted_keys_relation.iter()
+            .cloned()
+            .collect();
+
+        // For each resolved root, check if all trusted keys have signed it
+        let mut verified_roots: Vec<usize> = Vec::new();
+        for &rdrv in &resolved_roots {
+            let signing_keys: Vec<usize> = rdrvs_outputs_x_as_y_says_z_relation.iter()
+                .filter(|&(r, _, _, _)| *r == rdrv)
+                .map(|&(_, _, _, key)| key)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .collect();
+
+            // Check if all trusted keys are present in signing keys
+            let all_keys_signed = trusted_keys_set.iter()
+                .all(|trusted_key| signing_keys.contains(trusted_key));
+
+            if all_keys_signed {
+                verified_roots.push(rdrv);
+            } else {
+                println!("❌ Not all trusted keys signed resolution {}",
+                    self.interner.get_string(rdrv).unwrap_or("unknown"));
+
+                // Find which keys are missing
+                let missing_keys: Vec<usize> = trusted_keys_set.iter()
+                    .filter(|trusted_key| !signing_keys.contains(trusted_key))
+                    .cloned()
+                    .collect();
+
+                for missing_key in missing_keys {
+                    println!("  - Missing signature from: {}",
+                        self.interner.get_string(missing_key).unwrap_or("unknown"));
+                }
+            }
+        }
+
+        if verified_roots.is_empty() {
+            println!("\n=== Verification Results ===\n");
+            println!("❌ Could not find sufficient evidence for verification:");
+            println!("  - No roots were signed by all trusted keys");
+            return Ok(Vec::new());
+        }
+
+        // Use verified_roots instead of resolved_roots from here on
+        let resolved_roots = verified_roots;
+
         // print outputs
         let mut root_outputs: Vec<String> = Vec::new();
 
