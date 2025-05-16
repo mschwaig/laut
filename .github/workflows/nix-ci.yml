@@ -52,4 +52,6 @@ jobs:
           --no-nom \
           --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-mem-constrained.driver"
+          ls -alh .
+          ls -alh ./result-
           ./result-/bin/nixos-test-driver
