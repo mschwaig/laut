@@ -8,6 +8,7 @@ from loguru import logger
 from laut.storage import get_s3_client
 from laut.verification.verify_signatures import verify_resolved_trace_signature
 from laut.config import config
+import jwt
 
 def fetch_resolved_trace_signature_from_s3_bucket(cache_url, input_hash: str) -> Optional[str]:
     try:
@@ -45,7 +46,16 @@ def verify_signatures(input_hash, all_signatures):
         for signature in all_signatures:
             valid_signature_data = verify_resolved_trace_signature(key.key_bytes, signature, input_hash)
             if valid_signature_data:
-                valid_signature_data_list.append(valid_signature_data)
+                # Extract full kid from JWT header
+                # TODO: Eventually require full public key and use kid for display only
+                header = jwt.get_unverified_header(signature)
+                if 'kid' not in header:
+                    logger.warning("signature missing kid in header, skipping")
+                    continue
+
+                kid = header['kid']
+                # Return tuple of (signature_data, signing_key)
+                valid_signature_data_list.append((valid_signature_data, kid))
 
     logger.debug(f"found {len(valid_signature_data_list)} valid output hash mappings")
     return valid_signature_data_list

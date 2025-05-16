@@ -69,7 +69,8 @@ def get_referenced_outputs_of_drv(depender: str, dedpendee_obj: UnresolvedDeriva
     return referenced_obj
 
 _json : Dict = {}
-_reasoner : TrustModelReasoner = TrustModelReasoner()
+# TODO: These trusted keys should come from command line arguments
+_reasoner : TrustModelReasoner = TrustModelReasoner(["builderA:bcda8d54470fea3b", "builderB:d9780179d7239d51"])
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
@@ -289,24 +290,25 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
                         stdout=sys.stdout,
                         stderr=sys.stdout)
                     process.wait()
-        for signature in signatures:
+        for signature_data, signing_key in signatures:
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
             _reasoner.add_build_output_claim(
-                signature["in"]["rdrv_json"],
-                signature_to_string_map(signature)
+                signature_data["in"]["rdrv_json"],
+                signature_to_string_map(signature_data),
+                signing_key
             )
-            for o in signature["out"]["nix"]:
+            for o in signature_data["out"]["nix"]:
                 # TODO: add output name or change data structure in some way to accommodate it
-                builds_file.write(f"\"{signature["in"]["rdrv_json"]}\"\t\"{signature["out"]["nix"][o]}\"\n")
-                outputs[unresolved_derivation.outputs[o]] = signature["out"]["nix"][o]["path"]
+                builds_file.write(f"\"{signature_data["in"]["rdrv_json"]}\"\t\"{signature_data["out"]["nix"][o]}\"\n")
+                outputs[unresolved_derivation.outputs[o]] = signature_data["out"]["nix"][o]["path"]
             if debug_dir:
-                filename =  Path(signature["in"]["debug"]["rdrv_path"]).name
+                filename =  Path(signature_data["in"]["debug"]["rdrv_path"]).name
                 with open(udrv_path / filename, 'w') as f:
-                    f.write(json.dumps(signature["in"]["debug"]["rdrv_json_preimage"]))
+                    f.write(json.dumps(signature_data["in"]["debug"]["rdrv_json_preimage"]))
 
-            drv_path=signature["in"]["debug"]["rdrv_path"] # TODO: compute this ourselves
+            drv_path=signature_data["in"]["debug"]["rdrv_path"] # TODO: compute this ourselves
             resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,
                 drv_path=drv_path,

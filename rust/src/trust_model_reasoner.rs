@@ -18,13 +18,14 @@ pub struct TrustModelReasoner {
     rdrvs: Variable<usize>,
     rdrvs_resolves_x: Variable<(usize,usize)>,
     rdrvs_resolve_x_with_y: Variable<(usize,usize,usize)>,
-    rdrvs_outputs_x_as_y: Variable<(usize,usize,usize)>,
+    rdrvs_outputs_x_as_y_says_z: Variable<(usize,usize,usize,usize)>,
+    trusted_keys: Variable<usize>,
 }
 
 #[pymethods]
 impl TrustModelReasoner {
     #[new]
-    fn new() -> Self {
+    fn new(trusted_keys: Vec<String>) -> Self {
         let mut fill_iteration = Iteration::new();
 
         let fods = fill_iteration.variable::<(usize,usize)>("fods");
@@ -36,10 +37,20 @@ impl TrustModelReasoner {
         let rdrvs = fill_iteration.variable::<usize>("rdrvs");
         let rdrvs_resolves_x = fill_iteration.variable::<>("rdrvs_resolves_x");
         let rdrvs_resolve_x_with_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_resolve_x_with_y");
-        let rdrvs_outputs_x_as_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_outputs_x_as_y");
+        let rdrvs_outputs_x_as_y_says_z = fill_iteration.variable::<(usize,usize,usize,usize)>("rdrvs_outputs_x_as_y_says_z");
+        let trusted_keys_var = fill_iteration.variable::<usize>("trusted_keys");
+
+        let mut interner = StringInterner::new();
+
+        // Intern the trusted keys and populate the variable
+        let interned_keys: Vec<usize> = trusted_keys.iter()
+            .map(|key| interner.intern(key))
+            .collect();
+
+        trusted_keys_var.extend(interned_keys);
 
         TrustModelReasoner {
-            interner: StringInterner::new(),
+            interner,
             fill_iteration,
             fods,
             build_outputs,
@@ -50,7 +61,8 @@ impl TrustModelReasoner {
             rdrvs,
             rdrvs_resolves_x,
             rdrvs_resolve_x_with_y,
-            rdrvs_outputs_x_as_y,
+            rdrvs_outputs_x_as_y_says_z,
+            trusted_keys: trusted_keys_var,
         }
     }
     
@@ -91,12 +103,13 @@ impl TrustModelReasoner {
         Ok(())
     }
     
-    fn add_build_output_claim(&mut self, from_resolved: &str, building_x_into_y: HashMap<String, String>) -> Result<(), PyErr> {
+    fn add_build_output_claim(&mut self, from_resolved: &str, building_x_into_y_says_z: HashMap<String, String>, according_to: &str) -> Result<(), PyErr> {
         self.rdrvs.extend(vec![(self.interner.intern(from_resolved))]);
-        for (as_output, to_built) in &building_x_into_y {
+        let interned_key = self.interner.intern(according_to);
+        for (as_output, to_built) in &building_x_into_y_says_z {
             self.udrv_outputs.extend(vec![(self.interner.intern(as_output))]);
             self.build_outputs.extend(vec![(self.interner.intern(to_built))]);
-            self.rdrvs_outputs_x_as_y.extend(vec![(self.interner.intern(from_resolved), self.interner.intern(to_built), self.interner.intern(as_output))]);
+            self.rdrvs_outputs_x_as_y_says_z.extend(vec![(self.interner.intern(from_resolved), self.interner.intern(to_built), self.interner.intern(as_output), interned_key)]);
         }
 
         Ok(())
@@ -130,7 +143,8 @@ impl TrustModelReasoner {
         let rdrvs_relation = self.rdrvs.clone().complete();
         let rdrvs_resolves_x_relation = self.rdrvs_resolves_x.clone().complete();
         let rdrvs_resolve_x_with_y_relation = self.rdrvs_resolve_x_with_y.clone().complete();
-        let rdrvs_outputs_x_as_y_relation = self.rdrvs_outputs_x_as_y.clone().complete();
+        let rdrvs_outputs_x_as_y_says_z_relation = self.rdrvs_outputs_x_as_y_says_z.clone().complete();
+        let trusted_keys_relation = self.trusted_keys.clone().complete();
 
         //
         // do some consistency checks
@@ -196,17 +210,18 @@ impl TrustModelReasoner {
         let mut root_outputs: Vec<String> = Vec::new();
 
         for &rdrv in &resolved_roots {
-            let outputs: Vec<(usize, usize)> = rdrvs_outputs_x_as_y_relation.iter()
-                .filter(|&(r, _, _)| *r == rdrv)
-                .map(|&(_, output, name)| (output, name))
+            let outputs: Vec<(usize, usize, usize)> = rdrvs_outputs_x_as_y_says_z_relation.iter()
+                .filter(|&(r, _, _, _)| *r == rdrv)
+                .map(|&(_, output, name, key)| (output, name, key))
                 .collect();
 
-            for (output, name) in outputs {
+            for (output, name, key) in outputs {
                 root_outputs.push(format!(
-                    "Output {} of {} resolves to {}",
+                    "Output {} of {} resolves to {} (signed by {})",
                     self.interner.get_string(name).unwrap_or("unknown"),
                     self.interner.get_string(rdrv).unwrap_or("unknown"),
-                    self.interner.get_string(output).unwrap_or("unknown")
+                    self.interner.get_string(output).unwrap_or("unknown"),
+                    self.interner.get_string(key).unwrap_or("unknown")
                 ));
             }
         }
