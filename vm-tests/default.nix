@@ -48,7 +48,7 @@ in {
     isMemoryConstrained = true;
   });
 
-  large-mem-contrained = import ./test-template.nix (fullArgs // {
+  large-mem-constrained = import ./test-template.nix (fullArgs // {
     testName = "large";
     packageToBuild = [ "hello" ];
     isMemoryConstrained = true;
