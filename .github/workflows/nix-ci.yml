@@ -50,6 +50,5 @@ jobs:
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-mem-constrained.driver"
           ./result-/bin/nixos-test-driver
