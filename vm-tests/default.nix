@@ -33,14 +33,27 @@ in {
   small = import ./test-template.nix (fullArgs // {
     testName = "small";
     packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-    isSmallTest = true;
+    isMemoryConstrained = false;
   });
 
   large = import ./test-template.nix (fullArgs // {
     testName = "large";
     packageToBuild = [ "hello" ];
-    isSmallTest = false;
+    isMemoryConstrained = false;
   });
+
+  small-mem-constrained = import ./test-template.nix (fullArgs // {
+    testName = "small";
+    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    isMemoryConstrained = true;
+  });
+
+  large-mem-contrained = import ./test-template.nix (fullArgs // {
+    testName = "large";
+    packageToBuild = [ "hello" ];
+    isMemoryConstrained = true;
+  });
+
 
 
   # Full local reproducibility model - trusts only itself

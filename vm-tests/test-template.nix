@@ -7,7 +7,7 @@
   cacheStoreUrl ? "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1",
   packageToBuild,
   verifierExtraConfig ? {},
-  isSmallTest,
+  isMemoryConstrained,
   ...
 }@args:
 
@@ -47,7 +47,7 @@ in
         cacheSecretKey = "${fullArgs.cacheSecretKey}"
         packageToBuild = "${packageToBuildStr}"
         cacheStoreUrl = "${cacheStoreUrl}"
-        isSmallTest = ${if isSmallTest then "True" else "False"}
+        isMemoryConstrained = ${if isMemoryConstrained then "True" else "False"}
         builderA_pub = "${../testkeys/builderA_key.public}"
         builderB_pub = "${../testkeys/builderB_key.public}"
 
