@@ -70,7 +70,10 @@ def get_referenced_outputs_of_drv(depender: str, dedpendee_obj: UnresolvedDeriva
 
 _json : Dict = {}
 # TODO: These trusted keys should come from command line arguments
-_reasoner : TrustModelReasoner = TrustModelReasoner(["builderA:bcda8d54470fea3b", "builderB:d9780179d7239d51"])
+# For now, using the same configuration as signature verification
+trusted_key_names = [key.name for key in config.trusted_keys]
+logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}")
+_reasoner : TrustModelReasoner = TrustModelReasoner(trusted_key_names)
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
@@ -178,8 +181,18 @@ def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDeri
         # The Rust code will print the verification results directly
         resolved_roots = _reasoner.compute_result()
 
+        logger.warning(f"Trust model resolved roots: {resolved_roots}")
+        logger.warning(f"Root result from signatures: {root_result}")
+
         # Consider verification successful if we have at least one resolved root
-        verification_success = len(resolved_roots) > 0
+        verification_success = len(resolved_roots) >= len(config.trusted_keys)
+
+        logger.warning(f"Trust model verification success: {verification_success}")
+
+        # If trust model verification failed, return empty set
+        if not verification_success:
+            logger.warning("Trust model verification failed - returning empty set")
+            return set()
 
         return root_result
 

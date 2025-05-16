@@ -58,7 +58,9 @@ else:
 verifier.start()
 verifier.wait_for_unit("default.target")
 
-verifier.succeed(f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} $(nix-instantiate '<nixpkgs-ca>' -A {packageToBuild})")
+verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} $(nix-instantiate '<nixpkgs-ca>' -A {packageToBuild})"
+output = verifier.succeed(verify_cmd)
+print(f"laut verify output:\n{output}")
 
 # verifier.fail("nix path-info cowsayPackage")
 # verifier.succeed(f"nix store info --store '{cacheStoreUrl}' >&2")
