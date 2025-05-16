@@ -32,12 +32,7 @@
       };
 
 
-      checks.${system} = lib.filterAttrs (name: value:
-        # since AND for trust models is not implemented yet
-        # we only run one small and one large text
-        # using builderA OR builderB as the trust model
-        (name == "small") || (name == "large"))
-        (import ./vm-tests {
+      checks.${system} = (import ./vm-tests {
           pkgsIA = pkgs;
           inherit nixpkgs;
           inherit (scope) laut;
