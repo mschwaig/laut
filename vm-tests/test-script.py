@@ -43,6 +43,11 @@ if isSmallTest:
   future = build_and_upload(builderA)
   future.result()
   builderA.shutdown()
+  future = boot_and_configure(builderB)
+  future.result()
+  future = build_and_upload(builderB)
+  future.result()
+  builderB.shutdown()
 else:
   future1, future2 = boot_and_configure(builderA), boot_and_configure(builderB)
   future1.result()
