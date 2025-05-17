@@ -72,8 +72,10 @@ _json : Dict = {}
 # TODO: These trusted keys should come from command line arguments
 # For now, using the same configuration as signature verification
 trusted_key_names = [key.name for key in config.trusted_keys]
-logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}")
-_reasoner : TrustModelReasoner = TrustModelReasoner(trusted_key_names)
+# For now, default threshold equals number of keys (current behavior)
+threshold = len(trusted_key_names)
+logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}, threshold: {threshold}")
+_reasoner : TrustModelReasoner = TrustModelReasoner(trusted_key_names, threshold)
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
