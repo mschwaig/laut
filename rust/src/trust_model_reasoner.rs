@@ -105,9 +105,21 @@ impl TrustModelReasoner {
     }
     
     fn add_fod(&mut self, fod_to_add: &str, fod_hash_to_add: &str) -> Result<(), PyErr> {
-        self.fods.extend(vec![(self.interner.intern(fod_to_add), self.interner.intern(fod_hash_to_add))]);
-        self.udrvs.extend(vec![(self.interner.intern(fod_to_add))]);
-        self.build_outputs.extend(vec![(self.interner.intern(fod_hash_to_add))]);
+        let fod_id = self.interner.intern(fod_to_add);
+        let fod_hash_id = self.interner.intern(fod_hash_to_add);
+
+        self.fods.extend(vec![(fod_id, fod_hash_id)]);
+        self.udrvs.extend(vec![fod_id]);
+        self.build_outputs.extend(vec![fod_hash_id]);
+
+        // FODs have one output which is their content hash
+        // We need to add this to udrvs_has_output_x so the cardinality initialization can find it
+        let fod_output = self.interner.intern(&format!("{}$out", fod_to_add));
+        self.udrv_outputs.extend(vec![fod_output]);
+        self.udrvs_has_output_x.extend(vec![(fod_id, fod_output)]);
+
+        println!("Added FOD: {} with hash {} and output {}",
+            fod_to_add, fod_hash_to_add, self.interner.get_string(fod_output).unwrap_or("unknown"));
 
         Ok(())
     }
@@ -116,10 +128,15 @@ impl TrustModelReasoner {
         let udrv_id = self.interner.intern(udrv_to_add);
         self.udrvs.extend(vec![udrv_id]);
 
+        println!("Adding unresolved derivation: {}", udrv_to_add);
+        println!("  Dependencies: {:?}", depends_on);
+        println!("  Outputs: {:?}", outputs);
+
         for item in depends_on.iter() {
             let dep_id = self.interner.intern(item);
             self.udrv_outputs.extend(vec![dep_id]);
             self.udrvs_depends_on_x.extend(vec![(udrv_id, dep_id)]);
+            println!("  Added dependency: {} -> {}", udrv_to_add, item);
         }
         for item in outputs.iter() {
             let out_id = self.interner.intern(item);
@@ -221,10 +238,14 @@ impl TrustModelReasoner {
         let effective_cardinality = cardinality_iteration.variable::<(usize, usize)>("effective_cardinality");
 
         // Initialize FOD outputs with infinite cardinality
+        println!("\n=== FOD Initialization ===");
         for &(fod, _) in fods_relation.iter() {
+            println!("FOD: {}", self.interner.get_string(fod).unwrap_or("unknown"));
             for &(udrv, output) in udrvs_has_output_x_relation.iter() {
                 if udrv == fod {
                     effective_cardinality.extend(vec![(output, usize::MAX)]);
+                    println!("  Initialized FOD output {} with ∞ cardinality",
+                        self.interner.get_string(output).unwrap_or("unknown"));
                 }
             }
         }
@@ -251,12 +272,29 @@ impl TrustModelReasoner {
         let output_set_maps_relation = self.output_set_maps.clone().complete();
         let mut output_signatures: HashMap<usize, usize> = HashMap::new();
         println!("\n=== Output Signature Mapping ===");
-        for &(output_set, udrv_output, _) in output_set_maps_relation.iter() {
+        println!("Number of output sets with signatures: {}", output_set_signatures.len());
+        println!("Number of output set mappings: {}", output_set_maps_relation.len());
+
+        for &(output_set, udrv_output, build_output) in output_set_maps_relation.iter() {
+            let output_set_str = self.interner.get_string(output_set).unwrap_or("unknown");
+            let udrv_output_str = self.interner.get_string(udrv_output).unwrap_or("unknown");
+            let build_output_str = self.interner.get_string(build_output).unwrap_or("unknown");
+
             if let Some(&sig_count) = output_set_signatures.get(&output_set) {
-                output_signatures.insert(udrv_output, sig_count);
-                println!("  Output {} -> {} signatures",
-                    self.interner.get_string(udrv_output).unwrap_or("unknown"),
-                    sig_count);
+                // The udrv_output here is just the output name (e.g., "out")
+                // We need to find all full paths that use this output name
+                for &(udrv, full_output) in udrvs_has_output_x_relation.iter() {
+                    let full_output_str = self.interner.get_string(full_output).unwrap_or("");
+                    // Check if this output corresponds to our output name
+                    if full_output_str.ends_with(&format!("${}", udrv_output_str)) {
+                        output_signatures.insert(full_output, sig_count);
+                        println!("  Output {} (name: {}, mapped to {}) from set {} -> {} signatures",
+                            full_output_str, udrv_output_str, build_output_str, output_set_str, sig_count);
+                    }
+                }
+            } else {
+                println!("  Output {} (mapped to {}) from set {} -> NO signatures found!",
+                    udrv_output_str, build_output_str, output_set_str);
             }
         }
 
@@ -280,31 +318,62 @@ impl TrustModelReasoner {
                     continue;
                 }
 
+                let udrv_str = self.interner.get_string(udrv).unwrap_or("unknown");
+                let output_str = self.interner.get_string(output).unwrap_or("unknown");
+                println!("Checking output {} of udrv {}", output_str, udrv_str);
+
                 // Find min cardinality of all dependencies
                 let mut min_dep_cardinality = usize::MAX;
                 let mut all_deps_have_cardinality = true;
+                let mut dep_count = 0;
 
                 for &(dep_udrv, dep_output) in udrvs_depends_on_x_relation.iter() {
                     if dep_udrv == udrv {
+                        dep_count += 1;
+                        let dep_output_str = self.interner.get_string(dep_output).unwrap_or("unknown");
                         if let Some(&card) = cardinality_map.get(&dep_output) {
+                            println!("  Dependency {} has cardinality {}", dep_output_str, card);
                             min_dep_cardinality = min_dep_cardinality.min(card);
                         } else {
+                            println!("  Dependency {} has NO cardinality yet", dep_output_str);
                             all_deps_have_cardinality = false;
                             break;
                         }
                     }
                 }
 
-                // If all dependencies have cardinality, compute output cardinality
+                if dep_count == 0 {
+                    println!("  No dependencies found");
+                }
+
+                // If all dependencies have cardinality (or no dependencies), compute output cardinality
                 if all_deps_have_cardinality {
-                    let sig_count = output_signatures.get(&output).copied().unwrap_or(0);
-                    let final_cardinality = min_dep_cardinality.min(sig_count);
+                    // Check if this output belongs to a FOD by checking if it's already marked with infinite cardinality
+                    // in the cardinality_map (FODs are initialized with infinite cardinality)
+                    let is_fod_output = cardinality_map.get(&output).map_or(false, |&c| c == usize::MAX);
+
+                    let final_cardinality = if is_fod_output {
+                        // FOD outputs always have infinite cardinality (trusted by content hash)
+                        usize::MAX
+                    } else {
+                        // Regular outputs use signature count and dependency cardinality
+                        let sig_count = output_signatures.get(&output).copied().unwrap_or(0);
+                        if dep_count == 0 {
+                            // For nodes with no dependencies, cardinality is just the signature count
+                            sig_count
+                        } else {
+                            min_dep_cardinality.min(sig_count)
+                        }
+                    };
+
                     effective_cardinality.extend(vec![(output, final_cardinality)]);
-                    println!("  Output {} -> cardinality {} (deps: {}, sigs: {})",
-                        self.interner.get_string(output).unwrap_or("unknown"),
-                        final_cardinality,
+                    let sig_count = output_signatures.get(&output).copied().unwrap_or(0);
+                    println!("  Output {} -> cardinality {} (deps: {}, sigs: {}, is_fod: {})",
+                        output_str,
+                        if final_cardinality == usize::MAX { "∞".to_string() } else { final_cardinality.to_string() },
                         if min_dep_cardinality == usize::MAX { "∞".to_string() } else { min_dep_cardinality.to_string() },
-                        sig_count);
+                        sig_count,
+                        is_fod_output);
                 }
             }
         }
