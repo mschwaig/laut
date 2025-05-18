@@ -69,13 +69,23 @@ def get_referenced_outputs_of_drv(depender: str, dedpendee_obj: UnresolvedDeriva
     return referenced_obj
 
 _json : Dict = {}
-# TODO: These trusted keys should come from command line arguments
-# For now, using the same configuration as signature verification
-trusted_key_names = [key.name for key in config.trusted_keys]
-# For now, default threshold equals number of keys (current behavior)
-threshold = len(trusted_key_names)
-logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}, threshold: {threshold}")
-_reasoner : TrustModelReasoner = TrustModelReasoner(trusted_key_names, threshold)
+_reasoner : TrustModelReasoner = None
+
+def _get_reasoner() -> TrustModelReasoner:
+    """Lazy initialization of TrustModelReasoner"""
+    global _reasoner
+    if _reasoner is None:
+        trusted_key_names = [key.name for key in config.trusted_keys]
+        # For now, default threshold equals number of keys (current behavior)
+        threshold = len(trusted_key_names)
+        logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}, threshold: {threshold}")
+        logger.warning(f"config.trusted_keys: {config.trusted_keys}")
+        try:
+            _reasoner = TrustModelReasoner(trusted_key_names, threshold)
+        except ValueError as e:
+            logger.error(f"Failed to initialize TrustModelReasoner: {e}")
+            raise
+    return _reasoner
 
 def build_unresolved_tree(node_drv_path: str, json: dict) -> UnresolvedDerivation:
     global _json
@@ -181,7 +191,7 @@ def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDeri
 
         # Compute final results using the trust model reasoner
         # The Rust code will print the verification results directly
-        resolved_roots = _reasoner.compute_result()
+        resolved_roots = _get_reasoner().compute_result()
 
         logger.warning(f"Trust model resolved roots: {resolved_roots}")
         logger.warning(f"Root result from signatures: {root_result}")
@@ -222,7 +232,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             unresolved_derivation.drv_path, 
             dict() # tuple
         )
-        _reasoner.add_fod(unresolved_derivation.drv_path, unresolved_derivation.json_attrs["outputs"]["out"]["path"])
+        _get_reasoner().add_fod(unresolved_derivation.drv_path, unresolved_derivation.json_attrs["outputs"]["out"]["path"])
         # TODO: lookup expected output hash and return it
         return {
             TrustlesslyResolvedDerivation(
@@ -234,7 +244,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
                 outputs = MappingProxyType({ unresolved_derivation.outputs["out"]: unresolved_derivation.json_attrs["outputs"]["out"]["path"] })
         )}
 
-    _reasoner.add_unresolved_derivation(
+    _get_reasoner().add_unresolved_derivation(
         unresolved_derivation.drv_path,
         inputs_to_string_list(unresolved_derivation.inputs),
         outputs_to_string_list(unresolved_derivation.outputs))
@@ -279,7 +289,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
         )
 
         resolution_str = {k.drv_path: v.input_hash for k, v in resolution.items()}
-        _reasoner.add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
+        _get_reasoner().add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
         drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():
             resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
@@ -309,7 +319,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
-            _reasoner.add_build_output_claim(
+            _get_reasoner().add_build_output_claim(
                 signature_data["in"]["rdrv_json"],
                 signature_to_string_map(signature_data),
                 signing_key

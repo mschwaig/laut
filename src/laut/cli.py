@@ -162,8 +162,8 @@ def verify(target, cache, trusted_key):
             public_key = read_public_key(key_path)
             trusted_keys.append(public_key)
             logger.debug(f"Added trusted key from {key_path}")
-            config.trusted_keys = trusted_keys
 
+        config.trusted_keys = trusted_keys
         logger.debug(f"configured trusted keys: {config.trusted_keys}")
 
         # Convert target to derivation path if needed
