@@ -13,6 +13,8 @@ from laut.signing import (
     sign_and_upload_impl
 )
 from laut.nix.keyfiles import TrustedKey
+from laut.thumbprint import get_ed25519_thumbprint
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from laut import build_config
 
@@ -46,9 +48,22 @@ def is_flake_reference(ref: str) -> bool:
     return "#" in ref
 
 def read_public_key(key_path: str) -> TrustedKey:
-    """Read and validate a public key file"""
+    """Read and validate a public key file, including thumbprint"""
     try:
-        return parse_nix_public_key(key_path)
+        # Parse the key from file
+        trusted_key = parse_nix_public_key(key_path)
+
+        # Create an Ed25519PublicKey from the raw bytes
+        ed25519_key = Ed25519PublicKey.from_public_bytes(trusted_key.key_bytes)
+
+        # Calculate the thumbprint
+        thumbprint = get_ed25519_thumbprint(ed25519_key)
+
+        # Create the full key ID in the same format as signing
+        key_id = f"{trusted_key.name}:{thumbprint[:16]}"
+
+        # Return a new TrustedKey with the updated name
+        return TrustedKey(name=key_id, key_bytes=trusted_key.key_bytes)
     except Exception as e:
         raise click.BadParameter(f"Error reading public key file {key_path}: {str(e)}")
 
