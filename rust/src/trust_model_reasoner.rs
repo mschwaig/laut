@@ -33,7 +33,28 @@ pub struct TrustModelReasoner {
 #[pymethods]
 impl TrustModelReasoner {
     #[new]
-    fn new(trusted_keys: Vec<String>, threshold: usize) -> Self {
+    fn new(trusted_keys: Vec<String>, threshold: usize) -> PyResult<Self> {
+        // Check if trusted keys are provided
+        if trusted_keys.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "No trusted keys configured. Please specify at least one trusted key using --trusted-key"
+            ));
+        }
+
+        // Check if threshold is valid
+        if threshold == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "Threshold must be greater than 0"
+            ));
+        }
+
+        if threshold > trusted_keys.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                format!("Threshold ({}) cannot exceed number of trusted keys ({})",
+                    threshold, trusted_keys.len())
+            ));
+        }
+
         let mut fill_iteration = Iteration::new();
 
         let fods = fill_iteration.variable::<(usize,usize)>("fods");
@@ -61,7 +82,7 @@ impl TrustModelReasoner {
 
         trusted_keys_var.extend(interned_keys);
 
-        TrustModelReasoner {
+        Ok(TrustModelReasoner {
             interner,
             fill_iteration,
             fods,
@@ -80,7 +101,7 @@ impl TrustModelReasoner {
             output_set_maps,
             rdrv_output_set_claim,
             output_set_effective_cardinality,
-        }
+        })
     }
     
     fn add_fod(&mut self, fod_to_add: &str, fod_hash_to_add: &str) -> Result<(), PyErr> {
@@ -210,8 +231,18 @@ impl TrustModelReasoner {
 
         // Create a map from output sets to their signature counts
         let mut output_set_signatures: HashMap<usize, usize> = HashMap::new();
-        for &(_, output_set, key) in rdrv_output_set_claim_relation.iter() {
-            if trusted_keys_relation.iter().any(|&k| k == key) {
+        println!("\n=== Trusted Keys ===");
+        for &key in trusted_keys_relation.iter() {
+            println!("  {}", self.interner.get_string(key).unwrap_or("unknown"));
+        }
+        println!("\n=== Output Set Signatures ===");
+        for &(rdrv, output_set, key) in rdrv_output_set_claim_relation.iter() {
+            let is_trusted = trusted_keys_relation.iter().any(|&k| k == key);
+            println!("  Output set {} signed by {} (trusted: {})",
+                self.interner.get_string(output_set).unwrap_or("unknown"),
+                self.interner.get_string(key).unwrap_or("unknown"),
+                is_trusted);
+            if is_trusted {
                 *output_set_signatures.entry(output_set).or_insert(0) += 1;
             }
         }
@@ -219,14 +250,22 @@ impl TrustModelReasoner {
         // Create a map from outputs to their signature counts via output sets
         let output_set_maps_relation = self.output_set_maps.clone().complete();
         let mut output_signatures: HashMap<usize, usize> = HashMap::new();
+        println!("\n=== Output Signature Mapping ===");
         for &(output_set, udrv_output, _) in output_set_maps_relation.iter() {
             if let Some(&sig_count) = output_set_signatures.get(&output_set) {
                 output_signatures.insert(udrv_output, sig_count);
+                println!("  Output {} -> {} signatures",
+                    self.interner.get_string(udrv_output).unwrap_or("unknown"),
+                    sig_count);
             }
         }
 
-        // Simplified cardinality computation using from_antijoin
+        // Simplified cardinality computation
+        println!("\n=== Cardinality Computation ===");
+        let mut iteration_num = 0;
         while cardinality_iteration.changed() {
+            iteration_num += 1;
+            println!("\n--- Iteration {} ---", iteration_num);
             // Create cardinality map for lookups
             let cardinality_map: HashMap<usize, usize> = effective_cardinality.recent.borrow()
                 .iter()
@@ -261,7 +300,11 @@ impl TrustModelReasoner {
                     let sig_count = output_signatures.get(&output).copied().unwrap_or(0);
                     let final_cardinality = min_dep_cardinality.min(sig_count);
                     effective_cardinality.extend(vec![(output, final_cardinality)]);
-                    // Computed effective cardinality for output
+                    println!("  Output {} -> cardinality {} (deps: {}, sigs: {})",
+                        self.interner.get_string(output).unwrap_or("unknown"),
+                        final_cardinality,
+                        if min_dep_cardinality == usize::MAX { "∞".to_string() } else { min_dep_cardinality.to_string() },
+                        sig_count);
                 }
             }
         }
