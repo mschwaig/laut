@@ -12,6 +12,13 @@ def signature_to_string_map(signature):
         signature["out"]["nix"]
     ))
 
+def signature_to_string_map_with_drv_path(signature, drv_path):
+    """Convert signature outputs to a map with full derivation output names."""
+    return dict(map(
+        lambda key: (f"{drv_path}${key}", signature["out"]["nix"][key]["path"]),
+        signature["out"]["nix"]
+    ))
+
 def inputs_to_string_list(inputs: set[UnresolvedReferencedInputs]) -> list[str]:
     result = []
 

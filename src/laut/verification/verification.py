@@ -38,6 +38,7 @@ from laut.verification.frogification import (
     inputs_to_string_list,
     outputs_to_string_list,
     signature_to_string_map,
+    signature_to_string_map_with_drv_path,
 )
 
 debug_dir = None
@@ -196,8 +197,9 @@ def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDeri
         logger.warning(f"Trust model resolved roots: {resolved_roots}")
         logger.warning(f"Root result from signatures: {root_result}")
 
-        # Consider verification successful if we have at least one resolved root
-        verification_success = len(resolved_roots) >= len(config.trusted_keys)
+        # Verification is successful if we have any resolved roots
+        # Note that the Rust code enforces the threshold requirement
+        verification_success = len(resolved_roots) > 0
 
         logger.warning(f"Trust model verification success: {verification_success}")
 
@@ -321,7 +323,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
             _get_reasoner().add_build_output_claim(
                 signature_data["in"]["rdrv_json"],
-                signature_to_string_map(signature_data),
+                signature_to_string_map_with_drv_path(signature_data, unresolved_derivation.drv_path),
                 signing_key
             )
             for o in signature_data["out"]["nix"]:
@@ -356,4 +358,14 @@ def verify_tree_from_drv_path(drv_path):
     drv = build_unresolved_tree(drv_path, all_drv_json)
     resolved_derivations = verify_tree(drv)
 
-    return resolved_derivations
+    # The CLI expects a truth-y value if verification succeeded
+    # We'll return a non-empty string if verification succeeded, None otherwise
+    if resolved_derivations and len(resolved_derivations) > 0:
+        # Get the first resolved derivation
+        first_resolved = next(iter(resolved_derivations))
+        logger.info(f"Verification succeeded: {first_resolved}")
+        # The CLI checks if this is truthy, so ensure we return a non-empty string
+        return str(first_resolved) if first_resolved else "Verification successful"
+    else:
+        logger.warning("Verification failed: no resolved derivations found")
+        return None

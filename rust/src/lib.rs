@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use datafrog::{Iteration, Relation, Variable};
+use datafrog::{Iteration, Relation};
 use nix_compat::store_path;
 use laut_compat::content_hash;
 use nix_compat::derivation::calculate_derivation_path_from_aterm;
@@ -9,7 +9,6 @@ use std::path::Path;
 mod string_interner;
 mod trust_model_reasoner;
 
-use string_interner::StringInterner;
 use trust_model_reasoner::TrustModelReasoner;
 
 #[pymodule]

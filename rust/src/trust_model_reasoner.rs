@@ -1,8 +1,7 @@
 use pyo3::prelude::*;
-use datafrog::{Iteration, Variable};
-use std::collections::{HashMap, BTreeMap};
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
+use datafrog::{Iteration, Variable, Relation, RelationLeaper};
+use std::collections::{HashMap, HashSet};
+use std::cmp::min;
 
 use crate::string_interner::StringInterner;
 
@@ -19,15 +18,12 @@ pub struct TrustModelReasoner {
     rdrvs: Variable<usize>,
     rdrvs_resolves_x: Variable<(usize,usize)>,
     rdrvs_resolve_x_with_y: Variable<(usize,usize,usize)>,
-    rdrvs_outputs_x_as_y_says_z: Variable<(usize,usize,usize,usize)>,
+    rdrvs_outputs_x_as_y_says_z: Variable<(usize,usize,usize,usize)>, // (rdrv, build_output, udrv_output, trust_element)
     trusted_keys: Variable<usize>,
     threshold: usize,
-    // New relations to model output sets
-    output_sets: Variable<usize>, // Each output set has a unique ID
-    output_set_maps: Variable<(usize,usize,usize)>, // (output_set_id, udrv_output, build_output)
-    rdrv_output_set_claim: Variable<(usize,usize,usize)>, // (rdrv, output_set_id, signing_key)
-    // Effective cardinality tracking
-    output_set_effective_cardinality: Variable<(usize,usize)>, // (output_set_id, effective_cardinality)
+    // Trust model relations
+    trust_models: Variable<(usize,usize)>, // (trust_model_id, threshold)
+    trust_model_members: Variable<(usize,usize)>, // (trust_model_id, member_id) where member can be a key or another trust model
 }
 
 #[pymethods]
@@ -68,10 +64,8 @@ impl TrustModelReasoner {
         let rdrvs_resolve_x_with_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_resolve_x_with_y");
         let rdrvs_outputs_x_as_y_says_z = fill_iteration.variable::<(usize,usize,usize,usize)>("rdrvs_outputs_x_as_y_says_z");
         let trusted_keys_var = fill_iteration.variable::<usize>("trusted_keys");
-        let output_sets = fill_iteration.variable::<usize>("output_sets");
-        let output_set_maps = fill_iteration.variable::<(usize,usize,usize)>("output_set_maps");
-        let rdrv_output_set_claim = fill_iteration.variable::<(usize,usize,usize)>("rdrv_output_set_claim");
-        let output_set_effective_cardinality = fill_iteration.variable::<(usize,usize)>("output_set_effective_cardinality");
+        let trust_models = fill_iteration.variable::<(usize,usize)>("trust_models");
+        let trust_model_members = fill_iteration.variable::<(usize,usize)>("trust_model_members");
 
         let mut interner = StringInterner::new();
 
@@ -80,7 +74,16 @@ impl TrustModelReasoner {
             .map(|key| interner.intern(key))
             .collect();
 
-        trusted_keys_var.extend(interned_keys);
+        trusted_keys_var.extend(interned_keys.clone());
+
+        // Create the default trust model
+        let default_trust_model_id = interner.intern("default_trust_model");
+        trust_models.extend(vec![(default_trust_model_id, threshold)]);
+
+        // Add all trusted keys as members of the default trust model
+        for &key in &interned_keys {
+            trust_model_members.extend(vec![(default_trust_model_id, key)]);
+        }
 
         Ok(TrustModelReasoner {
             interner,
@@ -97,10 +100,8 @@ impl TrustModelReasoner {
             rdrvs_outputs_x_as_y_says_z,
             trusted_keys: trusted_keys_var,
             threshold,
-            output_sets,
-            output_set_maps,
-            rdrv_output_set_claim,
-            output_set_effective_cardinality,
+            trust_models,
+            trust_model_members,
         })
     }
     
@@ -168,42 +169,23 @@ impl TrustModelReasoner {
         self.rdrvs.extend(vec![from_resolved_interned]);
         let interned_key = self.interner.intern(according_to);
 
-        // Create a canonical representation using BTreeMap for consistent ordering
-        let canonical_map: BTreeMap<String, String> = building_x_into_y_says_z.iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-
-        // Hash the canonical representation
-        let mut hasher = DefaultHasher::new();
-        for (k, v) in &canonical_map {
-            k.hash(&mut hasher);
-            v.hash(&mut hasher);
-        }
-        let output_set_hash = format!("output_set_{:x}", hasher.finish());
-        let output_set_id = self.interner.intern(&output_set_hash);
-
-        // Register this output set
-        self.output_sets.extend(vec![output_set_id]);
-
-        // Map this rdrv claim to the output set with the signing key
-        self.rdrv_output_set_claim.extend(vec![(from_resolved_interned, output_set_id, interned_key)]);
-
-        // Check if this is the first time we see this key - if so, create spawn debt
-        // This can be determined later in datalog rules during compute_result
-
-        // Populate the output set mappings
+        // Populate the rdrvs_outputs_x_as_y_says_z relation
         for (as_output, to_built) in &building_x_into_y_says_z {
             let interned_output = self.interner.intern(as_output);
             let interned_built = self.interner.intern(to_built);
 
+            println!("  Build output claim: {} -> {} (signed by {})",
+                as_output, to_built, according_to);
+
             self.udrv_outputs.extend(vec![interned_output]);
             self.build_outputs.extend(vec![interned_built]);
 
-            // Map output_set -> (udrv_output, build_output)
-            self.output_set_maps.extend(vec![(output_set_id, interned_output, interned_built)]);
-
-            // Keep the original relation for now (can be removed later)
-            self.rdrvs_outputs_x_as_y_says_z.extend(vec![(from_resolved_interned, interned_built, interned_output, interned_key)]);
+            self.rdrvs_outputs_x_as_y_says_z.extend(vec![(
+                from_resolved_interned,
+                interned_built,
+                interned_output,
+                interned_key
+            )]);
         }
 
         Ok(())
@@ -211,206 +193,227 @@ impl TrustModelReasoner {
     
 
     fn compute_result(&mut self) -> Result<Vec<String>, PyErr> {
-
-        // Force all data through the datafrog iteration pipeline
-        // This ensures data moves from to_add -> recent -> stable
+        // We need to finalize the datafrog iteration once all facts are added
+        // Just run the iteration to fixed point without more complex logic
         while self.fill_iteration.changed() {
-            // Empty loop for datalog to reach fixed point
+            // Just iterate to fixed point without additional logic
         }
 
         // Complete all variables to relations
         let udrvs_depends_on_x_relation = self.udrvs_depends_on_x.clone().complete();
-
         let fods_relation = self.fods.clone().complete();
-        let _build_outputs_relation = self.build_outputs.clone().complete();
         let udrvs_relation = self.udrvs.clone().complete();
-        let _udrv_outputs_relation = self.udrv_outputs.clone().complete();
         let udrvs_has_output_x_relation = self.udrvs_has_output_x.clone().complete();
         let rdrvs_relation = self.rdrvs.clone().complete();
         let rdrvs_resolves_x_relation = self.rdrvs_resolves_x.clone().complete();
-        let _rdrvs_resolve_x_with_y_relation = self.rdrvs_resolve_x_with_y.clone().complete();
         let rdrvs_outputs_x_as_y_says_z_relation = self.rdrvs_outputs_x_as_y_says_z.clone().complete();
-        let rdrv_output_set_claim_relation = self.rdrv_output_set_claim.clone().complete();
-        let trusted_keys_relation = self.trusted_keys.clone().complete();
+        let trust_models_relation = self.trust_models.clone().complete();
+        let trust_model_members_relation = self.trust_model_members.clone().complete();
 
         // Start a new iteration for effective cardinality computation
         let mut cardinality_iteration = Iteration::new();
-        let effective_cardinality = cardinality_iteration.variable::<(usize, usize)>("effective_cardinality");
 
-        // Initialize FOD outputs with infinite cardinality
-        println!("\n=== FOD Initialization ===");
+        // Trust results: (output, trust_element, cardinality)
+        let trust_results = cardinality_iteration.variable::<(usize, usize, usize)>("trust_results");
+
+        // Get the default trust model id for later use
+        let default_trust_model_id = self.interner.intern("default_trust_model");
+
+        println!("\n=== Trust Model Computation ===");
+
+        // Initialize trust based on signatures and FODs
+        let mut initial_trust = Vec::new();
+
+        // Collect individual signatures and count them by trust model
+        let mut trust_counts: HashMap<(usize, usize), usize> = HashMap::new();
+        for &(_, _, udrv_output, signer) in rdrvs_outputs_x_as_y_says_z_relation.iter() {
+            // For each trust model that this signer is a member of
+            for &(trust_model, member) in trust_model_members_relation.iter() {
+                if member == signer {
+                    *trust_counts.entry((udrv_output, trust_model)).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Initialize trust model cardinalities based on member counts
+        for ((output, trust_model), count) in trust_counts {
+            let threshold = trust_models_relation.iter()
+                .find(|&&(tm, _)| tm == trust_model)
+                .map(|&(_, t)| t)
+                .unwrap_or(self.threshold);
+
+            if count >= threshold {
+                initial_trust.push((output, trust_model, count));
+                println!("  Output {} has trust model {} with cardinality {} (threshold: {})",
+                    self.interner.get_string(output).unwrap_or("unknown"),
+                    self.interner.get_string(trust_model).unwrap_or("unknown"),
+                    count, threshold);
+            }
+        }
+
+        // Add FODs with infinite trust for all trust models
         for &(fod, _) in fods_relation.iter() {
-            println!("FOD: {}", self.interner.get_string(fod).unwrap_or("unknown"));
             for &(udrv, output) in udrvs_has_output_x_relation.iter() {
                 if udrv == fod {
-                    effective_cardinality.extend(vec![(output, usize::MAX)]);
-                    println!("  Initialized FOD output {} with ∞ cardinality",
-                        self.interner.get_string(output).unwrap_or("unknown"));
-                }
-            }
-        }
-
-        // Create a map from output sets to their signature counts
-        let mut output_set_signatures: HashMap<usize, usize> = HashMap::new();
-        println!("\n=== Trusted Keys ===");
-        for &key in trusted_keys_relation.iter() {
-            println!("  {}", self.interner.get_string(key).unwrap_or("unknown"));
-        }
-        println!("\n=== Output Set Signatures ===");
-        for &(rdrv, output_set, key) in rdrv_output_set_claim_relation.iter() {
-            let is_trusted = trusted_keys_relation.iter().any(|&k| k == key);
-            println!("  Output set {} signed by {} (trusted: {})",
-                self.interner.get_string(output_set).unwrap_or("unknown"),
-                self.interner.get_string(key).unwrap_or("unknown"),
-                is_trusted);
-            if is_trusted {
-                *output_set_signatures.entry(output_set).or_insert(0) += 1;
-            }
-        }
-
-        // Create a map from outputs to their signature counts via output sets
-        let output_set_maps_relation = self.output_set_maps.clone().complete();
-        let mut output_signatures: HashMap<usize, usize> = HashMap::new();
-        println!("\n=== Output Signature Mapping ===");
-        println!("Number of output sets with signatures: {}", output_set_signatures.len());
-        println!("Number of output set mappings: {}", output_set_maps_relation.len());
-
-        for &(output_set, udrv_output, build_output) in output_set_maps_relation.iter() {
-            let output_set_str = self.interner.get_string(output_set).unwrap_or("unknown");
-            let udrv_output_str = self.interner.get_string(udrv_output).unwrap_or("unknown");
-            let build_output_str = self.interner.get_string(build_output).unwrap_or("unknown");
-
-            if let Some(&sig_count) = output_set_signatures.get(&output_set) {
-                // The udrv_output here is just the output name (e.g., "out")
-                // We need to find all full paths that use this output name
-                for &(udrv, full_output) in udrvs_has_output_x_relation.iter() {
-                    let full_output_str = self.interner.get_string(full_output).unwrap_or("");
-                    // Check if this output corresponds to our output name
-                    if full_output_str.ends_with(&format!("${}", udrv_output_str)) {
-                        output_signatures.insert(full_output, sig_count);
-                        println!("  Output {} (name: {}, mapped to {}) from set {} -> {} signatures",
-                            full_output_str, udrv_output_str, build_output_str, output_set_str, sig_count);
+                    for &(trust_model, _) in trust_models_relation.iter() {
+                        initial_trust.push((output, trust_model, usize::MAX));
                     }
                 }
-            } else {
-                println!("  Output {} (mapped to {}) from set {} -> NO signatures found!",
-                    udrv_output_str, build_output_str, output_set_str);
             }
         }
 
-        // Simplified cardinality computation
-        println!("\n=== Cardinality Computation ===");
-        let mut iteration_num = 0;
+        trust_results.insert(Relation::from_vec(initial_trust));
+
+        // Create candidates from all (output, trust_model) pairs
+        let candidates = cardinality_iteration.variable::<(usize, usize)>("candidates");
+
+        // Generate candidates more efficiently
+        let all_candidates: Vec<(usize, usize)> = udrvs_has_output_x_relation.iter()
+            .flat_map(|&(_, output)| {
+                trust_models_relation.iter()
+                    .map(move |&(trust_model, _)| (output, trust_model))
+            })
+            .collect();
+
+        candidates.insert(Relation::from_vec(all_candidates));
+
+        // Create dependency relation for our leapjoin
+        let dep_relation = Relation::from_vec(
+            udrvs_depends_on_x_relation.iter()
+                .flat_map(|&(udrv, dep_output)| {
+                    udrvs_has_output_x_relation.iter()
+                        .filter(move |&&(u, _)| u == udrv)
+                        .map(move |&(_, output)| (output, dep_output))
+                })
+                .collect()
+        );
+
+        // Run cardinality computation
         while cardinality_iteration.changed() {
-            iteration_num += 1;
-            println!("\n--- Iteration {} ---", iteration_num);
-            // Create cardinality map for lookups
-            let cardinality_map: HashMap<usize, usize> = effective_cardinality.recent.borrow()
+            // Identify which candidates have all dependencies ready
+            let ready_candidates: Vec<((usize, usize), usize)> = candidates.recent.borrow()
                 .iter()
-                .chain(effective_cardinality.stable.borrow().iter().flat_map(|batch| batch.iter()))
-                .map(|&(output, card)| (output, card))
+                .filter_map(|&(output, trust_element)| {
+                    // Check if all dependencies are ready
+                    let deps_ready = dep_relation.iter()
+                        .filter(|&&(out, _)| out == output)
+                        .all(|&(_, dep_out)| {
+                            trust_results.recent.borrow()
+                                .iter()
+                                .chain(trust_results.stable.borrow().iter().flat_map(|b| b.iter()))
+                                .any(|&(o, t, _)| o == dep_out && t == trust_element)
+                        });
+
+                    if deps_ready {
+                        Some(((output, trust_element), 1))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
-            // Check each output to see if it needs cardinality computed
-            for &(udrv, output) in udrvs_has_output_x_relation.iter() {
-                // Skip if this output already has cardinality
-                if cardinality_map.contains_key(&output) {
-                    continue;
-                }
+            let ready_relation = Relation::from_vec(ready_candidates);
 
-                let udrv_str = self.interner.get_string(udrv).unwrap_or("unknown");
-                let output_str = self.interner.get_string(output).unwrap_or("unknown");
-                println!("Checking output {} of udrv {}", output_str, udrv_str);
+            // Use leapjoin to compute effective cardinality
+            trust_results.from_leapjoin(
+                &candidates,
+                ready_relation.extend_with(|&(output, trust_element)| (output, trust_element)),
+                |&(output, trust_element), &_| {
+                    // Get all dependency cardinalities
+                    let dep_cards: Vec<usize> = dep_relation.iter()
+                        .filter(|&&(from_output, _)| from_output == output)
+                        .filter_map(|&(_, dep_out)| {
+                            trust_results.recent.borrow()
+                                .iter()
+                                .chain(trust_results.stable.borrow().iter().flat_map(|b| b.iter()))
+                                .find(|&&(o, t, _)| o == dep_out && t == trust_element)
+                                .map(|&(_, _, card)| card)
+                        })
+                        .collect();
 
-                // Find min cardinality of all dependencies
-                let mut min_dep_cardinality = usize::MAX;
-                let mut all_deps_have_cardinality = true;
-                let mut dep_count = 0;
+                    // Get current trust model cardinality
+                    let trust_model_card = trust_results.recent.borrow()
+                        .iter()
+                        .chain(trust_results.stable.borrow().iter().flat_map(|b| b.iter()))
+                        .find(|&&(o, t, _)| o == output && t == trust_element)
+                        .map(|&(_, _, card)| card)
+                        .unwrap_or(0);
 
-                for &(dep_udrv, dep_output) in udrvs_depends_on_x_relation.iter() {
-                    if dep_udrv == udrv {
-                        dep_count += 1;
-                        let dep_output_str = self.interner.get_string(dep_output).unwrap_or("unknown");
-                        if let Some(&card) = cardinality_map.get(&dep_output) {
-                            println!("  Dependency {} has cardinality {}", dep_output_str, card);
-                            min_dep_cardinality = min_dep_cardinality.min(card);
-                        } else {
-                            println!("  Dependency {} has NO cardinality yet", dep_output_str);
-                            all_deps_have_cardinality = false;
-                            break;
-                        }
+                    // Get threshold
+                    let threshold = trust_models_relation.iter()
+                        .find(|&&(tm, _)| tm == trust_element)
+                        .map(|&(_, t)| t)
+                        .unwrap_or(self.threshold);
+
+                    // Skip if already a FOD
+                    if trust_model_card == usize::MAX {
+                        return (output, trust_element, usize::MAX);
                     }
-                }
 
-                if dep_count == 0 {
-                    println!("  No dependencies found");
-                }
+                    // Look for direct claims for this output
+                    let output_claims = rdrvs_outputs_x_as_y_says_z_relation.iter()
+                        .filter(|&(_, _, out, _)| *out == output)
+                        .count();
 
-                // If all dependencies have cardinality (or no dependencies), compute output cardinality
-                if all_deps_have_cardinality {
-                    // Check if this output belongs to a FOD by checking if it's already marked with infinite cardinality
-                    // in the cardinality_map (FODs are initialized with infinite cardinality)
-                    let is_fod_output = cardinality_map.get(&output).map_or(false, |&c| c == usize::MAX);
+                    let output_cardinality = if output_claims > 0 {
+                        let direct_claims = rdrvs_outputs_x_as_y_says_z_relation.iter()
+                            .filter(|&(_, _, out, signer)| {
+                                *out == output &&
+                                trust_model_members_relation.iter()
+                                    .any(|&(tm, member)| tm == trust_element && member == *signer)
+                            })
+                            .count();
 
-                    let final_cardinality = if is_fod_output {
-                        // FOD outputs always have infinite cardinality (trusted by content hash)
-                        usize::MAX
+                        direct_claims
                     } else {
-                        // Regular outputs use signature count and dependency cardinality
-                        let sig_count = output_signatures.get(&output).copied().unwrap_or(0);
-                        if dep_count == 0 {
-                            // For nodes with no dependencies, cardinality is just the signature count
-                            sig_count
-                        } else {
-                            min_dep_cardinality.min(sig_count)
-                        }
+                        trust_model_card
                     };
 
-                    effective_cardinality.extend(vec![(output, final_cardinality)]);
-                    let sig_count = output_signatures.get(&output).copied().unwrap_or(0);
-                    println!("  Output {} -> cardinality {} (deps: {}, sigs: {}, is_fod: {})",
-                        output_str,
-                        if final_cardinality == usize::MAX { "∞".to_string() } else { final_cardinality.to_string() },
-                        if min_dep_cardinality == usize::MAX { "∞".to_string() } else { min_dep_cardinality.to_string() },
-                        sig_count,
-                        is_fod_output);
+                    // Compute effective cardinality
+                    let min_dep = dep_cards.iter().copied().min().unwrap_or(usize::MAX);
+                    let effective = if output_cardinality >= threshold {
+                        if dep_cards.is_empty() {
+                            output_cardinality
+                        } else {
+                            min(output_cardinality, min_dep)
+                        }
+                    } else {
+                        0
+                    };
+
+                    println!("  Computed: output {} with {} -> cardinality {} (output: {}, min_dep: {})",
+                        self.interner.get_string(output).unwrap_or("unknown"),
+                        self.interner.get_string(trust_element).unwrap_or("unknown"),
+                        effective,
+                        output_cardinality,
+                        if min_dep == usize::MAX { "∞".to_string() } else { min_dep.to_string() }
+                    );
+
+                    (output, trust_element, effective)
                 }
-            }
+            );
         }
 
-        //
-        // do some consistency checks
-        //
+        // Complete the trust computation and get the results
+        let trust_results_final = trust_results.complete();
 
-        let mut root_candidates: Vec<usize> = Vec::new();
-        let mut dependency_targets: Vec<usize> = Vec::new();
+        // Find root derivation(s)
+        // A root is a non-FOD derivation that is not a dependency of any other derivation
+        let dependency_targets: HashSet<usize> = udrvs_depends_on_x_relation.iter()
+            .map(|&(_, dep)| dep)
+            .collect();
 
-        for &(_, dep) in udrvs_depends_on_x_relation.iter() {
-            dependency_targets.push(dep);
-        }
-
-        // Check which udrvs have outputs that are dependency targets
-        for &udrv in udrvs_relation.iter() {
-            let mut is_dependency = false;
-
-            // Check all outputs of this udrv to see if any are dependency targets
-            for &(u, output) in udrvs_has_output_x_relation.iter() {
-                if u == udrv {
-                    if dependency_targets.contains(&output) {
-                        is_dependency = true;
-                        break;
-                    }
-                }
-            }
-
-            if !is_dependency {
-                // Check if this is a FOD - we don't want FODs as root candidates
-                let is_fod = fods_relation.iter().any(|&(fod, _)| fod == udrv);
-                if !is_fod {
-                    root_candidates.push(udrv);
-                }
-            }
-        }
+        let root_candidates: Vec<usize> = udrvs_relation.iter()
+            .filter(|&&udrv| {
+                // Not a dependency of any other derivation
+                !udrvs_has_output_x_relation.iter()
+                    .filter(|&&(u, output)| u == udrv)
+                    .any(|&(_, output)| dependency_targets.contains(&output)) &&
+                // Not a FOD
+                !fods_relation.iter().any(|&(fod, _)| fod == udrv)
+            })
+            .copied()
+            .collect();
 
         // (1) unresolved tree has one unique root
         if root_candidates.len() != 1 {
@@ -426,84 +429,74 @@ impl TrustModelReasoner {
 
         let root_derivation = root_candidates[0];
 
-        // (1) all leaves are fods
-        // TODO: all fods are leaves
-        let leaf_derivations: Vec<usize> = udrvs_relation.iter()
+        // Ensure all leaves are fixed-output derivations
+        let non_fod_leaves: Vec<usize> = udrvs_relation.iter()
             .filter(|&&udrv| {
-                // Count outgoing dependencies for this derivation
-                udrvs_depends_on_x_relation.iter()
-                    .filter(|&&(d, _)| d == udrv)
-                    .count() == 0
+                // No outgoing dependencies
+                udrvs_depends_on_x_relation.iter().all(|&(d, _)| d != udrv) &&
+                // Not a FOD
+                !fods_relation.iter().any(|&(fod, _)| fod == udrv)
             })
-            .cloned()
+            .copied()
             .collect();
-        for &leaf in &leaf_derivations {
-            let is_fod = fods_relation.iter().any(|&(fod, _)| fod == leaf);
-            if !is_fod {
-                println!("\n=== Verification Results ===\n");
-                println!("❌ Could not find sufficient evidence for verification:");
-                println!("  - Leaf derivation {} is not a fixed-output derivation", self.interner.get_string(leaf).unwrap_or("unknown"));
-                return Ok(Vec::new());
-            }
+
+        if !non_fod_leaves.is_empty() {
+            println!("\n=== Verification Results ===\n");
+            println!("❌ Could not find sufficient evidence for verification:");
+            println!("  - Found non-FOD leaf derivations");
+            return Ok(Vec::new());
         }
 
+        // Find which resolved derivations correspond to our root
         let resolved_roots: Vec<usize> = rdrvs_resolves_x_relation.iter()
             .filter(|&(_, udrv)| *udrv == root_derivation)
             .map(|&(rdrv, _)| rdrv)
             .collect();
+
         if resolved_roots.is_empty() {
-            // Root was not resolved, find out what evidence is missing
-            // TODO: do this better
             println!("\n=== Verification Results ===\n");
             println!("❌ Could not find sufficient evidence for verification:");
-            println!("  - Root derivation {} was not resolved. Missing evidence.", self.interner.get_string(root_derivation).unwrap_or("unknown"));
+            println!("  - Root derivation {} was not resolved",
+                self.interner.get_string(root_derivation).unwrap_or("unknown"));
             return Ok(Vec::new());
         }
 
-        // No longer needed - using effective cardinality instead of checking all keys
+        // Find which resolved derivations have sufficient cardinality
+        let default_trust_model_id = self.interner.intern("default_trust_model");
 
-        // Complete the cardinality computation and get the results
-        let effective_cardinality_relation = effective_cardinality.complete();
+        let verified_roots: Vec<usize> = resolved_roots.into_iter()
+            .filter(|&rdrv| {
+                // Find the root's outputs and check their effective cardinality
+                let udrv = rdrvs_resolves_x_relation.iter()
+                    .find(|&&(r, _)| r == rdrv)
+                    .map(|&(_, u)| u)
+                    .unwrap();
 
-        // Effective cardinality is now complete
+                // Find maximum cardinality across all outputs
+                let max_cardinality = udrvs_has_output_x_relation.iter()
+                    .filter(|&&(u, _)| u == udrv)
+                    .filter_map(|&(_, output)| {
+                        trust_results_final.iter()
+                            .find(|&&(o, t, _)| o == output && t == default_trust_model_id)
+                            .map(|&(_, _, cardinality)| cardinality)
+                    })
+                    .max()
+                    .unwrap_or(0);
 
-        // Track which resolved derivations have enough effective cardinality at the root
-        let mut verified_roots: Vec<usize> = Vec::new();
-
-        for &rdrv in &resolved_roots {
-            // Find the root's outputs and check their effective cardinality
-            let udrv = rdrvs_resolves_x_relation.iter()
-                .find(|&&(r, _)| r == rdrv)
-                .map(|&(_, u)| u)
-                .unwrap();
-
-            let mut max_cardinality = 0;
-
-            // Check all outputs of the root udrv
-            for &(u, output) in udrvs_has_output_x_relation.iter() {
-                if u == udrv {
-                    for &(o, cardinality) in effective_cardinality_relation.iter() {
-                        if o == output {
-                            max_cardinality = max_cardinality.max(cardinality);
-                            // Found matching output with cardinality
-                        }
-                    }
+                // Check if it meets the threshold
+                if max_cardinality >= self.threshold {
+                    println!("✅ Root {} verified with effective cardinality {} (threshold: {})",
+                        self.interner.get_string(rdrv).unwrap_or("unknown"),
+                        max_cardinality, self.threshold);
+                    true
+                } else {
+                    println!("❌ Root {} only has effective cardinality {} (threshold: {})",
+                        self.interner.get_string(rdrv).unwrap_or("unknown"),
+                        max_cardinality, self.threshold);
+                    false
                 }
-            }
-
-            if max_cardinality >= self.threshold {
-                verified_roots.push(rdrv);
-                println!("✅ Root {} verified with effective cardinality {} (threshold: {})",
-                    self.interner.get_string(rdrv).unwrap_or("unknown"),
-                    max_cardinality,
-                    self.threshold);
-            } else {
-                println!("❌ Root {} only has effective cardinality {} (threshold: {})",
-                    self.interner.get_string(rdrv).unwrap_or("unknown"),
-                    max_cardinality,
-                    self.threshold);
-            }
-        }
+            })
+            .collect();
 
         if verified_roots.is_empty() {
             println!("\n=== Verification Results ===\n");
@@ -512,61 +505,27 @@ impl TrustModelReasoner {
             return Ok(Vec::new());
         }
 
-        // Use verified_roots instead of resolved_roots from here on
-        let resolved_roots = verified_roots;
-
-        // print outputs
-        let mut root_outputs: Vec<String> = Vec::new();
-
-        for &rdrv in &resolved_roots {
-            let outputs: Vec<(usize, usize, usize)> = rdrvs_outputs_x_as_y_says_z_relation.iter()
-                .filter(|&(r, _, _, _)| *r == rdrv)
-                .map(|&(_, output, name, key)| (output, name, key))
-                .collect();
-
-            for (output, name, key) in outputs {
-                root_outputs.push(format!(
-                    "Output {} of {} resolves to {} (signed by {})",
-                    self.interner.get_string(name).unwrap_or("unknown"),
-                    self.interner.get_string(rdrv).unwrap_or("unknown"),
-                    self.interner.get_string(output).unwrap_or("unknown"),
-                    self.interner.get_string(key).unwrap_or("unknown")
-                ));
-            }
-        }
-
+        // Generate summary information
         println!("\n=== Verification Results ===\n");
 
         let udrvs_count = udrvs_relation.len();
         let fods_count = fods_relation.len();
         let rdrvs_count = rdrvs_relation.len();
-
         let resolvable_count = udrvs_count - fods_count;
 
         println!("Build consists of {} unresolved derivations", udrvs_count);
         println!("with {} fixed-output derivations as leaves", fods_count);
 
         if resolvable_count > 0 {
-            println!("Resolved {}/{} derivations via signatures",
-                     rdrvs_count, resolvable_count);
+            println!("Resolved {}/{} derivations via signatures", rdrvs_count, resolvable_count);
         }
 
         println!("\nVerification status:");
-        println!("✅ The root derivation [{}] was successfully resolved to:",
+        println!("✅ The root derivation [{}] was successfully resolved",
                  self.interner.get_string(root_derivation).unwrap_or("unknown"));
 
-        for output in &root_outputs {
-            println!("  - {}", output);
-        }
-
-        if !resolved_roots.is_empty() {
-            println!("\nResolved via:");
-            for &rdrv in &resolved_roots {
-                println!("  - {}", self.interner.get_string(rdrv).unwrap_or("unknown"));
-            }
-        }
-
-        let resolved_root_strings: Vec<String> = resolved_roots
+        // Convert verified roots to strings for return value
+        let resolved_root_strings: Vec<String> = verified_roots
             .iter()
             .map(|&rdrv| self.interner.get_string(rdrv).unwrap_or("unknown").to_string())
             .collect();
@@ -586,5 +545,53 @@ impl TrustModelReasoner {
         // but practically thats exactly what legacy signatures end up allowing
         // so I am not sure where we land there
 
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pyo3::prelude::*;
+
+    #[test]
+    fn test_trust_propagation() -> Result<(), PyErr> {
+        env_logger::init();
+        // Create a reasoner with 2 trusted keys and threshold 2
+        let mut reasoner = TrustModelReasoner::new(vec!["key1".to_string(), "key2".to_string()], 2)?;
+
+        // Add a simple chain: fod -> dep -> output
+        reasoner.add_fod("fod1", "hash1")?;
+        reasoner.add_unresolved_derivation("dep1", vec!["fod1$out".to_string()], vec!["dep1$out".to_string()])?;
+        reasoner.add_unresolved_derivation("output1", vec!["dep1$out".to_string()], vec!["output1$out".to_string()])?;
+
+        // Add resolved derivations
+        reasoner.add_resolved_derivation("dep1", "resolved_dep1",
+            vec![("dep1$out".to_string(), "build_dep1".to_string())].into_iter().collect())?;
+        reasoner.add_resolved_derivation("output1", "resolved_output1",
+            vec![("output1$out".to_string(), "build_output1".to_string())].into_iter().collect())?;
+
+        // Add signatures from both keys
+        reasoner.add_build_output_claim("resolved_dep1",
+            vec![("dep1$out".to_string(), "build_dep1".to_string())].into_iter().collect(),
+            "key1")?;
+        reasoner.add_build_output_claim("resolved_dep1",
+            vec![("dep1$out".to_string(), "build_dep1".to_string())].into_iter().collect(),
+            "key2")?;
+        reasoner.add_build_output_claim("resolved_output1",
+            vec![("output1$out".to_string(), "build_output1".to_string())].into_iter().collect(),
+            "key1")?;
+        reasoner.add_build_output_claim("resolved_output1",
+            vec![("output1$out".to_string(), "build_output1".to_string())].into_iter().collect(),
+            "key2")?;
+
+        // Run the computation
+        let result = reasoner.compute_result()?;
+
+        // Check that we get a result
+        if result.is_empty() {
+            panic!("Expected non-empty result from trust computation");
+        }
+
+        Ok(())
     }
 }
