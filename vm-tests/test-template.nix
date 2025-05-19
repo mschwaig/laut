@@ -31,9 +31,9 @@ in
           builderPrivateKey = ../testkeys/builderA_key.private;
         });
 
-        builderB = import ./machines/builder.nix (fullArgs // { 
-          builderPublicKey = ../testkeys/builderA_key.public;
-          builderPrivateKey = ../testkeys/builderA_key.private;
+        builderB = import ./machines/builder.nix (fullArgs // {
+          builderPublicKey = ../testkeys/builderB_key.public;
+          builderPrivateKey = ../testkeys/builderB_key.private;
         });
 
         verifier = import ./machines/verifier.nix (fullArgs);
