@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
-use datafrog::{Iteration, Variable, Relation, RelationLeaper};
+use datafrog::{Iteration, Variable, Relation, RelationLeaper, ValueFilter};
 use std::collections::{HashMap, HashSet};
-use std::cmp::min;
+use std::cell::RefCell;
 
 use crate::string_interner::StringInterner;
 
@@ -18,12 +18,8 @@ pub struct TrustModelReasoner {
     rdrvs: Variable<usize>,
     rdrvs_resolves_x: Variable<(usize,usize)>,
     rdrvs_resolve_x_with_y: Variable<(usize,usize,usize)>,
-    rdrvs_outputs_x_as_y_says_z: Variable<(usize,usize,usize,usize)>, // (rdrv, build_output, udrv_output, trust_element)
-    trusted_keys: Variable<usize>,
-    threshold: usize,
-    // Trust model relations
-    trust_models: Variable<(usize,usize)>, // (trust_model_id, threshold)
-    trust_model_members: Variable<(usize,usize)>, // (trust_model_id, member_id) where member can be a key or another trust model
+    rdrvs_outputs_x_as_y_says_z: Variable<(usize,usize,usize,usize)>, // (rdrv, build_output, udrv_output, trust_model_id)
+    trust_models: Variable<(usize,usize,bool,Option<usize>)>, // (trust_model_id, threshold, is_key, is_member_of)
 }
 
 #[pymethods]
@@ -63,26 +59,26 @@ impl TrustModelReasoner {
         let rdrvs_resolves_x = fill_iteration.variable::<>("rdrvs_resolves_x");
         let rdrvs_resolve_x_with_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_resolve_x_with_y");
         let rdrvs_outputs_x_as_y_says_z = fill_iteration.variable::<(usize,usize,usize,usize)>("rdrvs_outputs_x_as_y_says_z");
-        let trusted_keys_var = fill_iteration.variable::<usize>("trusted_keys");
-        let trust_models = fill_iteration.variable::<(usize,usize)>("trust_models");
-        let trust_model_members = fill_iteration.variable::<(usize,usize)>("trust_model_members");
+        let trust_models = fill_iteration.variable::<(usize,usize,bool,Option<usize>)>("trust_models");
 
         let mut interner = StringInterner::new();
 
-        // Intern the trusted keys and populate the variable
+        // Intern the trusted keys
         let interned_keys: Vec<usize> = trusted_keys.iter()
             .map(|key| interner.intern(key))
             .collect();
 
-        trusted_keys_var.extend(interned_keys.clone());
-
         // Create the default trust model
         let default_trust_model_id = interner.intern("default_trust_model");
-        trust_models.extend(vec![(default_trust_model_id, threshold)]);
 
-        // Add all trusted keys as members of the default trust model
+        // Add the default trust model with its threshold
+        // (id, threshold, is_key=false, is_member_of=None)
+        trust_models.extend(vec![(default_trust_model_id, threshold, false, None)]);
+
+        // Add all trusted keys as entries with is_key=true and member_of=default_trust_model
         for &key in &interned_keys {
-            trust_model_members.extend(vec![(default_trust_model_id, key)]);
+            // (id, threshold=1, is_key=true, is_member_of=Some(default_trust_model_id))
+            trust_models.extend(vec![(key, 1, true, Some(default_trust_model_id))]);
         }
 
         Ok(TrustModelReasoner {
@@ -98,10 +94,7 @@ impl TrustModelReasoner {
             rdrvs_resolves_x,
             rdrvs_resolve_x_with_y,
             rdrvs_outputs_x_as_y_says_z,
-            trusted_keys: trusted_keys_var,
-            threshold,
             trust_models,
-            trust_model_members,
         })
     }
     
@@ -193,8 +186,7 @@ impl TrustModelReasoner {
     
 
     fn compute_result(&mut self) -> Result<Vec<String>, PyErr> {
-        // We need to finalize the datafrog iteration once all facts are added
-        // Just run the iteration to fixed point without more complex logic
+
         while self.fill_iteration.changed() {
             // Just iterate to fixed point without additional logic
         }
@@ -208,194 +200,142 @@ impl TrustModelReasoner {
         let rdrvs_resolves_x_relation = self.rdrvs_resolves_x.clone().complete();
         let rdrvs_outputs_x_as_y_says_z_relation = self.rdrvs_outputs_x_as_y_says_z.clone().complete();
         let trust_models_relation = self.trust_models.clone().complete();
-        let trust_model_members_relation = self.trust_model_members.clone().complete();
 
-        // Start a new iteration for effective cardinality computation
-        let mut cardinality_iteration = Iteration::new();
-
-        // Trust results: (output, trust_element, cardinality)
-        let trust_results = cardinality_iteration.variable::<(usize, usize, usize)>("trust_results");
-
-        // Get the default trust model id for later use
-        let default_trust_model_id = self.interner.intern("default_trust_model");
-
-        println!("\n=== Trust Model Computation ===");
-
-        // Initialize trust based on signatures and FODs
-        let mut initial_trust = Vec::new();
-
-        // Collect individual signatures and count them by trust model
-        let mut trust_counts: HashMap<(usize, usize), usize> = HashMap::new();
-        for &(_, _, udrv_output, signer) in rdrvs_outputs_x_as_y_says_z_relation.iter() {
-            // For each trust model that this signer is a member of
-            for &(trust_model, member) in trust_model_members_relation.iter() {
-                if member == signer {
-                    *trust_counts.entry((udrv_output, trust_model)).or_insert(0) += 1;
-                }
-            }
+        println!("\n=== Trust Models Configuration ===");
+        for &(tm_id, threshold, is_key, member_of) in trust_models_relation.iter() {
+            println!("Trust model: {} (threshold: {}, is_key: {}, member_of: {:?})",
+                self.interner.get_string(tm_id).unwrap_or("unknown"),
+                threshold,
+                is_key,
+                member_of.map(|id| self.interner.get_string(id).unwrap_or("unknown"))
+            );
         }
 
-        // Initialize trust model cardinalities based on member counts
-        for ((output, trust_model), count) in trust_counts {
-            let threshold = trust_models_relation.iter()
-                .find(|&&(tm, _)| tm == trust_model)
-                .map(|&(_, t)| t)
-                .unwrap_or(self.threshold);
-
-            if count >= threshold {
-                initial_trust.push((output, trust_model, count));
-                println!("  Output {} has trust model {} with cardinality {} (threshold: {})",
-                    self.interner.get_string(output).unwrap_or("unknown"),
-                    self.interner.get_string(trust_model).unwrap_or("unknown"),
-                    count, threshold);
-            }
-        }
-
-        // Add FODs with infinite trust for all trust models
-        for &(fod, _) in fods_relation.iter() {
-            for &(udrv, output) in udrvs_has_output_x_relation.iter() {
-                if udrv == fod {
-                    for &(trust_model, _) in trust_models_relation.iter() {
-                        initial_trust.push((output, trust_model, usize::MAX));
-                    }
-                }
-            }
-        }
-
-        trust_results.insert(Relation::from_vec(initial_trust));
-
-        // Create candidates from all (output, trust_model) pairs
-        let candidates = cardinality_iteration.variable::<(usize, usize)>("candidates");
-
-        // Generate candidates more efficiently
-        let all_candidates: Vec<(usize, usize)> = udrvs_has_output_x_relation.iter()
-            .flat_map(|&(_, output)| {
-                trust_models_relation.iter()
-                    .map(move |&(trust_model, _)| (output, trust_model))
-            })
-            .collect();
-
-        candidates.insert(Relation::from_vec(all_candidates));
-
-        // Create dependency relation for our leapjoin
-        let dep_relation = Relation::from_vec(
-            udrvs_depends_on_x_relation.iter()
-                .flat_map(|&(udrv, dep_output)| {
-                    udrvs_has_output_x_relation.iter()
-                        .filter(move |&&(u, _)| u == udrv)
-                        .map(move |&(_, output)| (output, dep_output))
+        // Create relation of trust models by membership
+        let trust_models_relation_by_is_member_of = Relation::from_vec(
+            trust_models_relation.iter()
+                .filter_map(|&(trust_model_id, threshold, is_key, is_member_of)| {
+                    // Only include entries that have a parent model
+                    is_member_of.map(|parent_id| (parent_id, (trust_model_id, threshold, is_key)))
                 })
                 .collect()
         );
 
-        // Run cardinality computation
-        while cardinality_iteration.changed() {
-            // Identify which candidates have all dependencies ready
-            let ready_candidates: Vec<((usize, usize), usize)> = candidates.recent.borrow()
-                .iter()
-                .filter_map(|&(output, trust_element)| {
-                    // Check if all dependencies are ready
-                    let deps_ready = dep_relation.iter()
-                        .filter(|&&(out, _)| out == output)
-                        .all(|&(_, dep_out)| {
-                            trust_results.recent.borrow()
-                                .iter()
-                                .chain(trust_results.stable.borrow().iter().flat_map(|b| b.iter()))
-                                .any(|&(o, t, _)| o == dep_out && t == trust_element)
-                        });
+        // Create relation of trust model thresholds
+        let trust_models_relation_thresholds = Relation::from_vec(
+            trust_models_relation.iter()
+                .map(|&(trust_model_id, threshold, _, _)| (trust_model_id, threshold))
+                .collect()
+        );
 
-                    if deps_ready {
-                        Some(((output, trust_element), 1))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+        let trust_model_id_and_parent_id_with_threshold = Relation::from_join(&trust_models_relation_by_is_member_of, &trust_models_relation_thresholds, |&parent_trust_model_id, &(trust_model_id, threshold, is_key), &parent_threshold | (trust_model_id, (parent_trust_model_id, parent_threshold)));
 
-            let ready_relation = Relation::from_vec(ready_candidates);
-
-            // Use leapjoin to compute effective cardinality
-            trust_results.from_leapjoin(
-                &candidates,
-                ready_relation.extend_with(|&(output, trust_element)| (output, trust_element)),
-                |&(output, trust_element), &_| {
-                    // Get all dependency cardinalities
-                    let dep_cards: Vec<usize> = dep_relation.iter()
-                        .filter(|&&(from_output, _)| from_output == output)
-                        .filter_map(|&(_, dep_out)| {
-                            trust_results.recent.borrow()
-                                .iter()
-                                .chain(trust_results.stable.borrow().iter().flat_map(|b| b.iter()))
-                                .find(|&&(o, t, _)| o == dep_out && t == trust_element)
-                                .map(|&(_, _, card)| card)
-                        })
-                        .collect();
-
-                    // Get current trust model cardinality
-                    let trust_model_card = trust_results.recent.borrow()
-                        .iter()
-                        .chain(trust_results.stable.borrow().iter().flat_map(|b| b.iter()))
-                        .find(|&&(o, t, _)| o == output && t == trust_element)
-                        .map(|&(_, _, card)| card)
-                        .unwrap_or(0);
-
-                    // Get threshold
-                    let threshold = trust_models_relation.iter()
-                        .find(|&&(tm, _)| tm == trust_element)
-                        .map(|&(_, t)| t)
-                        .unwrap_or(self.threshold);
-
-                    // Skip if already a FOD
-                    if trust_model_card == usize::MAX {
-                        return (output, trust_element, usize::MAX);
-                    }
-
-                    // Look for direct claims for this output
-                    let output_claims = rdrvs_outputs_x_as_y_says_z_relation.iter()
-                        .filter(|&(_, _, out, _)| *out == output)
-                        .count();
-
-                    let output_cardinality = if output_claims > 0 {
-                        let direct_claims = rdrvs_outputs_x_as_y_says_z_relation.iter()
-                            .filter(|&(_, _, out, signer)| {
-                                *out == output &&
-                                trust_model_members_relation.iter()
-                                    .any(|&(tm, member)| tm == trust_element && member == *signer)
-                            })
-                            .count();
-
-                        direct_claims
-                    } else {
-                        trust_model_card
-                    };
-
-                    // Compute effective cardinality
-                    let min_dep = dep_cards.iter().copied().min().unwrap_or(usize::MAX);
-                    let effective = if output_cardinality >= threshold {
-                        if dep_cards.is_empty() {
-                            output_cardinality
-                        } else {
-                            min(output_cardinality, min_dep)
-                        }
-                    } else {
-                        0
-                    };
-
-                    println!("  Computed: output {} with {} -> cardinality {} (output: {}, min_dep: {})",
-                        self.interner.get_string(output).unwrap_or("unknown"),
-                        self.interner.get_string(trust_element).unwrap_or("unknown"),
-                        effective,
-                        output_cardinality,
-                        if min_dep == usize::MAX { "∞".to_string() } else { min_dep.to_string() }
-                    );
-
-                    (output, trust_element, effective)
-                }
+        println!("\n=== Trust Model Propagation Relationships ===");
+        for &(child_tm, (parent_tm, parent_threshold)) in trust_model_id_and_parent_id_with_threshold.iter() {
+            println!("Child: {} -> Parent: {} (parent_threshold: {})",
+                self.interner.get_string(child_tm).unwrap_or("unknown"),
+                self.interner.get_string(parent_tm).unwrap_or("unknown"),
+                parent_threshold
             );
         }
 
+        // Start a new iteration for effective cardinality computation
+        let mut cardinality_iteration = Iteration::new();
+
+        // Variable for storing both direct key claims and trust model claims
+        let rdrvs_outputs_x_as_y_by_tm = cardinality_iteration.variable::<(usize,(usize,usize,usize))>("rdrvs_outputs_x_as_y_by_tm");
+
+        // First, copy all existing key signatures directly
+        let initial_signatures = Relation::from_vec(
+            rdrvs_outputs_x_as_y_says_z_relation.iter()
+                .map(|&(rdrv, build_output, udrv_output, trust_model_id)|
+                    (trust_model_id, (rdrv, build_output, udrv_output)))
+                .collect()
+        );
+        rdrvs_outputs_x_as_y_by_tm.insert(initial_signatures);
+
+        // Create a HashMap to track effective cardinalities, indexed by (trust_model_id, rdrv, build_output, udrv_output)
+        // Wrap it in a RefCell to allow mutation from within closures
+        let effective_tm_cardinalities = RefCell::new(HashMap::<(usize, usize, usize, usize), usize>::new());
+
+        let mut iteration_count = 0;
+        while cardinality_iteration.changed() {
+            iteration_count += 1;
+            println!("\n--- Cardinality Iteration {} ---", iteration_count);
+
+            // The from_leapjoin pattern should use a tuple of extension with filter, and then a mapping function
+            rdrvs_outputs_x_as_y_by_tm.from_leapjoin(
+                &rdrvs_outputs_x_as_y_by_tm,
+                // First argument: tuple of (extension, filter)
+                (
+                    trust_model_id_and_parent_id_with_threshold.extend_with(|&(trust_model_id, (_, _, _))| trust_model_id),
+                    ValueFilter::from(|&(trust_model_id, (rdrv, build_output, udrv_output)), &(parent_trust_model_id, parent_threshold)| {
+                        // Create a key for the HashMap
+                        let key = (parent_trust_model_id, rdrv, build_output, udrv_output);
+
+                        // Get current value from HashMap via RefCell, defaulting to 0
+                        let mut cardinalities = effective_tm_cardinalities.borrow_mut();
+                        let current_val = *cardinalities.get(&key).unwrap_or(&0);
+
+                        // Calculate new value and update HashMap
+                        let new_val = current_val + 1;
+                        cardinalities.insert(key, new_val);
+
+                        // Only emit when we exactly reach the threshold
+                        parent_threshold == new_val
+                    })
+                ),
+                // Second argument: mapping function
+                |&(_, (rdrv, build_output, udrv_output)), &(parent_trust_model_id, _)|
+                    (parent_trust_model_id, (rdrv, build_output, udrv_output))
+            );
+
+            println!("Iteration added {} facts", rdrvs_outputs_x_as_y_by_tm.recent.borrow().len());
+        }
+
+
         // Complete the trust computation and get the results
-        let trust_results_final = trust_results.complete();
+        let rdrvs_outputs_x_as_y_by_tm = rdrvs_outputs_x_as_y_by_tm.complete();
+
+        println!("\n=== Trust Model Computation Results ===");
+        println!("Total number of trust model claims: {}", rdrvs_outputs_x_as_y_by_tm.len());
+
+        // Group claims by trust model for better readability
+        let mut claims_by_model: HashMap<usize, Vec<(usize, usize, usize)>> = HashMap::new();
+        for &(tm_id, tuple) in rdrvs_outputs_x_as_y_by_tm.iter() {
+            claims_by_model.entry(tm_id).or_insert_with(Vec::new).push(tuple);
+        }
+        for (tm_id, claims) in claims_by_model.iter() {
+            println!("\nTrust model: {}", self.interner.get_string(*tm_id).unwrap_or("unknown"));
+            println!("  Number of claims: {}", claims.len());
+
+            // Check if this is the default trust model
+            let default_trust_model_id = self.interner.intern("default_trust_model");
+            if *tm_id == default_trust_model_id {
+                println!("  *** This is the DEFAULT TRUST MODEL ***");
+            }
+
+            println!("  Claims:");
+            for (rdrv, build_output, udrv_output) in claims {
+                println!("    - Resolved derivation: {}", self.interner.get_string(*rdrv).unwrap_or("unknown"));
+                println!("      Output: {} -> {}",
+                    self.interner.get_string(*udrv_output).unwrap_or("unknown"),
+                    self.interner.get_string(*build_output).unwrap_or("unknown"));
+            }
+        }
+
+        println!("\nEffective cardinalities:");
+        let cardinalities = effective_tm_cardinalities.borrow();
+        for ((tm_id, rdrv, build_output, udrv_output), count) in cardinalities.iter() {
+            if *count > 0 {
+                println!("  Trust model: {}, RDRV: {}, Output: {} -> {}, Count: {}",
+                    self.interner.get_string(*tm_id).unwrap_or("unknown"),
+                    self.interner.get_string(*rdrv).unwrap_or("unknown"),
+                    self.interner.get_string(*udrv_output).unwrap_or("unknown"),
+                    self.interner.get_string(*build_output).unwrap_or("unknown"),
+                    count);
+            }
+        }
 
         // Find root derivation(s)
         // A root is a non-FOD derivation that is not a dependency of any other derivation
@@ -464,6 +404,11 @@ impl TrustModelReasoner {
         // Find which resolved derivations have sufficient cardinality
         let default_trust_model_id = self.interner.intern("default_trust_model");
 
+        println!("🚧 note that the following verification does NOT yet\n  * {}\n  * {}",
+            "properly ensure build steps link up or",
+            "recognize that a group of build steps forms a sufficiently reproducible unit");
+        println!("\nIt effectifly only displays information about the reproducibility of the last step.\n");
+
         let verified_roots: Vec<usize> = resolved_roots.into_iter()
             .filter(|&rdrv| {
                 // Find the root's outputs and check their effective cardinality
@@ -472,27 +417,36 @@ impl TrustModelReasoner {
                     .map(|&(_, u)| u)
                     .unwrap();
 
-                // Find maximum cardinality across all outputs
-                let max_cardinality = udrvs_has_output_x_relation.iter()
+                let root_outputs: Vec<usize> = udrvs_has_output_x_relation.iter()
                     .filter(|&&(u, _)| u == udrv)
-                    .filter_map(|&(_, output)| {
-                        trust_results_final.iter()
-                            .find(|&&(o, t, _)| o == output && t == default_trust_model_id)
-                            .map(|&(_, _, cardinality)| cardinality)
-                    })
-                    .max()
-                    .unwrap_or(0);
+                    .map(|&(_, output)| output)
+                    .collect();
+
+                let verified_outputs_min_output_cardinality = rdrvs_outputs_x_as_y_by_tm.iter()
+                        .filter(|&(tm_id, (r, _, o))| 
+                    *tm_id == default_trust_model_id && *r == rdrv && root_outputs.contains(o))
+                        .map(|&(k, (r, t, o))| {
+                            let mut cardinalities = effective_tm_cardinalities.borrow();
+
+                            *cardinalities.get(&(k,r,t,o)).unwrap()
+                        })
+                        .min().unwrap();
+
+                let default_threshold = trust_models_relation.iter()
+                    .find(|&&(tm_id, _, _, _)| tm_id == default_trust_model_id)
+                    .map(|&(_, threshold, _, _)| threshold)
+                    .unwrap_or(1);
 
                 // Check if it meets the threshold
-                if max_cardinality >= self.threshold {
-                    println!("✅ Root {} verified with effective cardinality {} (threshold: {})",
+                if verified_outputs_min_output_cardinality >= default_threshold {
+                    println!("✅ Root {} build step has cardinality {} (threshold: {})",
                         self.interner.get_string(rdrv).unwrap_or("unknown"),
-                        max_cardinality, self.threshold);
+                        verified_outputs_min_output_cardinality, default_threshold);
                     true
                 } else {
-                    println!("❌ Root {} only has effective cardinality {} (threshold: {})",
+                    println!("❌ Root {} build step has cardinality {} (threshold: {})",
                         self.interner.get_string(rdrv).unwrap_or("unknown"),
-                        max_cardinality, self.threshold);
+                        verified_outputs_min_output_cardinality, default_threshold);
                     false
                 }
             })
@@ -501,7 +455,7 @@ impl TrustModelReasoner {
         if verified_roots.is_empty() {
             println!("\n=== Verification Results ===\n");
             println!("❌ Could not find sufficient evidence for verification:");
-            println!("  - No roots had effective cardinality >= {}", self.threshold);
+            println!("  - No roots had sufficient cardinality");
             return Ok(Vec::new());
         }
 
