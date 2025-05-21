@@ -85,3 +85,17 @@ We can repaint and validate each of those trees independently, and then put them
 Form the second decomposition we get a description of how at any point in the tree if we can stick with structurally equal set of constituents to determine validity, convergence at the link in question is not necessary.
 What we get from the first decomposition is a description of how at any point of the tree we can move from one subset of constituents of the trust model determining validity, to another (structurally different) set of constituents determining validity, as long as there is convergence to one output at the point in question.
 
+## Open Question
+
+* Are these semantics useful? Are they what we want?
+* Are they useful for implementing validation?
+* Implementing validation fast and correctly?
+
+## Some Thoughts
+
+* These semantics seem right / correct to me in the abstract sense.
+* I had trouble trying to state the same things in simple terms coming from another angle besides the thread one, because i kept forgetting about some possible situation that seemed like a problem and invalidated the design of my implementation.
+* The thing I dislike the most is that maybe allowing for more repainting than necesary in practice really blows up the possibility space, on the other hand it seems hard to completely get rid of this mechanism, so maybe heuristically we would try to make colors stay the same as much as possible. IDK.
+* Maybe in the implementation we can even divide an conquer the problem of validation based on which cuts through the tree seperate the deterministic and non-deterministic parts, and use differnt methods for validation on both sides of the cut.
+* I just want to have a clean and simple implementation of this that is correct. 🥲
+* I am uncertain if doing the kind of aggregation that seems to be required to express thresholds is sensible to do in datafrog.
