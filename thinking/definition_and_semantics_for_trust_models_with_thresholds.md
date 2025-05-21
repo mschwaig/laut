@@ -53,9 +53,9 @@ Threads are composable, if the verifier can produce them by performing dependenc
 
 * Each link in a thread has to have a color that is valid in the trust model under consideration on the relevant level.
 * Two links from two threads at the position of the same unresolved input hash, may only have the same color, if they do not start at the same leaf.
-* Each thread terminates at the same final output.
+* Each composed thread terminates at the same final output.
 
-We can verify a dependency tree in accordance with an arbitrary trust model, by composing threads while respecting the above two constraints.
+We can verify a dependency tree in accordance with an arbitrary trust model, by composing threads while respecting the above three two constraints.
 Composition can lead into dead ends, but for trees that are valid in accordance with the trust model there should be some composition, that is not a dead end.
 
 Verification is successful once we can count threshold threads beginning at each leaf input of the unresolved dependency tree,
@@ -67,19 +67,19 @@ One thing we need from such a definition is that we can apply it recursively, me
 
 The ground of these thoughts is less sound, and I am talking about a bunch of stuff that I am not defining properly, but I hope it is clear what properties and desired semantics I am getting at.
 
-We can take some scissors, and cut our resolved dependency tree into two pieces in arbitrary ways, or even cut a hole in it, and the pieces that we are left with still "make sense".
-Both pieces may become forests, with the additional constraint or effect that "outgoing" links become final outputs and "incoming links" become leaves.
-Any arbitrary re-coloring of the same links which satisfies our constraints and the trust model will work interchangeably if put the original tree back together after repainting it.
+We can take some scissors, and cut our resolved dependency tree into two pieces in arbitrary ways (through the content hashes of intermediary outputs). We can even cut a hole in it this way, and the pieces that we are left with, and the threads on them, still "make sense" in the context of the same trust model.
+Both pieces may become forests, with the additional constraint or effect that "outgoing" links become final outputs and "incoming links" become leaves (the devil is in the details of how exactly we define this).
+Any arbitrary re-coloring of the same links which satisfies our constraints and the trust model will work interchangeably if put the original tree back together after repainting it (in a way that respects the structure of the trust model, meaning it does not change any threshold value).
 
 To be more specific there are two ways of dealing with those pieces, which tells us different things:
 
 1. Option: We can accept that the threshold has to be met at every point where we make the cut, and have each piece be defined in the same two unresolved forests with known target outputs, that compose back to the same unresolved forest.
-2. Option: We can recursively accept that the set of introduced extra inputs and outputs does not have to meet the threshold and be the same, and we end up with a collection of forests that are defined in terms of different unresolved trees, but nonetheless compose nicely back into the same resolved one.
+2. Option: We can recursively accept that the set of introduced extra inputs and outputs does not have to meet the threshold and be the same, and we end up with a collection of forests that are defined in terms of different unresolved trees, but nonetheless compose nicely back into the same resolved tree.
 
 The first decomposition places an emphasis on the fact that any subset of the same trust model which meets the threshold is interchangeable, but its structurally different constituents are not.
 The second decomposition places an emphasis on the fact that any structurally equal subset of constituents of a trust model with an associated fixed set of counts per specific output / input is interchangeable.
 
-But the repainting argument applies to both kinds of decomposition.
+But the structure-preserving repainting argument applies to both kinds of decomposition.
 We can repaint and validate each of those trees independently, and then put them together to form one big valid tree.
 
 Form the second decomposition we get a description of how at any point in the tree if we can stick with structurally equal set of constituents to determine validity, convergence at the link in question is not necessary.
@@ -95,7 +95,8 @@ What we get from the first decomposition is a description of how at any point of
 
 * These semantics seem right / correct to me in the abstract sense.
 * I had trouble trying to state the same things in simple terms coming from another angle besides the thread one, because i kept forgetting about some possible situation that seemed like a problem and invalidated the design of my implementation.
-* The thing I dislike the most is that maybe allowing for more repainting than necesary in practice really blows up the possibility space, on the other hand it seems hard to completely get rid of this mechanism, so maybe heuristically we would try to make colors stay the same as much as possible. IDK.
+* The thing I dislike the most is that maybe allowing for more repainting than necesary in practice really blows up the possibility space, on the other hand it seems hard to completely get rid of this mechanism, because somewhere in a complex dependency tree the signer will legitimately change, and it is not even clear if it will a change to a structurally equivalent or different part of the trust model.
+, so maybe heuristically we would try to make colors stay the same as much as possible. IDK.
 * Maybe in the implementation we can even divide an conquer the problem of validation based on which cuts through the tree seperate the deterministic and non-deterministic parts, and use differnt methods for validation on both sides of the cut.
 * I just want to have a clean and simple implementation of this that is correct. 🥲
 * I am uncertain if doing the kind of aggregation that seems to be required to express thresholds is sensible to do in datafrog.
