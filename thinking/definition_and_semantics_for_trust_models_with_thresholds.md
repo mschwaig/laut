@@ -100,3 +100,6 @@ What we get from the first decomposition is a description of how at any point of
 * Maybe in the implementation we can even divide an conquer the problem of validation based on which cuts through the tree seperate the deterministic and non-deterministic parts, and use differnt methods for validation on both sides of the cut.
 * I just want to have a clean and simple implementation of this that is correct. 🥲
 * I am uncertain if doing the kind of aggregation that seems to be required to express thresholds is sensible to do in datafrog.
+* I think we need a fourth criterion for threads to prevent frankenbuilds.
+* Maybe same color and same udrv has to imply same rdrv, so the same color can not count twice for the treshold.
+* I wrote this for trees. It is not trivial to generalize it to graphs, but we need it for graphs. Maybe threads can fork to take all paths, but that seems like a different beast. We could also somehow unfold the graph into a tree by de-deduplication, but that messes up the thread counts as well. 😫
