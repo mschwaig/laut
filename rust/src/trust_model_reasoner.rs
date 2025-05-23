@@ -3,23 +3,23 @@ use datafrog::{Iteration, Variable, Relation, RelationLeaper, ValueFilter};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 
-use crate::string_interner::StringInterner;
+use crate::string_interner::{StringInterner, UDrv, RDrv, TrustModel, ContentHash, UDrvOutput};
 
 #[pyclass(unsendable)]
 pub struct TrustModelReasoner {
     interner: StringInterner,
     fill_iteration: Iteration,
-    fods: Variable<(usize,usize)>,
-    build_outputs: Variable<usize>,
-    udrvs: Variable<usize>,
-    udrv_outputs: Variable<usize>,
-    udrvs_has_output_x: Variable<(usize,usize)>,
-    udrvs_depends_on_x: Variable<(usize,usize)>,
-    rdrvs: Variable<usize>,
-    rdrvs_resolves_x: Variable<(usize,usize)>,
-    rdrvs_resolve_x_with_y: Variable<(usize,usize,usize)>,
-    rdrvs_outputs_x_as_y_says_z: Variable<(usize,usize,usize,usize)>, // (rdrv, build_output, udrv_output, trust_model_id)
-    trust_models: Variable<(usize,usize,bool,Option<usize>)>, // (trust_model_id, threshold, is_key, is_member_of)
+    fods: Variable<(UDrv,ContentHash)>,
+    build_outputs: Variable<ContentHash>,
+    udrvs: Variable<UDrv>,
+    udrv_outputs: Variable<UDrvOutput>,
+    udrvs_has_output_x: Variable<(UDrv,UDrvOutput)>,
+    udrvs_depends_on_x: Variable<(UDrv,UDrvOutput)>,
+    rdrvs: Variable<RDrv>,
+    rdrvs_resolves_x: Variable<(RDrv,UDrv)>,
+    rdrvs_resolve_x_with_y: Variable<(RDrv,UDrvOutput,ContentHash)>,
+    rdrvs_outputs_x_as_y_says_z: Variable<(RDrv,ContentHash,UDrvOutput,TrustModel)>, // (rdrv, build_output, udrv_output, trust_model_id)
+    trust_models: Variable<(TrustModel,usize,bool,Option<TrustModel>)>, // (trust_model_id, threshold, is_key, is_member_of)
 }
 
 #[pymethods]
@@ -49,27 +49,27 @@ impl TrustModelReasoner {
 
         let mut fill_iteration = Iteration::new();
 
-        let fods = fill_iteration.variable::<(usize,usize)>("fods");
-        let build_outputs = fill_iteration.variable::<usize>("build_outputs");
-        let udrvs = fill_iteration.variable::<usize>("udrvs");
-        let udrv_outputs = fill_iteration.variable::<>("udrvs_outputs");
-        let udrvs_has_output_x = fill_iteration.variable::<>("udrvs_has_output_x");
-        let udrvs_depends_on_x = fill_iteration.variable::<(usize,usize)>("udrvs_depends_on_x");
-        let rdrvs = fill_iteration.variable::<usize>("rdrvs");
-        let rdrvs_resolves_x = fill_iteration.variable::<>("rdrvs_resolves_x");
-        let rdrvs_resolve_x_with_y = fill_iteration.variable::<(usize,usize,usize)>("rdrvs_resolve_x_with_y");
-        let rdrvs_outputs_x_as_y_says_z = fill_iteration.variable::<(usize,usize,usize,usize)>("rdrvs_outputs_x_as_y_says_z");
-        let trust_models = fill_iteration.variable::<(usize,usize,bool,Option<usize>)>("trust_models");
+        let fods = fill_iteration.variable::<(UDrv,ContentHash)>("fods");
+        let build_outputs = fill_iteration.variable::<ContentHash>("build_outputs");
+        let udrvs = fill_iteration.variable::<UDrv>("udrvs");
+        let udrv_outputs = fill_iteration.variable::<UDrvOutput>("udrvs_outputs");
+        let udrvs_has_output_x = fill_iteration.variable::<(UDrv,UDrvOutput)>("udrvs_has_output_x");
+        let udrvs_depends_on_x = fill_iteration.variable::<(UDrv,UDrvOutput)>("udrvs_depends_on_x");
+        let rdrvs = fill_iteration.variable::<RDrv>("rdrvs");
+        let rdrvs_resolves_x = fill_iteration.variable::<(RDrv,UDrv)>("rdrvs_resolves_x");
+        let rdrvs_resolve_x_with_y = fill_iteration.variable::<(RDrv,UDrvOutput,ContentHash)>("rdrvs_resolve_x_with_y");
+        let rdrvs_outputs_x_as_y_says_z = fill_iteration.variable::<(RDrv,ContentHash,UDrvOutput,TrustModel)>("rdrvs_outputs_x_as_y_says_z");
+        let trust_models = fill_iteration.variable::<(TrustModel,usize,bool,Option<TrustModel>)>("trust_models");
 
         let mut interner = StringInterner::new();
 
         // Intern the trusted keys
-        let interned_keys: Vec<usize> = trusted_keys.iter()
-            .map(|key| interner.intern(key))
+        let interned_keys: Vec<TrustModel> = trusted_keys.iter()
+            .map(|key| interner.trust_model(key))
             .collect();
 
         // Create the default trust model
-        let default_trust_model_id = interner.intern("default_trust_model");
+        let default_trust_model_id = interner.trust_model("default_trust_model");
 
         // Add the default trust model with its threshold
         // (id, threshold, is_key=false, is_member_of=None)
@@ -99,8 +99,8 @@ impl TrustModelReasoner {
     }
     
     fn add_fod(&mut self, fod_to_add: &str, fod_hash_to_add: &str) -> Result<(), PyErr> {
-        let fod_id = self.interner.intern(fod_to_add);
-        let fod_hash_id = self.interner.intern(fod_hash_to_add);
+        let fod_id = self.interner.udrv(fod_to_add);
+        let fod_hash_id = self.interner.content_hash(fod_hash_to_add);
 
         self.fods.extend(vec![(fod_id, fod_hash_id)]);
         self.udrvs.extend(vec![fod_id]);
@@ -108,18 +108,18 @@ impl TrustModelReasoner {
 
         // FODs have one output which is their content hash
         // We need to add this to udrvs_has_output_x so the cardinality initialization can find it
-        let fod_output = self.interner.intern(&format!("{}$out", fod_to_add));
+        let fod_output = self.interner.udrv_output(&format!("{}$out", fod_to_add));
         self.udrv_outputs.extend(vec![fod_output]);
         self.udrvs_has_output_x.extend(vec![(fod_id, fod_output)]);
 
         println!("Added FOD: {} with hash {} and output {}",
-            fod_to_add, fod_hash_to_add, self.interner.get_string(fod_output).unwrap_or("unknown"));
+            fod_to_add, fod_hash_to_add, self.interner.udrv_output_str(fod_output).unwrap_or("unknown"));
 
         Ok(())
     }
     
     fn add_unresolved_derivation(&mut self, udrv_to_add: &str, depends_on: Vec<String>, outputs: Vec<String>) -> Result<(), PyErr> {
-        let udrv_id = self.interner.intern(udrv_to_add);
+        let udrv_id = self.interner.udrv(udrv_to_add);
         self.udrvs.extend(vec![udrv_id]);
 
         println!("Adding unresolved derivation: {}", udrv_to_add);
@@ -127,13 +127,13 @@ impl TrustModelReasoner {
         println!("  Outputs: {:?}", outputs);
 
         for item in depends_on.iter() {
-            let dep_id = self.interner.intern(item);
+            let dep_id = self.interner.udrv_output(item);
             self.udrv_outputs.extend(vec![dep_id]);
             self.udrvs_depends_on_x.extend(vec![(udrv_id, dep_id)]);
             println!("  Added dependency: {} -> {}", udrv_to_add, item);
         }
         for item in outputs.iter() {
-            let out_id = self.interner.intern(item);
+            let out_id = self.interner.udrv_output(item);
             self.udrv_outputs.extend(vec![out_id]);
             self.udrvs_has_output_x.extend(vec![(udrv_id, out_id)]);
         }
@@ -141,43 +141,49 @@ impl TrustModelReasoner {
     }
     
     fn add_resolved_derivation(&mut self, resolves_udrv: &str, with_rdrv: &str, resolving_x_with_y: HashMap<String, String>) -> Result<(), PyErr> {
-        self.udrvs.extend(vec![(self.interner.intern(resolves_udrv))]);
-        self.rdrvs.extend(vec![(self.interner.intern(with_rdrv))]);
-        self.rdrvs_resolves_x.extend(vec![(self.interner.intern(with_rdrv), self.interner.intern(resolves_udrv))]);
+        let udrv_id = self.interner.udrv(resolves_udrv);
+        let rdrv_id = self.interner.rdrv(with_rdrv);
+
+        self.udrvs.extend(vec![udrv_id]);
+        self.rdrvs.extend(vec![rdrv_id]);
+        self.rdrvs_resolves_x.extend(vec![(rdrv_id, udrv_id)]);
 
         for (key, value) in &resolving_x_with_y {
-            self.udrv_outputs.extend(vec![(self.interner.intern(key))]);
-            self.build_outputs.extend(vec![(self.interner.intern(value))]);
+            let udrv_out_id = self.interner.udrv_output(key);
+            let content_id = self.interner.content_hash(value);
+
+            self.udrv_outputs.extend(vec![udrv_out_id]);
+            self.build_outputs.extend(vec![content_id]);
 
             // Don't add these as dependencies - they're resolution mappings, not dependencies
             // The actual dependencies were already added in add_unresolved_derivation
-            self.rdrvs_resolve_x_with_y.extend(vec![(self.interner.intern(with_rdrv), self.interner.intern(key), self.interner.intern(value))]);
+            self.rdrvs_resolve_x_with_y.extend(vec![(rdrv_id, udrv_out_id, content_id)]);
         }
 
         Ok(())
     }
     
     fn add_build_output_claim(&mut self, from_resolved: &str, building_x_into_y_says_z: HashMap<String, String>, according_to: &str) -> Result<(), PyErr> {
-        let from_resolved_interned = self.interner.intern(from_resolved);
-        self.rdrvs.extend(vec![from_resolved_interned]);
-        let interned_key = self.interner.intern(according_to);
+        let rdrv_id = self.interner.rdrv(from_resolved);
+        self.rdrvs.extend(vec![rdrv_id]);
+        let trust_model_id = self.interner.trust_model(according_to);
 
         // Populate the rdrvs_outputs_x_as_y_says_z relation
         for (as_output, to_built) in &building_x_into_y_says_z {
-            let interned_output = self.interner.intern(as_output);
-            let interned_built = self.interner.intern(to_built);
+            let udrv_out_id = self.interner.udrv_output(as_output);
+            let content_id = self.interner.content_hash(to_built);
 
             println!("  Build output claim: {} -> {} (signed by {})",
                 as_output, to_built, according_to);
 
-            self.udrv_outputs.extend(vec![interned_output]);
-            self.build_outputs.extend(vec![interned_built]);
+            self.udrv_outputs.extend(vec![udrv_out_id]);
+            self.build_outputs.extend(vec![content_id]);
 
             self.rdrvs_outputs_x_as_y_says_z.extend(vec![(
-                from_resolved_interned,
-                interned_built,
-                interned_output,
-                interned_key
+                rdrv_id,
+                content_id,
+                udrv_out_id,
+                trust_model_id
             )]);
         }
 
@@ -204,10 +210,10 @@ impl TrustModelReasoner {
         println!("\n=== Trust Models Configuration ===");
         for &(tm_id, threshold, is_key, member_of) in trust_models_relation.iter() {
             println!("Trust model: {} (threshold: {}, is_key: {}, member_of: {:?})",
-                self.interner.get_string(tm_id).unwrap_or("unknown"),
+                self.interner.trust_model_str(tm_id).unwrap_or("unknown"),
                 threshold,
                 is_key,
-                member_of.map(|id| self.interner.get_string(id).unwrap_or("unknown"))
+                member_of.map(|id| self.interner.trust_model_str(id).unwrap_or("unknown"))
             );
         }
 
@@ -233,8 +239,8 @@ impl TrustModelReasoner {
         println!("\n=== Trust Model Propagation Relationships ===");
         for &(child_tm, (parent_tm, parent_threshold)) in trust_model_id_and_parent_id_with_threshold.iter() {
             println!("Child: {} -> Parent: {} (parent_threshold: {})",
-                self.interner.get_string(child_tm).unwrap_or("unknown"),
-                self.interner.get_string(parent_tm).unwrap_or("unknown"),
+                self.interner.trust_model_str(child_tm).unwrap_or("unknown"),
+                self.interner.trust_model_str(parent_tm).unwrap_or("unknown"),
                 parent_threshold
             );
         }
@@ -243,20 +249,20 @@ impl TrustModelReasoner {
         let mut cardinality_iteration = Iteration::new();
 
         // Variable for storing both direct key claims and trust model claims
-        let rdrvs_outputs_x_as_y_by_tm = cardinality_iteration.variable::<(usize,(usize,usize,usize))>("rdrvs_outputs_x_as_y_by_tm");
+        let rdrvs_outputs_x_as_y_by_tm = cardinality_iteration.variable::<(TrustModel,(RDrv,ContentHash,UDrvOutput))>("rdrvs_outputs_x_as_y_by_tm");
 
         // First, copy all existing key signatures directly
         let initial_signatures = Relation::from_vec(
             rdrvs_outputs_x_as_y_says_z_relation.iter()
-                .map(|&(rdrv, build_output, udrv_output, trust_model_id)|
-                    (trust_model_id, (rdrv, build_output, udrv_output)))
+                .map(|&(rdrv, build_output, udrv_output, trust_model)|
+                    (trust_model, (rdrv, build_output, udrv_output)))
                 .collect()
         );
         rdrvs_outputs_x_as_y_by_tm.insert(initial_signatures);
 
         // Create a HashMap to track effective cardinalities, indexed by (trust_model_id, rdrv, build_output, udrv_output)
         // Wrap it in a RefCell to allow mutation from within closures
-        let effective_tm_cardinalities = RefCell::new(HashMap::<(usize, usize, usize, usize), usize>::new());
+        let effective_tm_cardinalities = RefCell::new(HashMap::<(TrustModel, RDrv, ContentHash, UDrvOutput), usize>::new());
 
         let mut iteration_count = 0;
         while cardinality_iteration.changed() {
@@ -269,7 +275,7 @@ impl TrustModelReasoner {
                 // First argument: tuple of (extension, filter)
                 (
                     trust_model_id_and_parent_id_with_threshold.extend_with(|&(trust_model_id, (_, _, _))| trust_model_id),
-                    ValueFilter::from(|&(trust_model_id, (rdrv, build_output, udrv_output)), &(parent_trust_model_id, parent_threshold)| {
+                    ValueFilter::from(|&(trust_model, (rdrv, build_output, udrv_output)), &(parent_trust_model_id, parent_threshold)| {
                         // Create a key for the HashMap
                         let key = (parent_trust_model_id, rdrv, build_output, udrv_output);
 
@@ -301,26 +307,26 @@ impl TrustModelReasoner {
         println!("Total number of trust model claims: {}", rdrvs_outputs_x_as_y_by_tm.len());
 
         // Group claims by trust model for better readability
-        let mut claims_by_model: HashMap<usize, Vec<(usize, usize, usize)>> = HashMap::new();
+        let mut claims_by_model: HashMap<TrustModel, Vec<(RDrv, ContentHash, UDrvOutput)>> = HashMap::new();
         for &(tm_id, tuple) in rdrvs_outputs_x_as_y_by_tm.iter() {
             claims_by_model.entry(tm_id).or_insert_with(Vec::new).push(tuple);
         }
         for (tm_id, claims) in claims_by_model.iter() {
-            println!("\nTrust model: {}", self.interner.get_string(*tm_id).unwrap_or("unknown"));
+            println!("\nTrust model: {}", self.interner.trust_model_str(*tm_id).unwrap_or("unknown"));
             println!("  Number of claims: {}", claims.len());
 
             // Check if this is the default trust model
-            let default_trust_model_id = self.interner.intern("default_trust_model");
+            let default_trust_model_id = self.interner.trust_model("default_trust_model");
             if *tm_id == default_trust_model_id {
                 println!("  *** This is the DEFAULT TRUST MODEL ***");
             }
 
             println!("  Claims:");
             for (rdrv, build_output, udrv_output) in claims {
-                println!("    - Resolved derivation: {}", self.interner.get_string(*rdrv).unwrap_or("unknown"));
+                println!("    - Resolved derivation: {}", self.interner.rdrv_str(*rdrv).unwrap_or("unknown"));
                 println!("      Output: {} -> {}",
-                    self.interner.get_string(*udrv_output).unwrap_or("unknown"),
-                    self.interner.get_string(*build_output).unwrap_or("unknown"));
+                    self.interner.udrv_output_str(*udrv_output).unwrap_or("unknown"),
+                    self.interner.content_hash_str(*build_output).unwrap_or("unknown"));
             }
         }
 
@@ -329,21 +335,21 @@ impl TrustModelReasoner {
         for ((tm_id, rdrv, build_output, udrv_output), count) in cardinalities.iter() {
             if *count > 0 {
                 println!("  Trust model: {}, RDRV: {}, Output: {} -> {}, Count: {}",
-                    self.interner.get_string(*tm_id).unwrap_or("unknown"),
-                    self.interner.get_string(*rdrv).unwrap_or("unknown"),
-                    self.interner.get_string(*udrv_output).unwrap_or("unknown"),
-                    self.interner.get_string(*build_output).unwrap_or("unknown"),
+                    self.interner.trust_model_str(*tm_id).unwrap_or("unknown"),
+                    self.interner.rdrv_str(*rdrv).unwrap_or("unknown"),
+                    self.interner.udrv_output_str(*udrv_output).unwrap_or("unknown"),
+                    self.interner.content_hash_str(*build_output).unwrap_or("unknown"),
                     count);
             }
         }
 
         // Find root derivation(s)
         // A root is a non-FOD derivation that is not a dependency of any other derivation
-        let dependency_targets: HashSet<usize> = udrvs_depends_on_x_relation.iter()
+        let dependency_targets: HashSet<UDrvOutput> = udrvs_depends_on_x_relation.iter()
             .map(|&(_, dep)| dep)
             .collect();
 
-        let root_candidates: Vec<usize> = udrvs_relation.iter()
+        let root_candidates: Vec<UDrv> = udrvs_relation.iter()
             .filter(|&&udrv| {
                 // Not a dependency of any other derivation
                 !udrvs_has_output_x_relation.iter()
@@ -362,7 +368,7 @@ impl TrustModelReasoner {
             println!("  - Expected exactly one root derivation, found {}", root_candidates.len());
             println!("\nRoot candidates:");
             for &root in &root_candidates {
-                println!("  - {}", self.interner.get_string(root).unwrap_or("unknown"));
+                println!("  - {}", self.interner.udrv_str(root).unwrap_or("unknown"));
             }
             return Ok(Vec::new());
         }
@@ -370,7 +376,7 @@ impl TrustModelReasoner {
         let root_derivation = root_candidates[0];
 
         // Ensure all leaves are fixed-output derivations
-        let non_fod_leaves: Vec<usize> = udrvs_relation.iter()
+        let non_fod_leaves: Vec<UDrv> = udrvs_relation.iter()
             .filter(|&&udrv| {
                 // No outgoing dependencies
                 udrvs_depends_on_x_relation.iter().all(|&(d, _)| d != udrv) &&
@@ -388,7 +394,7 @@ impl TrustModelReasoner {
         }
 
         // Find which resolved derivations correspond to our root
-        let resolved_roots: Vec<usize> = rdrvs_resolves_x_relation.iter()
+        let resolved_roots: Vec<RDrv> = rdrvs_resolves_x_relation.iter()
             .filter(|&(_, udrv)| *udrv == root_derivation)
             .map(|&(rdrv, _)| rdrv)
             .collect();
@@ -397,19 +403,19 @@ impl TrustModelReasoner {
             println!("\n=== Verification Results ===\n");
             println!("❌ Could not find sufficient evidence for verification:");
             println!("  - Root derivation {} was not resolved",
-                self.interner.get_string(root_derivation).unwrap_or("unknown"));
+                self.interner.udrv_str(root_derivation).unwrap_or("unknown"));
             return Ok(Vec::new());
         }
 
         // Find which resolved derivations have sufficient cardinality
-        let default_trust_model_id = self.interner.intern("default_trust_model");
+        let default_trust_model_id = self.interner.trust_model("default_trust_model");
 
         println!("🚧 note that the following verification does NOT yet\n  * {}\n  * {}",
             "properly ensure build steps link up or",
             "recognize that a group of build steps forms a sufficiently reproducible unit");
         println!("\nIt effectifly only displays information about the reproducibility of the last step.\n");
 
-        let verified_roots: Vec<usize> = resolved_roots.into_iter()
+        let verified_roots: Vec<RDrv> = resolved_roots.into_iter()
             .filter(|&rdrv| {
                 // Find the root's outputs and check their effective cardinality
                 let udrv = rdrvs_resolves_x_relation.iter()
@@ -417,20 +423,20 @@ impl TrustModelReasoner {
                     .map(|&(_, u)| u)
                     .unwrap();
 
-                let root_outputs: Vec<usize> = udrvs_has_output_x_relation.iter()
+                let root_outputs: Vec<UDrvOutput> = udrvs_has_output_x_relation.iter()
                     .filter(|&&(u, _)| u == udrv)
                     .map(|&(_, output)| output)
                     .collect();
 
                 let verified_outputs_min_output_cardinality = rdrvs_outputs_x_as_y_by_tm.iter()
-                        .filter(|&(tm_id, (r, _, o))| 
+                        .filter(|&(tm_id, (r, _, o))|
                     *tm_id == default_trust_model_id && *r == rdrv && root_outputs.contains(o))
                         .map(|&(k, (r, t, o))| {
                             let mut cardinalities = effective_tm_cardinalities.borrow();
 
                             *cardinalities.get(&(k,r,t,o)).unwrap()
                         })
-                        .min().unwrap();
+                        .min().unwrap_or(0);
 
                 let default_threshold = trust_models_relation.iter()
                     .find(|&&(tm_id, _, _, _)| tm_id == default_trust_model_id)
@@ -440,12 +446,12 @@ impl TrustModelReasoner {
                 // Check if it meets the threshold
                 if verified_outputs_min_output_cardinality >= default_threshold {
                     println!("✅ Root {} build step has cardinality {} (threshold: {})",
-                        self.interner.get_string(rdrv).unwrap_or("unknown"),
+                        self.interner.rdrv_str(rdrv).unwrap_or("unknown"),
                         verified_outputs_min_output_cardinality, default_threshold);
                     true
                 } else {
                     println!("❌ Root {} build step has cardinality {} (threshold: {})",
-                        self.interner.get_string(rdrv).unwrap_or("unknown"),
+                        self.interner.rdrv_str(rdrv).unwrap_or("unknown"),
                         verified_outputs_min_output_cardinality, default_threshold);
                     false
                 }
@@ -476,12 +482,12 @@ impl TrustModelReasoner {
 
         println!("\nVerification status:");
         println!("✅ The root derivation [{}] was successfully resolved",
-                 self.interner.get_string(root_derivation).unwrap_or("unknown"));
+                 self.interner.udrv_str(root_derivation).unwrap_or("unknown"));
 
         // Convert verified roots to strings for return value
         let resolved_root_strings: Vec<String> = verified_roots
             .iter()
-            .map(|&rdrv| self.interner.get_string(rdrv).unwrap_or("unknown").to_string())
+            .map(|&rdrv| self.interner.rdrv_str(rdrv).unwrap_or("unknown").to_string())
             .collect();
 
         Ok(resolved_root_strings)
