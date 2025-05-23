@@ -290,7 +290,11 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             resolution
         )
 
-        resolution_str = {k.drv_path: v.input_hash for k, v in resolution.items()}
+        resolution_str = {}
+        for unresolved_drv, resolved_drv in resolution.items():
+            # Map each UnresolvedOutput to its corresponding content hash
+            for unresolved_output, content_hash in resolved_drv.outputs.items():
+                resolution_str[unresolved_output.udrv_output_id()] = content_hash
         _get_reasoner().add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
         drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
         for r in resolution.values():

@@ -102,6 +102,10 @@ class UnresolvedOutput:
     def placeholder(self):
         return hash_upstream_placeholder(self.drv_path, self.output_name)
 
+    def udrv_output_id(self):
+        """Returns the UDrvOutput identifier string in the format drv_path$output_name"""
+        return f"{self.drv_path}${self.output_name}"
+
     def __hash__(self):
         return hash((self.input_hash, self.unresolved_path, self.output_name))
 
