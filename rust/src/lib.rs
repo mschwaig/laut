@@ -1,6 +1,5 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use datafrog::{Iteration, Relation};
 use nix_compat::store_path;
 use laut_compat::content_hash;
 use nix_compat::derivation::calculate_derivation_path_from_aterm;
@@ -16,7 +15,6 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<TrustModelReasoner>()?;
 
-    m.add_function(wrap_pyfunction!(simple_datafrog_example, m)?)?;
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_drv_path_from_aterm, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_nar_hash, m)?)?;
@@ -54,30 +52,3 @@ fn calculate_drv_path_from_aterm(drv_name: &str, drv_aterm: &str) -> PyResult<St
         .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", err)))?;
     Ok(result)
  }
-
-#[pyfunction]
-fn simple_datafrog_example() -> PyResult<usize> {
-
-    let nodes: Relation<(u32,u32)> = vec![
-     (1, 2), (3, 4)
-    ].into();
-    let edges: Relation<(u32,u32)> = vec![
-     (1,2), (3,4), (2,3)
-    ].into();
-
-    let mut iteration = Iteration::new();
-
-    let nodes_var = iteration.variable::<(u32,u32)>("nodes");
-    let edges_var = iteration.variable::<(u32,u32)>("edges");
-
-    nodes_var.insert(nodes.into());
-    edges_var.insert(edges.into());
-
-    while iteration.changed() {
-        nodes_var.from_join(&nodes_var, &edges_var, |_b, &a, &c| (c,a));
-    }
-
-    let _reachable: Relation<(u32,u32)> = nodes_var.complete();
-
-    Ok(66)
-}

@@ -140,9 +140,13 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
             } if config.debug else {}),
         },
         "out": {
-             # TODO: need to wrap the raw messages in protobuf messages
             "castore-entry": castore_outputs,
             "nix": output_hashes,
+            # TODO: add info about
+            # * self-references and
+            # * if this contains any references at all
+            #   - because if if does not, rewriting does nothing,
+            #     therefore no harm - especially relevant for bit-level reasoning
         },
         "builder": {
             # a random rebuild id so we can reason about reproducibility on the same machine
