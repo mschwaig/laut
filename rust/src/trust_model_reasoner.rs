@@ -10,12 +10,8 @@ pub struct TrustModelReasoner {
     interner: StringInterner,
     fill_iteration: Iteration,
     fods: Variable<(UDrv,ContentHash)>,
-    build_outputs: Variable<ContentHash>,
-    udrvs: Variable<UDrv>,
-    udrv_outputs: Variable<UDrvOutput>,
     udrvs_has_output_x: Variable<(UDrv,UDrvOutput)>,
     udrvs_depends_on_x: Variable<(UDrv,UDrvOutput)>,
-    rdrvs: Variable<RDrv>,
     rdrvs_resolves_x: Variable<(RDrv,UDrv)>,
     rdrvs_resolve_x_with_y: Variable<(RDrv,UDrvOutput,ContentHash)>,
     rdrvs_outputs_x_as_y_says_z: Variable<(RDrv,ContentHash,UDrvOutput,TrustModel)>, // (rdrv, build_output, udrv_output, trust_model_id)
@@ -50,12 +46,8 @@ impl TrustModelReasoner {
         let mut fill_iteration = Iteration::new();
 
         let fods = fill_iteration.variable::<(UDrv,ContentHash)>("fods");
-        let build_outputs = fill_iteration.variable::<ContentHash>("build_outputs");
-        let udrvs = fill_iteration.variable::<UDrv>("udrvs");
-        let udrv_outputs = fill_iteration.variable::<UDrvOutput>("udrvs_outputs");
         let udrvs_has_output_x = fill_iteration.variable::<(UDrv,UDrvOutput)>("udrvs_has_output_x");
         let udrvs_depends_on_x = fill_iteration.variable::<(UDrv,UDrvOutput)>("udrvs_depends_on_x");
-        let rdrvs = fill_iteration.variable::<RDrv>("rdrvs");
         let rdrvs_resolves_x = fill_iteration.variable::<(RDrv,UDrv)>("rdrvs_resolves_x");
         let rdrvs_resolve_x_with_y = fill_iteration.variable::<(RDrv,UDrvOutput,ContentHash)>("rdrvs_resolve_x_with_y");
         let rdrvs_outputs_x_as_y_says_z = fill_iteration.variable::<(RDrv,ContentHash,UDrvOutput,TrustModel)>("rdrvs_outputs_x_as_y_says_z");
@@ -85,12 +77,8 @@ impl TrustModelReasoner {
             interner,
             fill_iteration,
             fods,
-            build_outputs,
-            udrvs,
-            udrv_outputs,
             udrvs_has_output_x,
             udrvs_depends_on_x,
-            rdrvs,
             rdrvs_resolves_x,
             rdrvs_resolve_x_with_y,
             rdrvs_outputs_x_as_y_says_z,
@@ -103,13 +91,10 @@ impl TrustModelReasoner {
         let fod_hash_id = self.interner.content_hash(fod_hash_to_add);
 
         self.fods.extend(vec![(fod_id, fod_hash_id)]);
-        self.udrvs.extend(vec![fod_id]);
-        self.build_outputs.extend(vec![fod_hash_id]);
 
         // FODs have one output which is their content hash
         // We need to add this to udrvs_has_output_x so the cardinality initialization can find it
         let fod_output = self.interner.udrv_output(&format!("{}$out", fod_to_add));
-        self.udrv_outputs.extend(vec![fod_output]);
         self.udrvs_has_output_x.extend(vec![(fod_id, fod_output)]);
 
         println!("Added FOD: {} with hash {} and output {}",
@@ -120,7 +105,6 @@ impl TrustModelReasoner {
     
     fn add_unresolved_derivation(&mut self, udrv_to_add: &str, depends_on: Vec<String>, outputs: Vec<String>) -> Result<(), PyErr> {
         let udrv_id = self.interner.udrv(udrv_to_add);
-        self.udrvs.extend(vec![udrv_id]);
 
         println!("Adding unresolved derivation: {}", udrv_to_add);
         println!("  Dependencies: {:?}", depends_on);
@@ -128,13 +112,11 @@ impl TrustModelReasoner {
 
         for item in depends_on.iter() {
             let dep_id = self.interner.udrv_output(item);
-            self.udrv_outputs.extend(vec![dep_id]);
             self.udrvs_depends_on_x.extend(vec![(udrv_id, dep_id)]);
             println!("  Added dependency: {} -> {}", udrv_to_add, item);
         }
         for item in outputs.iter() {
             let out_id = self.interner.udrv_output(item);
-            self.udrv_outputs.extend(vec![out_id]);
             self.udrvs_has_output_x.extend(vec![(udrv_id, out_id)]);
         }
         Ok(())
@@ -144,16 +126,11 @@ impl TrustModelReasoner {
         let udrv_id = self.interner.udrv(resolves_udrv);
         let rdrv_id = self.interner.rdrv(with_rdrv);
 
-        self.udrvs.extend(vec![udrv_id]);
-        self.rdrvs.extend(vec![rdrv_id]);
         self.rdrvs_resolves_x.extend(vec![(rdrv_id, udrv_id)]);
 
         for (key, value) in &resolving_x_with_y {
             let udrv_out_id = self.interner.udrv_output(key);
             let content_id = self.interner.content_hash(value);
-
-            self.udrv_outputs.extend(vec![udrv_out_id]);
-            self.build_outputs.extend(vec![content_id]);
 
             // Don't add these as dependencies - they're resolution mappings, not dependencies
             // The actual dependencies were already added in add_unresolved_derivation
@@ -165,7 +142,6 @@ impl TrustModelReasoner {
     
     fn add_build_output_claim(&mut self, from_resolved: &str, building_x_into_y_says_z: HashMap<String, String>, according_to: &str) -> Result<(), PyErr> {
         let rdrv_id = self.interner.rdrv(from_resolved);
-        self.rdrvs.extend(vec![rdrv_id]);
         let trust_model_id = self.interner.trust_model(according_to);
 
         // Populate the rdrvs_outputs_x_as_y_says_z relation
@@ -175,9 +151,6 @@ impl TrustModelReasoner {
 
             println!("  Build output claim: {} -> {} (signed by {})",
                 as_output, to_built, according_to);
-
-            self.udrv_outputs.extend(vec![udrv_out_id]);
-            self.build_outputs.extend(vec![content_id]);
 
             self.rdrvs_outputs_x_as_y_says_z.extend(vec![(
                 rdrv_id,
@@ -200,12 +173,14 @@ impl TrustModelReasoner {
         // Complete all variables to relations
         let udrvs_depends_on_x_relation = self.udrvs_depends_on_x.clone().complete();
         let fods_relation = self.fods.clone().complete();
-        let udrvs_relation = self.udrvs.clone().complete();
         let udrvs_has_output_x_relation = self.udrvs_has_output_x.clone().complete();
-        let rdrvs_relation = self.rdrvs.clone().complete();
         let rdrvs_resolves_x_relation = self.rdrvs_resolves_x.clone().complete();
         let rdrvs_outputs_x_as_y_says_z_relation = self.rdrvs_outputs_x_as_y_says_z.clone().complete();
         let trust_models_relation = self.trust_models.clone().complete();
+
+        // Get counts and iterators from interner instead of maintaining redundant relations
+        let udrvs_count = self.interner.udrvs_count();
+        let rdrvs_count = self.interner.rdrvs_count();
 
         println!("\n=== Trust Models Configuration ===");
         for &(tm_id, threshold, is_key, member_of) in trust_models_relation.iter() {
@@ -349,7 +324,7 @@ impl TrustModelReasoner {
             .map(|&(_, dep)| dep)
             .collect();
 
-        let root_candidates: Vec<UDrv> = udrvs_relation.iter()
+        let root_candidates: Vec<UDrv> = self.interner.all_udrvs()
             .filter(|&&udrv| {
                 // Not a dependency of any other derivation
                 !udrvs_has_output_x_relation.iter()
@@ -376,7 +351,7 @@ impl TrustModelReasoner {
         let root_derivation = root_candidates[0];
 
         // Ensure all leaves are fixed-output derivations
-        let non_fod_leaves: Vec<UDrv> = udrvs_relation.iter()
+        let non_fod_leaves: Vec<UDrv> = self.interner.all_udrvs()
             .filter(|&&udrv| {
                 // No outgoing dependencies
                 udrvs_depends_on_x_relation.iter().all(|&(d, _)| d != udrv) &&
@@ -468,9 +443,7 @@ impl TrustModelReasoner {
         // Generate summary information
         println!("\n=== Verification Results ===\n");
 
-        let udrvs_count = udrvs_relation.len();
         let fods_count = fods_relation.len();
-        let rdrvs_count = rdrvs_relation.len();
         let resolvable_count = udrvs_count - fods_count;
 
         println!("Build consists of {} unresolved derivations", udrvs_count);
@@ -515,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_trust_propagation() -> Result<(), PyErr> {
-        env_logger::init();
+        // env_logger::init();
         // Create a reasoner with 2 trusted keys and threshold 2
         let mut reasoner = TrustModelReasoner::new(vec!["key1".to_string(), "key2".to_string()], 2)?;
 
