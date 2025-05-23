@@ -162,7 +162,7 @@ def reject_input_addressed_derivations(derivation: UnresolvedDerivation):
         reject_input_addressed_derivations(x.derivation)
     raise ValueError("Not supporting input addressed derivations for now!")
 
-def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDerivation]:
+def collect_valid_signatures_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDerivation]:
     global debug_dir
     global _reasoner
     # if our goal is not resolving a particular output
@@ -178,17 +178,8 @@ def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDeri
             os.mkdir(dir_path)
             debug_dir = Path(dir_path).resolve()
 
-        unresolved_deps_file = open(td / 'unresolved_deps.facts', 'w')
-        drv_resolutions_file = open(td / 'drv_resolutions.facts', 'w')
-        resolved_deps_file = open(td / 'resolved_deps.facts', 'w')
-        builds_file = open(td / 'builds.facts', 'w')
 
-        root_result = collect_valid_signatures_tree_rec(derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
-        logger.warning(f"Closing files at {temp_dir}")
-        unresolved_deps_file.close()
-        resolved_deps_file.close()
-        builds_file.close()
-        drv_resolutions_file.close()
+        root_result = collect_valid_signatures_tree_rec(derivation)
 
         # Compute final results using the trust model reasoner
         # The Rust code will print the verification results directly
@@ -210,19 +201,8 @@ def verify_tree(derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDeri
 
         return root_result
 
-def remember_steps(func):
-    func.cache = dict()
-    @wraps(func)
-    def wrap_collect_valid_signatures_tree_rec(*args):
-        try:
-            return func.cache[args[0]]
-        except KeyError:
-            func.cache[args[0]] = result = func(*args)
-            return result
-    return wrap_collect_valid_signatures_tree_rec
-
-@remember_steps
-def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file) -> set[TrustlesslyResolvedDerivation]:
+@cache
+def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivation) -> set[TrustlesslyResolvedDerivation]:
     global debug_dir
     global _reasoner
     # if we invoke this with a FOD that should probably be an error?
@@ -258,8 +238,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
     step_result: dict[UnresolvedDerivation, set[TrustlesslyResolvedDerivation]] = dict()
     failed = False
     for i in unresolved_derivation.inputs:
-        unresolved_deps_file.write(f"{unresolved_derivation.drv_path}\t{i.derivation.drv_path}\n")
-        dep_result = collect_valid_signatures_tree_rec(i.derivation, unresolved_deps_file, drv_resolutions_file, resolved_deps_file, builds_file)
+        dep_result = collect_valid_signatures_tree_rec(i.derivation)
         # TODO: only tack outputs which we actually depend on
         if not dep_result:
             # nope out if we cannot resolve one of our dependencies
@@ -296,9 +275,6 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             for unresolved_output, content_hash in resolved_drv.outputs.items():
                 resolution_str[unresolved_output.udrv_output_id()] = content_hash
         _get_reasoner().add_resolved_derivation(unresolved_derivation.drv_path, ct_input_hash, resolution_str)
-        drv_resolutions_file.write(f"{unresolved_derivation.drv_path}\t\"{ct_input_hash}\"\n")
-        for r in resolution.values():
-            resolved_deps_file.write(f"\"{ct_input_hash}\"\t{r.resolves.drv_path}\t\"{r.input_hash}\"\n")
 
         if debug_dir:
             with open(udrv_path / ct_input_hash, 'w') as f:
@@ -332,7 +308,6 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             )
             for o in signature_data["out"]["nix"]:
                 # TODO: add output name or change data structure in some way to accommodate it
-                builds_file.write(f"\"{signature_data["in"]["rdrv_json"]}\"\t\"{signature_data["out"]["nix"][o]}\"\n")
                 outputs[unresolved_derivation.outputs[o]] = signature_data["out"]["nix"][o]["path"]
             if debug_dir:
                 filename =  Path(signature_data["in"]["debug"]["rdrv_path"]).name
@@ -360,7 +335,7 @@ def verify_tree_from_drv_path(drv_path):
     from laut.nix import commands
     all_drv_json = commands.get_derivation(drv_path, True)
     drv = build_unresolved_tree(drv_path, all_drv_json)
-    resolved_derivations = verify_tree(drv)
+    resolved_derivations = collect_valid_signatures_tree(drv)
 
     # The CLI expects a truth-y value if verification succeeded
     # We'll return a non-empty string if verification succeeded, None otherwise
