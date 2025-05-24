@@ -30,6 +30,8 @@ def mock_derivation_lookup(monkeypatch):
             drv_file_name = "resolved-problematic-fixed.drv"
         elif drv_path == "/nix/store/0685sic9d3nzvf940sj4aflllsq99pqk-zlib-1.3.1.drv":
             drv_file_name = "multiple-outputs.drv"
+        elif drv_path == "/nix/store/23xwpgqwja339ljkq4zqgymwyawnlhar-gettext-0.22.5.drv":
+            drv_file_name = "not-ascii.drv"
         else:
             ValueError("invalid input to mock")
 
@@ -77,6 +79,22 @@ def test_sign_multi_output(runner, mock_derivation_lookup):
     assert result.exit_code == 0
     assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
     mock_derivation_lookup.assert_called_with('/nix/store/0685sic9d3nzvf940sj4aflllsq99pqk-zlib-1.3.1.drv', False)
+    pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+    assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
+
+def test_ascii(runner, mock_derivation_lookup):
+    result = runner.invoke(sign, [
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            "/nix/store/23xwpgqwja339ljkq4zqgymwyawnlhar-gettext-0.22.5.drv"
+        ],
+        env = {
+            'OUT_PATHS': '/nix/store/75bq8gasrvjw6k4ss2y1n2z6cbqaih68-zlib-1.3.1-static /nix/store/95d8zqx3nx5gbha1dlcspwz8sncz84y4-zlib-1.3.1 /nix/store/pmazrl3wschw3rnzk107x81lh2ai87cz-zlib-1.3.1-dev',
+            'DRV_PATH': '/nix/store/0685sic9d3nzvf940sj4aflllsq99pqk-zlib-1.3.1.drv',
+        }
+    )
+    assert result.exit_code == 0
+    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    mock_derivation_lookup.assert_called_with('/nix/store/23xwpgqwja339ljkq4zqgymwyawnlhar-gettext-0.22.5.drv', False)
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
 

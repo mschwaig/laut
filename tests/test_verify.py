@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Optional
 from unittest.mock import Mock
-from laut.verification.verification import build_unresolved_tree, verify_tree
+from laut.verification.verification import build_unresolved_tree, collect_valid_signatures_tree
 from laut.nix import commands
 
 from laut.cli import read_public_key
@@ -75,7 +75,7 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
     # as part of the bootstrap
     drv = build_unresolved_tree("/nix/store/p3y81mafk8jbj6r71xba1hailj5z0k09-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
-    set = verify_tree(drv)
+    set = collect_valid_signatures_tree(drv)
 
     assert len(set) == 1
     resolved_derivaiton = next(iter(set))
@@ -88,7 +88,7 @@ def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_
 
     drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
 
-    set = verify_tree(drv)
+    set = collect_valid_signatures_tree(drv)
 
     assert len(set) == 1
     resolved_derivaiton = next(iter(set))
