@@ -1,83 +1,81 @@
 {
-  "/nix/store/23xwpgqwja339ljkq4zqgymwyawnlhar-gettext-0.22.5.drv": {
-    "args": [
-      "-e",
-      "/nix/store/vj1c3wf9c11a0qs6p3ymfvrnsdgsdcbq-source-stdenv.sh",
-      "/nix/store/shkw4qm9qcw5sc5n1k5jznc83ny02r39-default-builder.sh"
-    ],
+  "args": [
+    "-e",
+    "/nix/store/vj1c3wf9c11a0qs6p3ymfvrnsdgsdcbq-source-stdenv.sh",
+    "/nix/store/shkw4qm9qcw5sc5n1k5jznc83ny02r39-default-builder.sh"
+  ],
+  "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
+  "env": {
+    "LDFLAGS": "",
+    "__structuredAttrs": "",
+    "buildInputs": "/nix/store/fg6bhpfq9rzh3lfh3h1iz77krmp38ilj-bash-5.2p37-dev",
     "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
-    "env": {
-      "LDFLAGS": "",
-      "__structuredAttrs": "",
-      "buildInputs": "/nix/store/fg6bhpfq9rzh3lfh3h1iz77krmp38ilj-bash-5.2p37-dev",
-      "builder": "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools/bin/bash",
-      "cmakeFlags": "",
-      "configureFlags": "--disable-csharp",
-      "depsBuildBuild": "",
-      "depsBuildBuildPropagated": "",
-      "depsBuildTarget": "",
-      "depsBuildTargetPropagated": "",
-      "depsHostHost": "",
-      "depsHostHostPropagated": "",
-      "depsTargetTarget": "",
-      "depsTargetTargetPropagated": "",
-      "doCheck": "",
-      "doInstallCheck": "",
-      "doc": "/071n0a2b0qpwijb2ws5nyvq1b3xyb0hgxbsh1cnzxj41mi8k1nyy",
-      "enableParallelBuilding": "1",
-      "enableParallelChecking": "",
-      "enableParallelInstalling": "1",
-      "gettextNeedsLdflags": "",
-      "info": "/1q29kf1a0nccw70c0b8a1mg10jr7b5lvv5m7v3jwdffnsy6nvxyy",
-      "man": "/13w3w5jxr32cwlhkkhgz7w65fffzgv7fkd48zi7ncz9ghqzhnqpw",
-      "mesonFlags": "",
-      "name": "gettext-0.22.5",
-      "nativeBuildInputs": "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
-      "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
-      "outputHashAlgo": "sha256",
-      "outputHashMode": "recursive",
-      "outputs": "out man doc info",
-      "patches": "/nix/store/p2fp6i7hjx9af1wbwr32k217wp2dxmiw-absolute-paths.diff /nix/store/yqwx9yln5i68nw61mmp9gz066yz3ri99-0001-msginit-Do-not-use-POT-Creation-Date.patch",
-      "pname": "gettext",
-      "postPatch": "# Older versions of gettext come with a copy of `extern-inline.m4` that is not compatible with clang 18.\n# When a project uses gettext + autoreconfPhase, autoreconfPhase will invoke `autopoint -f`, which will\n# replace whatever (probably compatible) version of `extern-inline.m4` with one that probalby won’t work\n# because `autopoint` will copy the autoconf macros from the project’s required version of gettext.\n# Fixing this requires replacing all the older copies of the problematic file with a new one.\n#\n# This is ugly, but it avoids requiring workarounds in every package using gettext and autoreconfPhase.\ndeclare -a oldFiles=($(tar tf gettext-tools/misc/archive.dir.tar | grep '^gettext-0\\.[19].*/extern-inline.m4'))\noldFilesDir=$(mktemp -d)\nfor oldFile in \"${oldFiles[@]}\"; do\n  mkdir -p \"$oldFilesDir/$(dirname \"$oldFile\")\"\n  cp -a gettext-tools/gnulib-m4/extern-inline.m4 \"$oldFilesDir/$oldFile\"\ndone\ntar uf gettext-tools/misc/archive.dir.tar --owner=0 --group=0 --numeric-owner -C \"$oldFilesDir\" \"${oldFiles[@]}\"\n\nsubstituteAllInPlace gettext-runtime/src/gettext.sh.in\nsubstituteInPlace gettext-tools/projects/KDE/trigger --replace \"/bin/pwd\" pwd\nsubstituteInPlace gettext-tools/projects/GNOME/trigger --replace \"/bin/pwd\" pwd\nsubstituteInPlace gettext-tools/src/project-id --replace \"/bin/pwd\" pwd\n",
-      "propagatedBuildInputs": "",
-      "propagatedNativeBuildInputs": "",
-      "setupHooks": "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash /nix/store/ny42y6hs4p294rvnrwbmrpwzqghw2816-gettext-setup-hook.sh",
-      "src": "/nix/store/whgzrixh2jwgz9bydmfsm3kx6a9szajl-gettext-0.22.5.tar.gz",
-      "stdenv": "/nix/store/46f69c5mdfn57k6vmfzlwg23c3dzr1md-bootstrap-stage1-stdenv-linux",
-      "strictDeps": "1",
-      "system": "x86_64-linux",
-      "version": "0.22.5"
-    },
-    "inputDrvs": {},
-    "inputSrcs": [
-      "/nix/store/46f69c5mdfn57k6vmfzlwg23c3dzr1md-bootstrap-stage1-stdenv-linux",
-      "/nix/store/fg6bhpfq9rzh3lfh3h1iz77krmp38ilj-bash-5.2p37-dev",
-      "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
-      "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
-      "/nix/store/ny42y6hs4p294rvnrwbmrpwzqghw2816-gettext-setup-hook.sh",
-      "/nix/store/p2fp6i7hjx9af1wbwr32k217wp2dxmiw-absolute-paths.diff",
-      "/nix/store/shkw4qm9qcw5sc5n1k5jznc83ny02r39-default-builder.sh",
-      "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash",
-      "/nix/store/vj1c3wf9c11a0qs6p3ymfvrnsdgsdcbq-source-stdenv.sh",
-      "/nix/store/whgzrixh2jwgz9bydmfsm3kx6a9szajl-gettext-0.22.5.tar.gz",
-      "/nix/store/yqwx9yln5i68nw61mmp9gz066yz3ri99-0001-msginit-Do-not-use-POT-Creation-Date.patch"
-    ],
+    "cmakeFlags": "",
+    "configureFlags": "--disable-csharp",
+    "depsBuildBuild": "",
+    "depsBuildBuildPropagated": "",
+    "depsBuildTarget": "",
+    "depsBuildTargetPropagated": "",
+    "depsHostHost": "",
+    "depsHostHostPropagated": "",
+    "depsTargetTarget": "",
+    "depsTargetTargetPropagated": "",
+    "doCheck": "",
+    "doInstallCheck": "",
+    "doc": "/071n0a2b0qpwijb2ws5nyvq1b3xyb0hgxbsh1cnzxj41mi8k1nyy",
+    "enableParallelBuilding": "1",
+    "enableParallelChecking": "",
+    "enableParallelInstalling": "1",
+    "gettextNeedsLdflags": "",
+    "info": "/1q29kf1a0nccw70c0b8a1mg10jr7b5lvv5m7v3jwdffnsy6nvxyy",
+    "man": "/13w3w5jxr32cwlhkkhgz7w65fffzgv7fkd48zi7ncz9ghqzhnqpw",
+    "mesonFlags": "",
     "name": "gettext-0.22.5",
-    "outputs": {
-      "doc": {
-        "hashAlgo": "r:sha256"
-      },
-      "info": {
-        "hashAlgo": "r:sha256"
-      },
-      "man": {
-        "hashAlgo": "r:sha256"
-      },
-      "out": {
-        "hashAlgo": "r:sha256"
-      }
+    "nativeBuildInputs": "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
+    "out": "/1rz4g4znpzjwh1xymhjpm42vipw92pr73vdgl6xs1hycac8kf2n9",
+    "outputHashAlgo": "sha256",
+    "outputHashMode": "recursive",
+    "outputs": "out man doc info",
+    "patches": "/nix/store/p2fp6i7hjx9af1wbwr32k217wp2dxmiw-absolute-paths.diff /nix/store/yqwx9yln5i68nw61mmp9gz066yz3ri99-0001-msginit-Do-not-use-POT-Creation-Date.patch",
+    "pname": "gettext",
+    "postPatch": "# Older versions of gettext come with a copy of `extern-inline.m4` that is not compatible with clang 18.\n# When a project uses gettext + autoreconfPhase, autoreconfPhase will invoke `autopoint -f`, which will\n# replace whatever (probably compatible) version of `extern-inline.m4` with one that probalby won’t work\n# because `autopoint` will copy the autoconf macros from the project’s required version of gettext.\n# Fixing this requires replacing all the older copies of the problematic file with a new one.\n#\n# This is ugly, but it avoids requiring workarounds in every package using gettext and autoreconfPhase.\ndeclare -a oldFiles=($(tar tf gettext-tools/misc/archive.dir.tar | grep '^gettext-0\\.[19].*/extern-inline.m4'))\noldFilesDir=$(mktemp -d)\nfor oldFile in \"${oldFiles[@]}\"; do\n  mkdir -p \"$oldFilesDir/$(dirname \"$oldFile\")\"\n  cp -a gettext-tools/gnulib-m4/extern-inline.m4 \"$oldFilesDir/$oldFile\"\ndone\ntar uf gettext-tools/misc/archive.dir.tar --owner=0 --group=0 --numeric-owner -C \"$oldFilesDir\" \"${oldFiles[@]}\"\n\nsubstituteAllInPlace gettext-runtime/src/gettext.sh.in\nsubstituteInPlace gettext-tools/projects/KDE/trigger --replace \"/bin/pwd\" pwd\nsubstituteInPlace gettext-tools/projects/GNOME/trigger --replace \"/bin/pwd\" pwd\nsubstituteInPlace gettext-tools/src/project-id --replace \"/bin/pwd\" pwd\n",
+    "propagatedBuildInputs": "",
+    "propagatedNativeBuildInputs": "",
+    "setupHooks": "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash /nix/store/ny42y6hs4p294rvnrwbmrpwzqghw2816-gettext-setup-hook.sh",
+    "src": "/nix/store/whgzrixh2jwgz9bydmfsm3kx6a9szajl-gettext-0.22.5.tar.gz",
+    "stdenv": "/nix/store/46f69c5mdfn57k6vmfzlwg23c3dzr1md-bootstrap-stage1-stdenv-linux",
+    "strictDeps": "1",
+    "system": "x86_64-linux",
+    "version": "0.22.5"
+  },
+  "inputDrvs": {},
+  "inputSrcs": [
+    "/nix/store/46f69c5mdfn57k6vmfzlwg23c3dzr1md-bootstrap-stage1-stdenv-linux",
+    "/nix/store/fg6bhpfq9rzh3lfh3h1iz77krmp38ilj-bash-5.2p37-dev",
+    "/nix/store/ln9qkq3wk198x2dbvbw6v4xcw2mw5iby-update-autotools-gnu-config-scripts-hook",
+    "/nix/store/n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2-bootstrap-tools",
+    "/nix/store/ny42y6hs4p294rvnrwbmrpwzqghw2816-gettext-setup-hook.sh",
+    "/nix/store/p2fp6i7hjx9af1wbwr32k217wp2dxmiw-absolute-paths.diff",
+    "/nix/store/shkw4qm9qcw5sc5n1k5jznc83ny02r39-default-builder.sh",
+    "/nix/store/v9034cqc4h5bm10z4vz3n1q2n55grv5y-role.bash",
+    "/nix/store/vj1c3wf9c11a0qs6p3ymfvrnsdgsdcbq-source-stdenv.sh",
+    "/nix/store/whgzrixh2jwgz9bydmfsm3kx6a9szajl-gettext-0.22.5.tar.gz",
+    "/nix/store/yqwx9yln5i68nw61mmp9gz066yz3ri99-0001-msginit-Do-not-use-POT-Creation-Date.patch"
+  ],
+  "name": "gettext-0.22.5",
+  "outputs": {
+    "doc": {
+      "hashAlgo": "r:sha256"
     },
-    "system": "x86_64-linux"
-  }
+    "info": {
+      "hashAlgo": "r:sha256"
+    },
+    "man": {
+      "hashAlgo": "r:sha256"
+    },
+    "out": {
+      "hashAlgo": "r:sha256"
+    }
+  },
+  "system": "x86_64-linux"
 }

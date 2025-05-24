@@ -109,7 +109,7 @@ def resolve_dependencies(drv_data, resolutions: Optional[dict[UnresolvedDerivati
 
     # for each key and value of the resolution thing
     # check if it occurs in the modified derivation and replace it
-    drv_str =  rfc8785.dumps(modified_drv).decode('ascii')
+    drv_str =  rfc8785.dumps(modified_drv).decode('utf-8')
     for drv in input_drvs:
         drv_json = commands.get_derivation(drv, False)
         is_fixed_output, is_ca = get_derivation_type(drv_json)
