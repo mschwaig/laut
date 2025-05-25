@@ -328,22 +328,24 @@ impl TrustModelReasoner {
         println!("Using expected root derivation: {}",
             self.interner.udrv_str(root_derivation).unwrap_or("unknown"));
 
-
-        // Ensure all leaves are fixed-output derivations
-        let non_fod_leaves: Vec<UDrv> = self.interner.all_udrvs()
+        // Ensure FODs are only leaves (FODs cannot have outgoing dependencies)
+        let fod_non_leaves: Vec<UDrv> = self.interner.all_udrvs()
             .filter(|&&udrv| {
-                // No outgoing dependencies
-                udrvs_depends_on_x_relation.iter().all(|&(d, _)| d != udrv) &&
-                // Not a FOD
-                !fods_relation.iter().any(|&(fod, _)| fod == udrv)
+                // Is a FOD
+                fods_relation.iter().any(|&(fod, _)| fod == udrv) &&
+                // Has outgoing dependencies (is not a leaf)
+                udrvs_depends_on_x_relation.iter().any(|&(d, _)| d == udrv)
             })
             .copied()
             .collect();
 
-        if !non_fod_leaves.is_empty() {
+        if !fod_non_leaves.is_empty() {
             println!("\n=== Verification Results ===\n");
             println!("❌ Could not find sufficient evidence for verification:");
-            println!("  - Found non-FOD leaf derivations");
+            println!("  - Found FOD derivations that are not leaves");
+            for &fod in &fod_non_leaves {
+                println!("    - {}", self.interner.udrv_str(fod).unwrap_or("unknown"));
+            }
             return Ok(Vec::new());
         }
 
