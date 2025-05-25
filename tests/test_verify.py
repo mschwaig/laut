@@ -68,28 +68,23 @@ def mock_config_debug(monkeypatch):
 def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_signature_fetch):
     with open(ca_data_file) as f:
         hello_recursive = json.load(f)
-    #drv = build_unresolved_tree("/nix/store/ppliqnlksscm1hy0s9qpghbdxw3r3c2w-bootstrap-stage0-binutils-wrapper-.drv", hello_recursive)
-
-    # there are multiple things that are called -bootstrap-stage1-stdenv-linux.drv
-    # I assume this is because two different 'versions' of a bunch of derivations are used
-    # as part of the bootstrap
-    drv = build_unresolved_tree("/nix/store/p3y81mafk8jbj6r71xba1hailj5z0k09-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/cjpxbf5h30808h53lckfyvzacsvfs08q-bootstrap-stage1-stdenv-linux.drv", hello_recursive)
 
     set = collect_valid_signatures_tree(drv)
 
     assert len(set) == 1
     resolved_derivaiton = next(iter(set))
-    assert resolved_derivaiton.input_hash == "JYBmi8474Lbjr5PgVGchx7hnGSGOmkqNLJAXKw9Pca4"
+    assert resolved_derivaiton.input_hash == "4xcMUrXjNWnLF7nW2NihnZjcBdPOAC4lsa6pbungTLs"
 
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_config_debug):
     with open(ca_data_file) as f:
-        hello_recursive = json.load(f)
+        hello_recursive = json.load(f) # TODO: update this file
     # TODO: pass this in via mock
 
-    drv = build_unresolved_tree("/nix/store/db2kl68nls8svahiyac77bdxdabzar71-hello-2.12.1.drv", hello_recursive)
+    drv = build_unresolved_tree("/nix/store/yvixdlqwq3l5ikd0b5c3f39pxmfynwhl-hello-2.12.1.drv", hello_recursive)
 
     set = collect_valid_signatures_tree(drv)
 
     assert len(set) == 1
     resolved_derivaiton = next(iter(set))
-    assert resolved_derivaiton.input_hash == "qAL8DbnetBrnMinLRt7mR4EusJo_w64fOUxo-pFT0ik"
+    assert resolved_derivaiton.input_hash == "uV2rpW8Bqx3fOf-Hghl6nmwlBz6m1_Uz0CUVY3M1hAE"
