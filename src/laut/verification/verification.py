@@ -79,10 +79,13 @@ def _get_reasoner() -> TrustModelReasoner:
         trusted_key_names = [key.name for key in config.trusted_keys]
         # For now, default threshold equals number of keys (current behavior)
         threshold = len(trusted_key_names)
-        logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}, threshold: {threshold}")
+        expected_root = config.expected_root
+        if expected_root is None:
+            raise ValueError("No expected root configured. This should be set before verification.")
+        logger.warning(f"Initializing TrustModelReasoner with trusted keys: {trusted_key_names}, threshold: {threshold}, expected_root: {expected_root}")
         logger.warning(f"config.trusted_keys: {config.trusted_keys}")
         try:
-            _reasoner = TrustModelReasoner(trusted_key_names, threshold)
+            _reasoner = TrustModelReasoner(trusted_key_names, threshold, expected_root)
         except ValueError as e:
             logger.error(f"Failed to initialize TrustModelReasoner: {e}")
             raise
@@ -169,6 +172,12 @@ def collect_valid_signatures_tree(derivation: UnresolvedDerivation) -> set[Trust
     # we go in trying to resolve all of them
     # TODO: return root and content of momoization cache here, since
     #       the content of the memoization cache has a "log entry" for each build step
+
+    # Set the expected root in config for this verification
+    config.expected_root = derivation.drv_path
+    # Reset the global reasoner to ensure fresh state for each verification
+    _reasoner = None
+
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
         td = Path(temp_dir)

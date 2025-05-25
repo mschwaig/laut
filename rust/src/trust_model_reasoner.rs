@@ -16,12 +16,13 @@ pub struct TrustModelReasoner {
     rdrvs_resolve_x_with_y: Variable<(RDrv,UDrvOutput,ContentHash)>,
     rdrvs_outputs_x_as_y_says_z: Variable<(RDrv,ContentHash,UDrvOutput,TrustModel)>, // (rdrv, build_output, udrv_output, trust_model_id)
     trust_models: Variable<(TrustModel,usize,bool,Option<TrustModel>)>, // (trust_model_id, threshold, is_key, is_member_of)
+    expected_root: UDrv,
 }
 
 #[pymethods]
 impl TrustModelReasoner {
     #[new]
-    fn new(trusted_keys: Vec<String>, threshold: usize) -> PyResult<Self> {
+    fn new(trusted_keys: Vec<String>, threshold: usize, expected_root: String) -> PyResult<Self> {
         // Check if trusted keys are provided
         if trusted_keys.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -73,6 +74,8 @@ impl TrustModelReasoner {
             trust_models.extend(vec![(key, 1, true, Some(default_trust_model_id))]);
         }
 
+        let expected_root_id = interner.udrv(&expected_root);
+
         Ok(TrustModelReasoner {
             interner,
             fill_iteration,
@@ -83,6 +86,7 @@ impl TrustModelReasoner {
             rdrvs_resolve_x_with_y,
             rdrvs_outputs_x_as_y_says_z,
             trust_models,
+            expected_root: expected_root_id,
         })
     }
     
@@ -318,37 +322,12 @@ impl TrustModelReasoner {
             }
         }
 
-        // Find root derivation(s)
-        // A root is a non-FOD derivation that is not a dependency of any other derivation
-        let dependency_targets: HashSet<UDrvOutput> = udrvs_depends_on_x_relation.iter()
-            .map(|&(_, dep)| dep)
-            .collect();
+        // Use the expected root derivation instead of auto-detecting
+        let root_derivation = self.expected_root;
 
-        let root_candidates: Vec<UDrv> = self.interner.all_udrvs()
-            .filter(|&&udrv| {
-                // Not a dependency of any other derivation
-                !udrvs_has_output_x_relation.iter()
-                    .filter(|&&(u, output)| u == udrv)
-                    .any(|&(_, output)| dependency_targets.contains(&output)) &&
-                // Not a FOD
-                !fods_relation.iter().any(|&(fod, _)| fod == udrv)
-            })
-            .copied()
-            .collect();
+        println!("Using expected root derivation: {}",
+            self.interner.udrv_str(root_derivation).unwrap_or("unknown"));
 
-        // (1) unresolved tree has one unique root
-        if root_candidates.len() != 1 {
-            println!("\n=== Verification Results ===\n");
-            println!("❌ Could not find sufficient evidence for verification:");
-            println!("  - Expected exactly one root derivation, found {}", root_candidates.len());
-            println!("\nRoot candidates:");
-            for &root in &root_candidates {
-                println!("  - {}", self.interner.udrv_str(root).unwrap_or("unknown"));
-            }
-            return Ok(Vec::new());
-        }
-
-        let root_derivation = root_candidates[0];
 
         // Ensure all leaves are fixed-output derivations
         let non_fod_leaves: Vec<UDrv> = self.interner.all_udrvs()

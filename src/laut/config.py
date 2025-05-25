@@ -6,5 +6,6 @@ class Config:
         self.preimage_index = None
         self.cache_urls = []
         self.trusted_keys = []
+        self.expected_root = None
 
 config = Config()
