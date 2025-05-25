@@ -58,7 +58,7 @@
       in pkgs.mkShell {
         shellHook = ''
           export PATH=${lib.makeBinPath [ pkgs.diffoscope ]}:$PATH
-          export PYTHONPATH="$PWD/src:$PYTHONPATH"
+          export PYTHONPATH="$PYTHONPATH"
         '';
 
         PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
