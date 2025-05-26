@@ -8,6 +8,7 @@ on:
 
 jobs:
   nix-build:
+    timeout-minutes: 1  # 4 hours
     strategy:
       fail-fast: false
       matrix:
