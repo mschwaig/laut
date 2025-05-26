@@ -7,7 +7,8 @@
   cacheStoreUrl ? "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1",
   packageToBuild,
   verifierExtraConfig ? {},
-  isMemoryConstrained,
+  isMemoryConstrained ? false,
+  needsExtraTime ? false,
   ...
 }@args:
 
@@ -20,7 +21,7 @@ let
   testLib =  import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
   packageToBuildStr = lib.concatStringsSep "." packageToBuild;
 in
-  testLib.runTest {
+  testLib.runTest ({
       name = "laut-${testName}";
 
       nodes = {
@@ -53,4 +54,7 @@ in
 
         ${builtins.readFile ./test-script.py}
       '';
-}
+} // (if needsExtraTime then {
+    # Set timeout to 4 hours for large VM tests
+    extraDriverArgs = ["--global-timeout=14400"];
+  } else { }))

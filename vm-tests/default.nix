@@ -33,13 +33,12 @@ in {
   small = import ./test-template.nix (fullArgs // {
     testName = "small";
     packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-    isMemoryConstrained = false;
   });
 
   large = import ./test-template.nix (fullArgs // {
     testName = "large";
     packageToBuild = [ "hello" ];
-    isMemoryConstrained = false;
+    needsExtraTime = true;
   });
 
   small-mem-constrained = import ./test-template.nix (fullArgs // {
@@ -52,6 +51,7 @@ in {
     testName = "large";
     packageToBuild = [ "hello" ];
     isMemoryConstrained = true;
+    needsExtraTime = true;
   });
 
 
