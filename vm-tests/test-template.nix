@@ -53,4 +53,5 @@ in
 
         ${builtins.readFile ./test-script.py}
       '';
-}
+  # Set timeout to 4 hours for large VM tests
+} // (if testName == "large" then { globalTimeout = 14400; } else {})
