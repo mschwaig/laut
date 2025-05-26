@@ -42,12 +42,12 @@ if isMemoryConstrained:
   future.result()
   future = build_and_upload(builderA)
   future.result()
-  builderA.shutdown()
+#  builderA.shutdown()
   future = boot_and_configure(builderB)
   future.result()
   future = build_and_upload(builderB)
   future.result()
-  builderB.shutdown()
+#  builderB.shutdown()
 else:
   future1, future2 = boot_and_configure(builderA), boot_and_configure(builderB)
   future1.result()
@@ -55,8 +55,8 @@ else:
   future1, future2 = build_and_upload(builderA), build_and_upload(builderB)
   future1.result()
   future2.result()
-  builderA.shutdown()
-  builderB.shutdown()
+#  builderA.shutdown()
+#  builderB.shutdown()
 
 # for now we only care about extracting the cache outputs from this test
 # and using them as input for the unit and integration tests in python
