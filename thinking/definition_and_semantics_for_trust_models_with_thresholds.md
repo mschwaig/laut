@@ -14,11 +14,13 @@ For input sets these are called input hashes, for outputs they are called conten
 There is both an abstract and a concrete way of defining dependency trees this way.
 We can generate the abstract description by defining input sets via recursion in the domain of the build function.
 In practice this means input sets contain hashes of other input sets they depend on.
-This is called an unresovled input hash.
+This is called an unresolved input hash. The build step described by this hash is called an unresolved derivation (udrv).
 
 Once we start building, we can instead construct an input set from the co-domain, in practice this means content hashes of already built outputs.
-This is called a resolved input hash.
-The link from the resolved input set of a build step to its output is called a build trace. A verifier need evidence of this operation, because it is costly, complex and potentially non-deterministic.
+This is called a resolved input hash. The build step described by this hash is called an resolved derivation (rdrv).
+A verifier need evidence of this operation, because it is costly, complex and potentially non-deterministic.
+Any builder can produce such evidence for a specific resolved derivation, by cryptographically linking the resolved input hash to a content hash of the build output with a signature associated with their own cryptographic key.
+
 The link between a build output and the input hash of the build step immediately downstream from it is constructed by inclusion in this hash. A verifier can do the hashing required for this themselves, so we don't need to involve a third party in the same way. 
 
 ## Goal
@@ -33,7 +35,7 @@ If we have such evidence for each node in the tree, and they all link up, we hav
 We want to support more complex ways of modeling trust however, where a set containing a mix of keys and trust models is paired with a numerical threshold value >= 1, to make up a trust model. This recursive definition allows us to state complex validation criteria about each link in a specific dependency tree.
 Both keys and trust models are identified by color in this description.
 
-When the threshold value is 1, this means when constructing our tree, we accept build traces signed with either one of the set members.
+When the threshold value is 1, this means when constructing our tree, we accept signatures signed with either one of the set members.
 
 Threshold values of 2 and above can only be achieved when the whole dependency tree behaves like one big reproducible build step.
 Interestingly this does not mean that each build step involved has to be reproducible.
@@ -82,7 +84,7 @@ The second decomposition places an emphasis on the fact that any structurally eq
 But the structure-preserving repainting argument applies to both kinds of decomposition.
 We can repaint and validate each of those trees independently, and then put them together to form one big valid tree.
 
-Form the second decomposition we get a description of how at any point in the tree if we can stick with structurally equal set of constituents to determine validity, convergence at the link in question is not necessary.
+Form the second decomposition we get a description of how at any point in the tree if we can stick with structurally equal set of constituents to determine validity, convergence to a single content hash of the output or even resolved input hash at the link in question is not necessary.
 What we get from the first decomposition is a description of how at any point of the tree we can move from one subset of constituents of the trust model determining validity, to another (structurally different) set of constituents determining validity, as long as there is convergence to one output at the point in question.
 
 ## Open Question
