@@ -25,7 +25,7 @@ The link between a build output and the input hash of the build step immediately
 
 ## Goal
 
-Given a dependency tree defined in terms of unresolved input hashes, our goal is to find a more specific dependency tree in terms of resolved input hashes of inputs and content hashes of output, so that each link in the tree can be verified to satisfy a set of criteria.
+Given a dependency tree defined in terms of unresolved input hashes, which define the individual nodes in the unresolved tree, our goal is to find a more specific resolved dependency tree in terms of resolved input hashes of inputs and content hashes of output, so that each link in the tree can be verified to satisfy a set of criteria about sets of trusted builders, called trust models, the composition of which can be freely defined by a verifying party.
 
 ## Some Examples
 
