@@ -55,11 +55,12 @@ buildPythonApplication {
     else
       "";
 
-  preCheck =
-    if sign-only then "" else
-      ''
-        export PATH=${lib.makeBinPath [ diffoscope ]}:$PATH
-      '';
+  preCheck = "";
+  # do not depend on diffoscope for now because it is HUGE
+  #  if sign-only then "" else
+  #    ''
+  #      export PATH=${lib.makeBinPath [ diffoscope ]}:$PATH
+  #    '';
 
   postInstall =
     if sign-only then "" else
