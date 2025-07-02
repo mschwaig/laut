@@ -33,6 +33,7 @@ jobs:
     - name: Build Packages
       id: build_packages
       run: >
+          df -h /tmp
           nix run github:Mic92/nix-fast-build --
           --no-nom
           --skip-cached
