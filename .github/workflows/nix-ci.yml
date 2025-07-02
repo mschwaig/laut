@@ -17,10 +17,8 @@ jobs:
     - name: Free Disk Space (Ubuntu)
       uses: wimpysworld/nothing-but-nix@main
       with:
-        hatchet-protocol: 'cleave'
-        root-safe-haven: '10240'
-        mnt-safe-haven: '10240'
-        witness-carnage: true
+        root-safe-haven: '3072'
+        mnt-safe-haven: '40960'
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@v9
       with:
