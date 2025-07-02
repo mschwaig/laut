@@ -32,18 +32,18 @@ jobs:
         name: laut
     - name: Build Packages
       id: build_packages
-      run: >
+      run: |
           df -h /tmp
-          nix run github:Mic92/nix-fast-build --
-          --no-nom
-          --skip-cached
+          nix run github:Mic92/nix-fast-build -- \
+          --no-nom \
+          --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
     - name: Run small VM Test
       id: vm_test_small
-      run: >
-          nix run github:Mic92/nix-fast-build --
-          --no-nom
-          --skip-cached
+      run: |
+          nix run github:Mic92/nix-fast-build -- \
+          --no-nom \
+          --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-mem-constrained"
     - name: Run medium VM Test
       id: vm_test_large
