@@ -47,9 +47,9 @@ in {
     isMemoryConstrained = true;
   });
 
-  medium-mem-constrained = import ./test-template.nix (fullArgs // {
-    testName = "medium-mem-constrained";
-    packageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+  large-mem-constrained = import ./test-template.nix (fullArgs // {
+    testName = "large-mem-constrained";
+    packageToBuild = [ "hello" ];
     isMemoryConstrained = true;
     needsExtraTime = true;
   });
