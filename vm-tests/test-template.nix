@@ -9,6 +9,8 @@
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
   needsExtraTime ? false,
+  testScriptFile,
+  binaryCacheData ? "",
   ...
 }@args:
 
@@ -51,9 +53,9 @@ in
         isMemoryConstrained = ${if isMemoryConstrained then "True" else "False"}
         builderA_pub = "${../testkeys/builderA_key.public}"
         builderB_pub = "${../testkeys/builderB_key.public}"
-        binaryCacheData = "${../tests/data/traces}"
+        binaryCacheData = "${binaryCacheData}"
 
-        ${builtins.readFile ./test-script.py}
+        ${builtins.readFile testScriptFile}
       '';
 } // (if needsExtraTime then {
     # Set timeout to 7 hours 45 min for large VM tests
