@@ -15,10 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - name: Free Disk Space (Ubuntu)
-      uses: wimpysworld/nothing-but-nix@main
-      with:
-        root-safe-haven: '3072'
-        mnt-safe-haven: '40960'
+      uses: jlumbroso/free-disk-space@main
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@v9
       with:
