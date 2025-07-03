@@ -58,6 +58,15 @@ else:
   builderA.shutdown()
   builderB.shutdown()
 
+cache.copy_from_vm("/var/lib/minio/data", "")
+cache.shutdown()
+cache.start()
+cache.succeed("mkdir -p /var/lib/minio/data/binary-cache/traces")
+cache.wait_for_unit("default.target")
+cache.succeed("systemctl stop minio.service")
+cache.copy_from_host(binaryCacheData, "/var/lib/minio/data/binary-cache/traces")
+cache.succeed("systemctl start minio.service")
+
 # for now we only care about extracting the cache outputs from this test
 # and using them as input for the unit and integration tests in python
 verifier.start()
