@@ -25,48 +25,61 @@ let
     inherit system scope laut laut-sign-only nixpkgs lib pkgsIA pkgsCA nixpkgs-swh;
     verifierExtraConfig = {};
   } // args;
-# this code is inspired by
-# https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
-# and
-# https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
-in rec {
-  small-sign = import ./test-template.nix (fullArgs // {
-    testName = "small-sign";
-    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-    testScriptFile = ./test-script.py;
-    binaryCacheData = "";
-  });
+  makeTestSet = {
+    name,
+    isLarge ? false,
+    isMemoryConstrained ? false
+  }:
+  let
+    namef = name: "${
+      if isLarge then "large" else "small"
+    }-${name}${
+      if isMemoryConstrained then "-mem-constrained" else ""
+    }";
+    sign-test-name = namef "sign";
+    verify-test-name = namef "verify";
+    common = fullArgs // {
+      packageToBuild = [ "hello" ];
+      inherit isMemoryConstrained;
+      needsExtraTime = isLarge;
+    };
+    sign-test = import ./test-template.nix ({
+        testName = sign-test-name;
+        testScriptFile = ./sign-script.py;
+    } // common);
+  in rec {
+    ${sign-test-name} = sign-test;
 
-  small-verify = import ./test-template.nix (fullArgs // {
-    testName = "small-verify";
-    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-    testScriptFile = ./verify-script.py;
-    binaryCacheData = "${small-sign}/data";
-  });
-
-  large = import ./test-template.nix (fullArgs // {
-    testName = "large";
-    packageToBuild = [ "hello" ];
-    needsExtraTime = true;
-    testScriptFile = ./test-script.py;
-  });
-
-  small-mem-constrained = import ./test-template.nix (fullArgs // {
-    testName = "small-mem-constrained";
-    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    ${verify-test-name} = import ./test-template.nix ( {
+        testName = verify-test-name;
+        testScriptFile = ./verify-script.py;
+      } // common // (if isLarge then {
+        packageToBuild = [ "hello" ];
+        # the large tests run only interactively
+        binaryCacheData = "./data";
+      } else {
+        packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+        binaryCacheData = "${sign-test}/data";
+    }));
+  };
+in
+  ((makeTestSet {
+    name = "small";
+    isLarge = false;
+    isMemoryConstrained = false;
+  }) // (makeTestSet {
+    name = "small";
+    isLarge = false;
     isMemoryConstrained = true;
-    testScriptFile = ./test-script.py;
-  });
-
-  large-mem-constrained = import ./test-template.nix (fullArgs // {
-    testName = "large-mem-constrained";
-    packageToBuild = [ "hello" ];
+  }) // (makeTestSet {
+    name = "large";
+    isLarge = true;
+    isMemoryConstrained = false;
+  }) // (makeTestSet {
+    name = "large";
+    isLarge = true;
     isMemoryConstrained = true;
-    needsExtraTime = true;
-    testScriptFile = ./test-script.py;
-  });
-
-
+  }))
 
   # Full local reproducibility model - trusts only itself
   #fullReproVM = import ./test-template.nix (fullArgs // {
@@ -132,4 +145,3 @@ in rec {
     #     host_identity = "smRvhWX9+vVTe3gpNsAp4EuJmUtdw2Ih9xcp+Mjd+6g=",
     #     host_sw_exclude = SW_CRITERIA.DRVS_WITH_VULNS + nixpkgsRange("xyutils", "5.6.0", "5.6.1"))
   #});
-}
