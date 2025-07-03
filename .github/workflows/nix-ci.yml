@@ -42,10 +42,10 @@ jobs:
           --no-nom \
           --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-mem-constrained"
-    - name: Run medium VM Test
+    - name: Run large VM Test
       id: vm_test_large
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-mem-constrained.driver"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-mem-constrained.driver"
           ./result-/bin/nixos-test-driver
