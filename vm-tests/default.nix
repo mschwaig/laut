@@ -29,22 +29,33 @@ let
 # https://www.haskellforall.com/2020/11/how-to-use-nixos-for-lightweight.html
 # and
 # https://github.com/Mic92/cntr/blob/2a1dc7b2de304b42fe342e2f7edd1a8f8d4ab6db/vm-test.nix
-in {
-  small = import ./test-template.nix (fullArgs // {
-    testName = "small";
+in rec {
+  small-sign = import ./test-template.nix (fullArgs // {
+    testName = "small-sign";
     packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    testScriptFile = ./test-script.py;
+    binaryCacheData = "";
+  });
+
+  small-verify = import ./test-template.nix (fullArgs // {
+    testName = "small-verify";
+    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    testScriptFile = ./verify-script.py;
+    binaryCacheData = "${small-sign}/data";
   });
 
   large = import ./test-template.nix (fullArgs // {
     testName = "large";
     packageToBuild = [ "hello" ];
     needsExtraTime = true;
+    testScriptFile = ./test-script.py;
   });
 
   small-mem-constrained = import ./test-template.nix (fullArgs // {
     testName = "small-mem-constrained";
     packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
     isMemoryConstrained = true;
+    testScriptFile = ./test-script.py;
   });
 
   large-mem-constrained = import ./test-template.nix (fullArgs // {
@@ -52,6 +63,7 @@ in {
     packageToBuild = [ "hello" ];
     isMemoryConstrained = true;
     needsExtraTime = true;
+    testScriptFile = ./test-script.py;
   });
 
 

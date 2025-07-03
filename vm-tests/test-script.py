@@ -60,21 +60,6 @@ else:
 
 cache.copy_from_vm("/var/lib/minio/data", "")
 cache.shutdown()
-cache.start()
-cache.succeed("mkdir -p /var/lib/minio/data/binary-cache/traces")
-cache.wait_for_unit("default.target")
-cache.succeed("systemctl stop minio.service")
-cache.copy_from_host(binaryCacheData, "/var/lib/minio/data/binary-cache/traces")
-cache.succeed("systemctl start minio.service")
-
-# for now we only care about extracting the cache outputs from this test
-# and using them as input for the unit and integration tests in python
-verifier.start()
-verifier.wait_for_unit("default.target")
-
-verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} $(nix-instantiate '<nixpkgs-ca>' -A {packageToBuild})"
-output = verifier.succeed(verify_cmd)
-print(f"laut verify output:\n{output}")
 
 # verifier.fail("nix path-info cowsayPackage")
 # verifier.succeed(f"nix store info --store '{cacheStoreUrl}' >&2")
