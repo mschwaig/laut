@@ -9,7 +9,7 @@
   cryptography,
   boto3,
   click,
-  diffoscope,
+#  diffoscope,
   sigstore,
   loguru,
   sign-only ? false,
@@ -62,12 +62,12 @@ buildPythonApplication {
   #      export PATH=${lib.makeBinPath [ diffoscope ]}:$PATH
   #    '';
 
-  postInstall =
-    if sign-only then "" else
-      ''
-        wrapProgram $out/bin/laut \
-          --prefix PATH : ${lib.makeBinPath [ diffoscope ]}
-      '';
+  postInstall = "";
+  #  if sign-only then "" else
+  #    ''
+  #      wrapProgram $out/bin/laut \
+  #        --prefix PATH : ${lib.makeBinPath [ diffoscope ]}
+  #    '';
 
   nativeCheckInputs = (
     if sign-only then
