@@ -55,6 +55,6 @@ in
         ${builtins.readFile ./test-script.py}
       '';
 } // (if needsExtraTime then {
-    # Set timeout to 4 hours for large VM tests
-    extraDriverArgs = ["--global-timeout=14400"];
+    # Set timeout to 7 hours 45 min for large VM tests
+    extraDriverArgs = ["--global-timeout=27900"];
   } else { }))
