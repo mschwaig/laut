@@ -2,6 +2,12 @@ name: Nix CI
 
 on:
   workflow_dispatch: # allows manual triggering
+    inputs:
+      run_large_test:
+        description: 'Run large VM test'
+        required: false
+        type: boolean
+        default: false
   push: # on push to any branch
   pull_request:
     types: [opened, synchronize, reopened]
@@ -47,7 +53,7 @@ jobs:
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-verify-mem-constrained"
     - name: Run large VM Test
       id: vm_test_large
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/update_flake_lock_action'
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/update_flake_lock_action' || github.event.inputs.run_large_test == 'true'
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
