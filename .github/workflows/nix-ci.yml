@@ -15,11 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - name: Free Disk Space (Ubuntu)
-      uses: wimpysworld/nothing-but-nix@main
-      with:
-        root-safe-haven: '25600'   # Reserve 3GB on the / filesystem
-        mnt-safe-haven: '2048'    # Reserve 2GB on the /mnt filesystem
-        witness-carnage: true
+      uses: jlumbroso/free-disk-space@main
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@v9
       with:
@@ -33,17 +29,17 @@ jobs:
         name: laut
     - name: Build Packages
       id: build_packages
-      run: >
-          nix run github:Mic92/nix-fast-build --
-          --no-nom
-          --skip-cached
+      run: |
+          nix run github:Mic92/nix-fast-build -- \
+          --no-nom \
+          --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
     - name: Run small VM Test
       id: vm_test_small
-      run: >
-          nix run github:Mic92/nix-fast-build --
-          --no-nom
-          --skip-cached
+      run: |
+          nix run github:Mic92/nix-fast-build -- \
+          --no-nom \
+          --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-mem-constrained"
     - name: Run large VM Test
       id: vm_test_large

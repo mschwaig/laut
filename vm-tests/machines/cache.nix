@@ -12,7 +12,7 @@
 
 {
   virtualisation.writableStore = true;
-  virtualisation.memorySize = 2048;
+  virtualisation.memorySize = 2 * 1024;
   virtualisation.cores = 2;
   environment.systemPackages = [ pkgsIA.minio-client ];
   nix.extraOptions = "experimental-features = nix-command";

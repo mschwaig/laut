@@ -8,7 +8,7 @@
   ...
 }:
  (lib.recursiveUpdate ({
-      virtualisation.memorySize = 2048;
+      virtualisation.memorySize = 2 * 1024;
       virtualisation.cores = 2;
       virtualisation.writableStore = true;
       virtualisation.useNixStoreImage = true;
