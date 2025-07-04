@@ -28,6 +28,21 @@ from lautr import (
     calculate_nar_hash,
     create_castore_entry,
 )
+import re
+
+
+def extract_nix_version_from_NIX_CONFIG(NIX_CONFIG_env_var: str):
+    for line in NIX_CONFIG_env_var.splitlines():
+        if line.startswith("build-hook ="):
+            match = re.search(
+                r"/nix/store/[a-z0-9]{32}-(lix|nix)-([a-zA-Z0-9.-_]+)/bin/nix",
+                line,
+            )
+            if match:
+                return match.groups()
+    
+    return (None, None)
+
 
 def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths: List[str]):
     result = sign_impl(drv_path, secret_key_file, out_paths)
@@ -128,6 +143,11 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
     rebuild_id_bytes = os.urandom(4)
     rebuild_id = struct.unpack('I', rebuild_id_bytes)[0]
 
+    NIX_CONFIG_env_var = os.getenv("NIX_CONFIG")
+    builder_nix_flavor, builder_nix_version = None, None
+    if NIX_CONFIG_env_var:
+        builder_nix_flavor, builder_nix_version = extract_nix_version_from_NIX_CONFIG(NIX_CONFIG_env_var)
+
     payload = {
         "in": {
             # "snix": for hash of canonicalized build request?
@@ -153,7 +173,9 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
             "rebuild_id": rebuild_id,
             # TODO: compute this or get it from config
             "store_root": "/nix/store",
-            #"logHash": log
+            **({"nix_flavor": builder_nix_flavor} if builder_nix_flavor else {}),
+            **({"nix_version": builder_nix_version} if builder_nix_version else {}),
+            # "logHash": log
             # "version" = "lix",
             # "src":  ̛{ "flake": builder_flake_url}
             # nix.systemFeature.cudaCrit = "v1";
