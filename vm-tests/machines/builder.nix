@@ -28,8 +28,8 @@ let
   findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix" );
   prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath packageToBuild pkgsCA; });
 in {
-  virtualisation.memorySize = 1024 * 8;
-  virtualisation.cores = 8;
+  virtualisation.memorySize = 1024 * 6;
+  virtualisation.cores = 6;
   virtualisation.diskSize = 1024 * 4;
   virtualisation.writableStore = true;
   virtualisation.useNixStoreImage = true;
