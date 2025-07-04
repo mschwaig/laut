@@ -46,20 +46,20 @@ jobs:
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-sign-mem-constrained"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-sign"
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-verify-mem-constrained"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-verify"
     - name: Run large VM Test
       id: vm_test_large
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/update_flake_lock_action' || github.event.inputs.run_large_test == 'true'
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-sign-mem-constrained.driver"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-sign.driver"
           ./result-/bin/nixos-test-driver
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-verify-mem-constrained.driver"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-verify.driver"
           ./result-/bin/nixos-test-driver
