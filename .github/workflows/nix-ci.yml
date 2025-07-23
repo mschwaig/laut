@@ -51,15 +51,15 @@ jobs:
           --no-nom \
           --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-verify"
-    - name: Run large VM Test
-      id: vm_test_large
+    - name: Run medium VM Test
+      id: vm_test_medium
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/update_flake_lock_action' || github.event.inputs.run_large_test == 'true'
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-sign.driver"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-sign.driver"
           ./result-/bin/nixos-test-driver
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).large-verify.driver"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-verify.driver"
           ./result-/bin/nixos-test-driver

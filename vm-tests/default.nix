@@ -27,29 +27,24 @@ let
   } // args;
   makeTestSet = {
     name,
+    packageToBuild,
     isLarge ? false,
     isMemoryConstrained ? false
   }:
   let
-    namef = name: "${
-      if isLarge then "large" else "small"
-    }-${name}${
+    namef = name: part: "${name}-${part}${
       if isMemoryConstrained then "-mem-constrained" else ""
     }";
-    sign-test-name = namef "sign";
-    verify-test-name = namef "verify";
+    sign-test-name = namef name "sign";
+    verify-test-name = namef name "verify";
     common = fullArgs // {
-      inherit isMemoryConstrained;
+      inherit isMemoryConstrained packageToBuild;
       needsExtraTime = isLarge;
     };
     sign-test = import ./test-template.nix ({
         testName = sign-test-name;
         testScriptFile = ./sign-script.py;
-    } // common // (if isLarge then {
-        packageToBuild = [ "hello" ];
-      } else {
-        packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-    }));
+    } // common);
   in rec {
     ${sign-test-name} = sign-test;
 
@@ -57,31 +52,28 @@ let
         testName = verify-test-name;
         testScriptFile = ./verify-script.py;
       } // common // (if isLarge then {
-        packageToBuild = [ "hello" ];
         # the large tests run only interactively
         binaryCacheData = "./data";
       } else {
-        packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
         binaryCacheData = "${sign-test}/data";
     }));
   };
 in
   ((makeTestSet {
     name = "small";
+    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
     isLarge = false;
     isMemoryConstrained = false;
   }) // (makeTestSet {
-    name = "small";
-    isLarge = false;
-    isMemoryConstrained = true;
-  }) // (makeTestSet {
     name = "large";
+    packageToBuild = [ "hello" ];
     isLarge = true;
     isMemoryConstrained = false;
   }) // (makeTestSet {
-    name = "large";
+    name = "medium";
+    packageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
     isLarge = true;
-    isMemoryConstrained = true;
+    isMemoryConstrained = false;
   }))
 
   # Full local reproducibility model - trusts only itself
