@@ -78,7 +78,8 @@ class TrustlesslyResolvedDerivation:
     outputs: MappingProxyType['UnresolvedOutput', ContentHash]
 
     def placeholder_for(self, output: str):
-        return hash_upstream_placeholder(self.drv_path, output)
+        # Use the original unresolved derivation path, not the resolved path
+        return hash_upstream_placeholder(self.resolves.drv_path, output)
 
     def __hash__(self):
         hashable_outputs = frozenset(self.outputs.items())

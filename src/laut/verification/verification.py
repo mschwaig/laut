@@ -14,10 +14,11 @@ from laut.nix.commands import (
     get_derivation_type
 )
 from laut.nix.constructive_trace import (
-    compute_JSONbased_resolved_input_hash
+    compute_ATERMbased_resolved_input_hash
 )
 from laut.nix.deep_constructive_trace import (
     get_nix_path_input_hash,
+    _extract_store_hash,
 )
 from laut.nix.types import (
     UnresolvedDerivation,
@@ -37,7 +38,6 @@ from lautr import TrustModelReasoner
 from laut.verification.frogification import (
     inputs_to_string_list,
     outputs_to_string_list,
-    signature_to_string_map,
     signature_to_string_map_with_drv_path,
 )
 
@@ -219,8 +219,9 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
 
     if unresolved_derivation.is_fixed_output:
 
-        ct_input_hash, ct_input_data = compute_JSONbased_resolved_input_hash(
+        ct_input_hash, ct_input_data = compute_ATERMbased_resolved_input_hash(
             unresolved_derivation.drv_path, 
+            unresolved_derivation.json_attrs["name"],
             dict() # tuple
         )
         _get_reasoner().add_fod(unresolved_derivation.drv_path, unresolved_derivation.json_attrs["outputs"]["out"]["path"])
@@ -273,10 +274,13 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             f.write(json.dumps(unresolved_derivation.json_attrs))
 
     for resolution in resolutions:
-        ct_input_hash, ct_input_data = compute_JSONbased_resolved_input_hash(
-            unresolved_derivation.drv_path, 
+        # Use aterm-based resolution instead of JSON-based
+        ct_resolved_path, ct_input_data = compute_ATERMbased_resolved_input_hash(
+            unresolved_derivation.drv_path,
+            unresolved_derivation.json_attrs["name"],
             resolution
         )
+        ct_input_hash = _extract_store_hash(ct_resolved_path)
 
         resolution_str = {}
         for unresolved_drv, resolved_drv in resolution.items():
@@ -300,18 +304,18 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             for i in fetch_preimage_from_index(unresolved_derivation.json_attrs["name"]):
                 drv_path, in_preimage = i
                 with open(udrv_path / drv_path, 'w') as f:
-                    f.write(json.dumps(in_preimage))
-                    process = subprocess.Popen(
-                        ['diffoscope', udrv_path / ct_input_hash, udrv_path / Path(drv_path).name],
-                        stdout=sys.stdout,
-                        stderr=sys.stdout)
-                    process.wait()
+                    f.write(in_preimage)
+                process = subprocess.Popen(
+                    ['diffoscope', udrv_path / ct_input_hash, udrv_path / Path(drv_path).name],
+                    stdout=sys.stdout,
+                    stderr=sys.stdout)
+                process.wait()
         for signature_data, signing_key in signatures:
             # TODO: verify signature
             # TODO: deduplicate signatures by (in, out) before returning them
             outputs : Dict[UnresolvedOutput, ContentHash] = dict()
             _get_reasoner().add_build_output_claim(
-                signature_data["in"]["rdrv_json"],
+                signature_data["in"]["rdrv_aterm_ca"],
                 signature_to_string_map_with_drv_path(signature_data, unresolved_derivation.drv_path),
                 signing_key
             )
@@ -321,12 +325,15 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             if debug_dir:
                 filename =  Path(signature_data["in"]["debug"]["rdrv_path"]).name
                 with open(udrv_path / filename, 'w') as f:
-                    f.write(json.dumps(signature_data["in"]["debug"]["rdrv_json_preimage"]))
+                    f.write(signature_data["in"]["debug"]["rdrv_aterm_ca_preimage"])
+                signed_hash = signature_data["in"]["rdrv_aterm_ca"]
+                if ct_input_hash != signed_hash:
+                    raise ValueError("hash must match file name")
 
-            drv_path=signature_data["in"]["debug"]["rdrv_path"] # TODO: compute this ourselves
+            # Use the resolved path we computed, not the one from signature
             resolved_drv = TrustlesslyResolvedDerivation(
                 resolves=unresolved_derivation,
-                drv_path=drv_path,
+                drv_path=ct_resolved_path,
                 input_hash=ct_input_hash,
                 outputs=MappingProxyType(outputs)
             )

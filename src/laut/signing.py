@@ -110,7 +110,7 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     jws_token = create_trace_signature(input_hash, input_hash_aterm, debug_data, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
 
-    return input_hash, jws_token
+    return input_hash_aterm, jws_token
 
 def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: dict[str,str], output_hashes: Dict,
                          private_key: Ed25519PrivateKey, key_name: str) -> str:
