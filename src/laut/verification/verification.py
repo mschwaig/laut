@@ -306,7 +306,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
                 with open(udrv_path / drv_path, 'w') as f:
                     f.write(in_preimage)
                 process = subprocess.Popen(
-                    ['diffoscope', udrv_path / ct_input_hash, udrv_path / Path(drv_path).name],
+                    ['difft', '--color', 'always', '--override=*:Python', udrv_path / ct_input_hash, udrv_path / Path(drv_path).name],
                     stdout=sys.stdout,
                     stderr=sys.stdout)
                 process.wait()

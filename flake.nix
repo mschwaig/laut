@@ -57,7 +57,7 @@
         ]);
       in pkgs.mkShell {
         shellHook = ''
-          export PATH=${lib.makeBinPath [ pkgs.diffoscope ]}:$PATH
+          export PATH=${lib.makeBinPath [ pkgs.difftastic ]}:$PATH
           export PYTHONPATH="$PYTHONPATH"
         '';
 
