@@ -12,6 +12,7 @@
   cacheStoreUrl,
   cacheAccessKey,
   cacheSecretKey,
+  nixPackage ? pkgsIA.lix,
   ...
 }:
 
@@ -39,7 +40,7 @@ in {
   virtualisation.additionalPaths = prefetchedSources;
 
   nix = {
-    package = pkgsIA.lix;
+    package = nixPackage;
     # see https://jade.fyi/blog/pinning-nixos-with-npins/ for an explanation
     # and how to do something similar with flakes
     nixPath = [
@@ -105,7 +106,7 @@ in {
       "nix/private-key".source = builderPrivateKey;
     };
     systemPackages = with pkgsIA; [
-      lix
+      nixPackage
       git
       laut-sign-only
     ];

@@ -2,6 +2,7 @@
   system,
   nixpkgs,
   lib,
+  pkgsIA,
   testName,
   cachePort ? 9000,
   cacheStoreUrl ? "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1",
@@ -32,11 +33,13 @@ in
         builderA = import ./machines/builder.nix (fullArgs // { 
           builderPublicKey = ../testkeys/builderA_key.public;
           builderPrivateKey = ../testkeys/builderA_key.private;
+          nixPackage = pkgsIA.nix;
         });
 
         builderB = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
+          nixPackage = pkgsIA.lix;
         });
 
         verifier = import ./machines/verifier.nix (fullArgs);
