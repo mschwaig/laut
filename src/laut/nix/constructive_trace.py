@@ -177,7 +177,13 @@ def format_aterm_from_tuple(aterm_tuple: tuple) -> str:
     
     def format_value(v):
         if isinstance(v, str):
-            return json.dumps(v)  # This handles escaping properly
+            # Match Nix's ATerm string escaping exactly
+            escaped = v.replace('\\', '\\\\')  # Backslash must be escaped first
+            escaped = escaped.replace('"', '\\"')
+            escaped = escaped.replace('\n', '\\n')
+            escaped = escaped.replace('\r', '\\r')
+            escaped = escaped.replace('\t', '\\t')
+            return '"' + escaped + '"'
         elif isinstance(v, list):
             return '[' + ','.join(format_value(x) for x in v) + ']'
         elif isinstance(v, tuple):
