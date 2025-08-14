@@ -16,7 +16,6 @@ from laut.nix.keyfiles import (
     parse_nix_private_key,
 )
 from laut.nix.constructive_trace import (
-    compute_JSONbased_resolved_input_hash,
     compute_ATERMbased_resolved_input_hash_like_nix
 )
 from laut.nix.commands import (
@@ -90,14 +89,11 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     key_name = content.split(':', 1)[0]
     private_key = parse_nix_private_key(secret_key_file[0])
 
-    input_hash, input_data = compute_JSONbased_resolved_input_hash(drv_path, None)
-
     computed_drv_path, aterm_bytes = compute_ATERMbased_resolved_input_hash_like_nix(drv_data["name"], drv_path)
 
     debug_data = {
         "drv_name": drv_data["name"],
         "rdrv_path": drv_path,
-        "rdrv_json_preimage": input_data,
         "rdrv_computed_path": computed_drv_path,
         "rdrv_aterm_ca_preimage": aterm_bytes
     }
@@ -105,20 +101,21 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     # if a derivation were not able to observe its own name
     # we could factor out  the name before hashing
     # to get more cache hits
-    input_hash_aterm = get_nix_path_input_hash(drv_path)
+    input_hash = get_nix_path_input_hash(drv_path)
     
-    jws_token = create_trace_signature(input_hash, input_hash_aterm, debug_data, output_hashes, private_key, key_name)
+    jws_token = create_trace_signature(input_hash, debug_data, output_hashes, private_key, key_name)
     logger.debug(f"{jws_token}")
 
-    return input_hash_aterm, jws_token
+    return input_hash, jws_token
 
-def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: dict[str,str], output_hashes: Dict,
+def create_trace_signature(input_hash: str, debug_data: dict[str,str], output_hashes: Dict,
                          private_key: Ed25519PrivateKey, key_name: str) -> str:
     """
     Create a JWS signature for outputs
 
     Args:
-        input_hash: The input hash of the derivation
+        input_hash: The input hash of the resolved CA derivation
+        debug_data: Debug information including ATerm preimage
         output_hashes: Dictionary mapping output names to their hashes
         private_key: Ed25519 private key for signing
         key_name: Name of the signing key
@@ -151,10 +148,9 @@ def create_trace_signature(input_hash: str, input_hash_aterm: str, debug_data: d
     payload = {
         "in": {
             # "snix": for hash of canonicalized build request?
-            "rdrv_json": input_hash, # will be replaced due to brittleness
             # the best we have right now, unless we define our own competing format
             # we could also make up any other representation of the state here if we wanted to
-            "rdrv_aterm_ca": input_hash_aterm,
+            "rdrv_aterm_ca": input_hash,
             **({
                 "debug": debug_data
             } if config.debug else {}),

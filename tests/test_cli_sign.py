@@ -97,7 +97,7 @@ def test_sign_resolved_hook(runner, mock_derivation_lookup):
         }
     )
     assert result.exit_code == 0
-    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    assert mock_derivation_lookup.call_count == 1
     mock_derivation_lookup.assert_called_with('/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv', False)
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
@@ -113,7 +113,7 @@ def test_sign_multi_output(runner, mock_derivation_lookup):
         }
     )
     assert result.exit_code == 0
-    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    assert mock_derivation_lookup.call_count == 1
     mock_derivation_lookup.assert_called_with('/nix/store/0685sic9d3nzvf940sj4aflllsq99pqk-zlib-1.3.1.drv', False)
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
@@ -129,7 +129,7 @@ def test_ascii(runner, mock_derivation_lookup):
         }
     )
     assert result.exit_code == 0
-    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    assert mock_derivation_lookup.call_count == 1
     mock_derivation_lookup.assert_called_with('/nix/store/23xwpgqwja339ljkq4zqgymwyawnlhar-gettext-0.22.5.drv', False)
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
     assert re.match(pattern, result.stdout), f"String '{result.stdout}' does not look like a JWS"
@@ -164,7 +164,7 @@ def test_sign_resolved_problematic_derivaion_fixed_hook(runner, mock_derivation_
             'DRV_PATH': '/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv',
         }
     )
-    assert mock_derivation_lookup.call_count == 2 # TODO: make this 1
+    assert mock_derivation_lookup.call_count == 1
     mock_derivation_lookup.assert_called_with('/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv', False)
     assert result.exit_code == 0
     pattern = r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
