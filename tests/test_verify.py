@@ -74,7 +74,7 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
 
     assert len(set) == 1
     resolved_derivaiton = next(iter(set))
-    assert resolved_derivaiton.input_hash == "4xcMUrXjNWnLF7nW2NihnZjcBdPOAC4lsa6pbungTLs"
+    assert resolved_derivaiton.input_hash == "mdw7ghk4133r650ali5jdmgqi4ccwp65"
 
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_config_debug):
     with open(ca_data_file) as f:
@@ -87,4 +87,4 @@ def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_
 
     assert len(set) == 1
     resolved_derivaiton = next(iter(set))
-    assert resolved_derivaiton.input_hash == "uV2rpW8Bqx3fOf-Hghl6nmwlBz6m1_Uz0CUVY3M1hAE"
+    assert resolved_derivaiton.input_hash == "7gsw68f2iawn9q8vv04zh9xql14268pw"
