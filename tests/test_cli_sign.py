@@ -75,7 +75,7 @@ def mock_derivation_lookup(monkeypatch):
 
     monkeypatch.setattr(commands, "get_derivation", derivation_mock)
     monkeypatch.setattr(signing, "get_output_hash_from_disk", output_hash_mock)
-    monkeypatch.setattr(signing, "compute_ATERMbased_resolved_input_hash_like_nix", _mock_compute_aterm)
+    monkeypatch.setattr(signing, "compute_ATERMbased_input_hash", _mock_compute_aterm)
     monkeypatch.setattr(signing, "create_castore_entry", _mock_create_castore_entry)
     monkeypatch.setattr(click.types.Path, "convert", _mock_click_path_convert)
 

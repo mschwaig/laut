@@ -38,9 +38,9 @@ def _get_output(drv: TrustlesslyResolvedDerivation, out) -> UnresolvedOutput:
     raise KeyError("failed to find output §{drv_path}")
 
 
-def compute_ATERMbased_resolved_input_hash_like_nix(drv_name: str, drv_path: str) -> tuple[ResolvedInputHash, str]:
-    with open(drv_path, 'r') as content_file:
-        drv_aterm = content_file.read()
+def compute_ATERMbased_input_hash(drv_name: str, drv_path: str) -> tuple[ResolvedInputHash, str]:
+    from laut.nix.commands import get_derivation_aterm
+    drv_aterm = get_derivation_aterm(drv_path)
 
     path = calculate_drv_path_from_aterm(drv_name, drv_aterm)
 
@@ -184,8 +184,8 @@ def compute_ATERMbased_resolved_input_hash(drv_path: str, drv_name: str, resolut
     Returns:
         tuple: (resolved_input_hash, resolved_aterm_content)
     """
-    with open(drv_path, 'r') as f:
-        drv_aterm = f.read()
+    from laut.nix.commands import get_derivation_aterm
+    drv_aterm = get_derivation_aterm(drv_path)
     
     resolved_aterm = resolve_aterm_dependencies(drv_aterm, resolutions)
     

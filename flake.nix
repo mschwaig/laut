@@ -20,7 +20,14 @@
 
       # TODO: do this using nix-instantiate like serge
       test-drv-json = pkgs.writeShellScriptBin "examine-derivation" ''
-        cd ${nixpkgs.outPath}; ${pkgs.lix}/bin/nix derivation show --recursive -f . hello --arg config '{ contentAddressedByDefault = true; }'
+        # Change to the drv_lookup directory first
+        cd tests/data/drv_lookup
+        
+        # Generate JSON data and pipe directly to the Python script
+        (cd ${nixpkgs.outPath} && ${pkgs.lix}/bin/nix derivation show --recursive -f . hello --arg config '{ contentAddressedByDefault = true; }') | \
+        ${pkgs.python3}/bin/python3 ${./tests/data/drv_lookup/generate_test_data_with_aterm.py} \
+          hello-ca-recursive-unresolved.drv \
+          hello-ca-recursive-unresolved-aterm.json
       '';
 
       scope = pkgs.callPackage ./default.nix { nixpkgs = null; };

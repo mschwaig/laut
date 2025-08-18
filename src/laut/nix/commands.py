@@ -47,6 +47,23 @@ def get_output_path(drv_path):
         raise
 
 @lru_cache(maxsize=None)
+def get_derivation_aterm(drv_path: str) -> str:
+    """Get Nix derivation in ATerm format"""
+    try:
+        logger.debug(f"Getting ATerm representation for: {drv_path}")
+        # Use nix store cat to get the ATerm format
+        result = subprocess.run(
+            ['nix', '--extra-experimental-features', 'nix-command', 'store', 'cat', drv_path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get ATerm for {drv_path}: {e.stderr}")
+        raise
+
+@lru_cache(maxsize=None)
 def get_derivation(drv_path, recursive: bool):
     """Get Nix derivation data as dict"""
     try:

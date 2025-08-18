@@ -16,7 +16,7 @@ from laut.nix.keyfiles import (
     parse_nix_private_key,
 )
 from laut.nix.constructive_trace import (
-    compute_ATERMbased_resolved_input_hash_like_nix
+    compute_ATERMbased_input_hash
 )
 from laut.nix.commands import (
     get_derivation_type,
@@ -89,7 +89,7 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
     key_name = content.split(':', 1)[0]
     private_key = parse_nix_private_key(secret_key_file[0])
 
-    computed_drv_path, aterm_bytes = compute_ATERMbased_resolved_input_hash_like_nix(drv_data["name"], drv_path)
+    computed_drv_path, aterm_bytes = compute_ATERMbased_input_hash(drv_data["name"], drv_path)
 
     debug_data = {
         "drv_name": drv_data["name"],

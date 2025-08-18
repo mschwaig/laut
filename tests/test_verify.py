@@ -10,6 +10,7 @@ from laut.cli import read_public_key
 import pytest
 
 ca_data_file = Path(__file__).parent / "data" / "drv_lookup" / "hello-ca-recursive-unresolved.drv"
+ca_aterm_file = Path(__file__).parent / "data" / "drv_lookup" / "hello-ca-recursive-unresolved-aterm.json"
 
 signature_folder = Path(__file__).parent.parent / "tests" / "data" / "traces" / "signatures"
 
@@ -31,8 +32,22 @@ def mock_derivation_lookup(monkeypatch):
         else:
             return all_derivations[drv_path]
 
+    def _get_derivation_aterm_mock(drv_path):
+        # Load the ATerm data from the generated file
+        with open(ca_aterm_file) as f:
+            aterm_data = json.load(f)
+        
+        # Return the ATerm for the requested derivation path
+        if drv_path in aterm_data:
+            return aterm_data[drv_path]
+        
+        # No fallback - fail fast if we don't have the data
+        raise ValueError(f"No ATerm data found for derivation: {drv_path}")
+
     mock = Mock(side_effect=_get_derivation_mock)
+    mock_aterm = Mock(side_effect=_get_derivation_aterm_mock)
     monkeypatch.setattr(commands, "get_derivation", mock)
+    monkeypatch.setattr(commands, "get_derivation_aterm", mock_aterm)
     return mock
 
 @pytest.fixture
