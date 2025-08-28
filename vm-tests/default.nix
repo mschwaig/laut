@@ -44,19 +44,17 @@ let
     sign-test = import ./test-template.nix ({
         testName = sign-test-name;
         testScriptFile = ./sign-script.py;
+        needsImpure = isLarge;
     } // common);
-  in rec {
+  in {
     ${sign-test-name} = sign-test;
 
     ${verify-test-name} = import ./test-template.nix ( {
         testName = verify-test-name;
         testScriptFile = ./verify-script.py;
-      } // common // (if isLarge then {
-        # the large tests run only interactively
-        binaryCacheData = "./data";
-      } else {
+        needsImpure = isLarge;
         binaryCacheData = "${sign-test}/data";
-    }));
+      } // common);
   };
 in
   ((makeTestSet {

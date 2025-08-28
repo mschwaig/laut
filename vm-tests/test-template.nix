@@ -10,8 +10,9 @@
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
   needsExtraTime ? false,
+  needsImpure ? false,
   testScriptFile,
-  binaryCacheData ? "",
+  binaryCacheData? "",
   ...
 }@args:
 
@@ -23,8 +24,7 @@ let
   } // args;
   testLib =  import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
   packageToBuildStr = lib.concatStringsSep "." packageToBuild;
-in
-  testLib.runTest ({
+  test =  testLib.runTest ({
       name = "laut-${testName}";
 
       nodes = {
@@ -63,4 +63,8 @@ in
 } // (if needsExtraTime then {
     # Set timeout to 8 hours for large VM tests
     extraDriverArgs = ["--global-timeout=28800"];
-  } else { }))
+  } else { }));
+in
+  test.overrideTestDerivation(_: if needsImpure then {
+    _impure = true;
+  } else {})
