@@ -26,7 +26,7 @@ jobs:
       uses: DeterminateSystems/nix-installer-action@v9
       with:
         extra-conf: |
-          experimental-features = ca-derivations
+          experimental-features = ca-derivations impure-derivations
         github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Set-up cachix to push the results to
       uses: cachix/cachix-action@v13
@@ -57,9 +57,7 @@ jobs:
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-sign.driver"
-          ./result-/bin/nixos-test-driver
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-sign"
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-verify.driver"
-          ./result-/bin/nixos-test-driver
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-verify"
