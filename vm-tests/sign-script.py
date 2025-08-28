@@ -19,7 +19,7 @@ cache.wait_for_open_port(9002)
 cache.wait_for_open_port(cachePort)
 
 # configure cache
-cache.succeed(f"mc config host add minio http://cache:{cachePort} {cacheAccessKey} {cacheSecretKey} --api s3v4")
+cache.succeed(f"mc alias set minio http://cache:{cachePort} {cacheAccessKey} {cacheSecretKey} --api s3v4")
 cache.succeed("mc mb minio/binary-cache")
 cache.succeed("mc anonymous set download minio/binary-cache") # allow public read
 
