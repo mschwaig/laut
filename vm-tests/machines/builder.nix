@@ -41,6 +41,10 @@ in {
 
   nix = {
     package = nixPackage;
+    # Do not check config to prevent the following error:
+    # > Validating generated nix.conf
+    # > error: The ca-derivations experimental feature is deprecated and will be removed in Lix 2.94. See https://git.lix.systems/lix-project/lix/issues/815 for more details.
+    checkConfig = false;
     # see https://jade.fyi/blog/pinning-nixos-with-npins/ for an explanation
     # and how to do something similar with flakes
     nixPath = [

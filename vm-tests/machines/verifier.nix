@@ -17,6 +17,7 @@
 
       nix = {
         package = pkgsIA.lix;
+        checkConfig = false;
         nixPath = [
           "nixpkgs=${nixpkgs}"
           "nixpkgs-ca=${
