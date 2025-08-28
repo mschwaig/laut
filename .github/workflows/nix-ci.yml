@@ -14,11 +14,7 @@ on:
 
 jobs:
   nix-build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-latest ] # disabled macos-latest for now until we can take a look at that
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
     - name: Free Disk Space (Ubuntu)
       uses: jlumbroso/free-disk-space@main
@@ -39,25 +35,25 @@ jobs:
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#packages.$(nix eval --raw --impure --expr builtins.currentSystem)"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#packages.x86_64-linux"
     - name: Run small VM Test
       id: vm_test_small
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-sign"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.small-sign"
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).small-verify"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.small-verify"
     - name: Run medium VM Test
       id: vm_test_medium
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/update_flake_lock_action' || github.event.inputs.run_large_test == 'true'
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-sign"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.medium-sign"
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.$(nix eval --raw --impure --expr builtins.currentSystem).medium-verify"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.medium-verify"
