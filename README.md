@@ -14,28 +14,22 @@ The name is german for[^1]
 
 </div>
 
-The fundamentals are in place, but none of the cool things about this are implemented and working yet: 🙈
-* configurable trust model[^2], ...
-* which can be re-configured over time, based on ...
-* verifiable provenance data for builders
-* like realizations for CA derivations, ✅ but also works for IA derivations
+The fundamentals are in place, but some of the cool things about it still neeed some work (marked ❎):
+* configurable trust model[^2] ✅, implemented correctly ❎ ...
+* which can be re-configured over time, ✅ based on ...
+* verifiable provenance data for builders ❎
+* like realizations for CA derivations, ✅ but also works for IA derivations ❎
 * based on a new proposed signature format on top of JWS, ✅ with
-* arbitrary additional ✅ but detachable metadata
-* integrates with/extends https://github.com/nikstur/bombon to create verifiable SBOMs
+* arbitrary additional ✅ but detachable ❎ metadata
+* integrates with/extends https://github.com/nikstur/bombon to create verifiable SBOMs ❎
 
-Right now this can resovle the dependencies for and verify a fully content-addressed `hello` binary, with a single key, in our VM tests.
+Right now this can resovle the dependencies for and verify a fully content-addressed `hello` binary, testing Nix against Lix using different keys, in our VM tests.
 
-At the same time, it's not ready for users yet.
-If you want to try this yourself outside of those tests, be prepared for surprises, because
-* the input hashes depend on the stability of nix derivation show, which is not stable across implementations,
-* passing more than one key does not do the correct thing yet,
-* I have not figured out how to retrieve the signatures from S3 outside the VM test. :see_no_evil: I’m new to the S3 API.
-
-I'm not even putting the format being unstable on the list that's how unstable it is.
-While conceptually this being OK the point of this format, it will lead to soOoOo much cache invalidation for the time being, that as a consumer you will just want to throw thow all those signatuers out still.
+At the same time, it's not ready for users yet. For example, the datalog implemenation for verification is not entirely correct yet.
+As a project we are also not yet commited to supporting the current format of the signatures long term, we might for example still want to change things like the envelope format.
 
 I want to get a scientific paper, and later my PhD thesis published based on this work, so if you do something that's inspired by this project, please give me a shoutout in your README.md, your docs or the relevant issue in your issue tracker. This really helps me demonstrate the relevance of my work.
-
+:
 ### How can I use it
 
 This is a standalone command line tool called `laut`,  which has two subcommands:
@@ -83,8 +77,6 @@ and then running the resulting binary to get into this emacs shell.
 In that shell you can then run the test using the "test_script()" function.
 
 **In the future** each VM test should validate according to a different trust model, but right now there is no meaningful distinction between them yet.
-
-We can also test our reasoning about trust relationships directly in datalog, in a another set of tests.
 
 ### FAQ
 
