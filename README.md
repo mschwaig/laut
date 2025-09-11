@@ -8,7 +8,7 @@ The name is german for[^1]
 
 ---
 
-🚧 This is a currently very incomplete implementation of https://dl.acm.org/doi/10.1145/3689944.3696169. 🚧
+🚧 This is a still incomplete implementation of https://dl.acm.org/doi/10.1145/3689944.3696169. 🚧
 
 ---
 
@@ -29,7 +29,7 @@ At the same time, it's not ready for users yet. For example, the datalog impleme
 As a project we are also not yet commited to supporting the current format of the signatures long term, we might for example still want to change things like the envelope format.
 
 I want to get a scientific paper, and later my PhD thesis published based on this work, so if you do something that's inspired by this project, please give me a shoutout in your README.md, your docs or the relevant issue in your issue tracker. This really helps me demonstrate the relevance of my work.
-:
+
 ### How can I use it
 
 This is a standalone command line tool called `laut`,  which has two subcommands:
@@ -43,19 +43,19 @@ which will sign your derivations with the new signature format, and upload them 
 
 The second one is
 ```
-laut verify --from [S3 store url] --trusted-key [private key for signing] [derivation path or flake output path]
+laut verify --cache [S3 store url] --trusted-key [path to public key file] [derivation path or flake output path]
 ```
 
 Which is run manually by the user after building or obtaining an output from the cache.
-This command tries to verify that a given derivation is valid according to the stricter validation criteria of the tool. Later on there will be more options to configure a specific trust model to verify against, and you will be able to additionally pass an SBOM which then also has to match the other elements. The goal of the SBOM integration is to connect this with established standards that people outside of the Nix community understand as well.
+This command tries to verify that an output can be derived from a given derivation according to the stricter validation criteria of the tool. Later on the tool will check this against a produced result link on disk, there will be more options to configure a specific trust model to verify against, and you will be able to additionally pass an SBOM which then also has to match the other elements. The goal of the SBOM integration is to connect this with established standards that people outside of the Nix community understand as well.
 
 ### How does it work
 
-It's a python program. The signing is very straightforward python code.
+It's a python program, with some internals written in Rust, and a dependency on Snix for the hashing schemes. The signing itself is very straightforward python code.
 
-The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree and emits facts about the dependency tree to some files.
+The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree to gather information.
 As part of this verification phase, the tool also gathers signatures from a set of caches, taking into account possible combinations of inputs by content hash, which could satisfy the dependency on those same inputs by input hash.
-These files then serve as the input to a datalog program, to make the actual determination about the validity of the dependency tree.
+Thes data then serves as the input to a datalog program written in Rust, to make the actual determination about the validity of the dependency tree.
 
 ### How can I test it
 
@@ -69,14 +69,19 @@ pytest -s tests/
 
 inside a nix develop shell, and the NixOS VM tests, which you can run by first building the test driver for one of the tests
 ```
-nix build .#checks.x86_64-linux.fullReproVM.driverInteractive 
+nix build .#checks.x86_64-linux.small-verify.driverInteractive
 ```
 
-and then running the resulting binary to get into this emacs shell.
+Available VM tests include:
+- `small-sign` and `small-verify` - Quick tests
+- `medium-sign` and `medium-verify` - Medium-sized tests
+- `large-sign` and `large-verify` - Large tests (time out in CI)
+
+Then run the resulting binary to get into this emacs shell.
 
 In that shell you can then run the test using the "test_script()" function.
 
-**In the future** each VM test should validate according to a different trust model, but right now there is no meaningful distinction between them yet.
+**In the future** different VM tests should exercise different trust models, but right now they all uniformly only trust `builderA` and `builderB` in combination.
 
 ### FAQ
 
