@@ -12,7 +12,7 @@
   cacheStoreUrl,
   cacheAccessKey,
   cacheSecretKey,
-  nixPackage ? pkgsIA.lix,
+  nixPackage ? pkgsIA.nix,
   ...
 }:
 
