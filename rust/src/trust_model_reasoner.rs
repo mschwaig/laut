@@ -115,16 +115,14 @@ type VerifiedOutputs = HashMap<UDrvOutput, HashSet<ContentHash>>;
 struct Verifier<'a> {
     facts: &'a Facts,
     trust_model: &'a TrustModel,
-    interner: &'a StringInterner,
     memo: VerifiedOutputs,
 }
 
 impl<'a> Verifier<'a> {
-    fn new(facts: &'a Facts, trust_model: &'a TrustModel, interner: &'a StringInterner) -> Self {
+    fn new(facts: &'a Facts, trust_model: &'a TrustModel) -> Self {
         Verifier {
             facts,
             trust_model,
-            interner,
             memo: HashMap::new(),
         }
     }
@@ -172,24 +170,12 @@ impl<'a> Verifier<'a> {
                 .cloned()
                 .unwrap_or_default();
 
-            let mut failed_dep = None;
             let all_deps_ok = dep_resolutions.iter().all(|(dep_out, dep_ch)| {
                 let verified_hashes = self.verify(*dep_out);
-                let ok = verified_hashes.contains(dep_ch);
-                if !ok {
-                    failed_dep = Some((*dep_out, *dep_ch, verified_hashes.clone()));
-                }
-                ok
+                verified_hashes.contains(dep_ch)
             });
 
             if !all_deps_ok {
-                if let Some((dep_out, expected_ch, actual_hashes)) = failed_dep {
-                    if let (Some(dep_str), Some(expected_str)) =
-                        (self.interner.udrv_output_str(dep_out), self.interner.content_hash_str(expected_ch)) {
-                        eprintln!("[RUST DEBUG] Dep failed: {} expected {} but got {} verified hashes",
-                            dep_str, expected_str, actual_hashes.len());
-                    }
-                }
                 continue;
             }
 
@@ -360,70 +346,17 @@ impl TrustModelReasoner {
     /// Compute the verification result.
     /// Returns a list of verified content hashes for the expected root's outputs.
     fn compute_result(&self) -> Vec<String> {
-        let mut verifier = Verifier::new(&self.facts, &self.trust_model, &self.interner);
-
-        // Debug: print expected root
-        if let Some(root_str) = self.interner.udrv_str(self.expected_root) {
-            eprintln!("[RUST DEBUG] Expected root: {}", root_str);
-        }
+        let mut verifier = Verifier::new(&self.facts, &self.trust_model);
 
         // Get all outputs of the expected root
         let outputs = self.facts.udrv_outputs.get(&self.expected_root)
             .cloned()
             .unwrap_or_default();
 
-        eprintln!("[RUST DEBUG] Expected root has {} outputs", outputs.len());
-        for output in &outputs {
-            if let Some(out_str) = self.interner.udrv_output_str(*output) {
-                eprintln!("[RUST DEBUG]   Output: {}", out_str);
-            }
-        }
-
-        // Debug: print all registered UDrvs and their outputs
-        eprintln!("[RUST DEBUG] Total UDrvs with outputs: {}", self.facts.udrv_outputs.len());
-        eprintln!("[RUST DEBUG] Total FODs: {}", self.facts.fods.len());
-        eprintln!("[RUST DEBUG] Total RDrv claims: {}", self.facts.rdrv_output_claims.len());
-        eprintln!("[RUST DEBUG] Total UDrv->RDrv mappings: {}", self.facts.udrv_to_rdrvs.len());
-
-        // Check if expected_root has any RDrvs mapped
-        if let Some(rdrvs) = self.facts.udrv_to_rdrvs.get(&self.expected_root) {
-            eprintln!("[RUST DEBUG] Expected root has {} RDrvs", rdrvs.len());
-            for rdrv in rdrvs {
-                if let Some(rdrv_str) = self.interner.rdrv_str(*rdrv) {
-                    eprintln!("[RUST DEBUG]   RDrv: {}", rdrv_str);
-                }
-                // Check claims for this RDrv
-                for output in &outputs {
-                    if let Some(claims) = self.facts.rdrv_output_claims.get(&(*rdrv, *output)) {
-                        eprintln!("[RUST DEBUG]   Claims for this RDrv+output: {}", claims.len());
-                    } else {
-                        eprintln!("[RUST DEBUG]   No claims for RDrv+output");
-                    }
-                }
-                // Check dep resolutions
-                if let Some(deps) = self.facts.rdrv_dep_resolutions.get(rdrv) {
-                    eprintln!("[RUST DEBUG]   Dep resolutions: {}", deps.len());
-                    for (dep_out, dep_ch) in deps {
-                        if let (Some(out_str), Some(ch_str)) =
-                            (self.interner.udrv_output_str(*dep_out), self.interner.content_hash_str(*dep_ch)) {
-                            // Check if this dep is a FOD
-                            let is_fod = self.facts.fods.contains_key(dep_out);
-                            eprintln!("[RUST DEBUG]     Dep: {} -> {} (FOD: {})", out_str, ch_str, is_fod);
-                        }
-                    }
-                } else {
-                    eprintln!("[RUST DEBUG]   No dep resolutions");
-                }
-            }
-        } else {
-            eprintln!("[RUST DEBUG] Expected root has NO RDrvs mapped!");
-        }
-
         let mut results = Vec::new();
 
         for output in outputs {
             let verified_hashes = verifier.verify(output);
-            eprintln!("[RUST DEBUG] Verified hashes for output: {}", verified_hashes.len());
             for hash in verified_hashes {
                 if let Some(hash_str) = self.interner.content_hash_str(hash) {
                     results.push(hash_str.to_string());
