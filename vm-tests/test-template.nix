@@ -39,7 +39,7 @@ let
         builderB = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
-          nixPackage = pkgsIA.lix;
+          nixPackage = pkgsIA.nix;
         });
 
         verifier = import ./machines/verifier.nix (fullArgs);
