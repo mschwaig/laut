@@ -40,6 +40,9 @@ pub struct ContentHash(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct UDrvOutput(pub usize);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct KeyId(pub usize);
+
 pub struct StringInterner {
     // Separate hashmaps for each type
     udrv_to_id: HashMap<String, UDrv>,
@@ -47,6 +50,7 @@ pub struct StringInterner {
     trust_model_to_id: HashMap<String, TrustModel>,
     content_hash_to_id: HashMap<String, ContentHash>,
     udrv_output_to_id: HashMap<String, UDrvOutput>,
+    key_id_to_id: HashMap<String, KeyId>,
 
     // Common hashmap to detect type confusion
     all_strings: HashMap<String, &'static str>, // maps string -> type name
@@ -63,6 +67,7 @@ impl StringInterner {
             trust_model_to_id: HashMap::new(),
             content_hash_to_id: HashMap::new(),
             udrv_output_to_id: HashMap::new(),
+            key_id_to_id: HashMap::new(),
             all_strings: HashMap::new(),
             id_to_string: Vec::new(),
         }
@@ -73,6 +78,7 @@ impl StringInterner {
     intern_method!(trust_model, trust_model_to_id, TrustModel, "TrustModel");
     intern_method!(content_hash, content_hash_to_id, ContentHash, "ContentHash");
     intern_method!(udrv_output, udrv_output_to_id, UDrvOutput, "UDrvOutput");
+    intern_method!(key_id, key_id_to_id, KeyId, "KeyId");
 
     pub fn get_string(&self, id: usize) -> Option<&str> {
         self.id_to_string.get(id).map(|s| s.as_str())
@@ -98,6 +104,10 @@ impl StringInterner {
         self.get_string(id.0)
     }
 
+    pub fn key_id_str(&self, id: KeyId) -> Option<&str> {
+        self.get_string(id.0)
+    }
+
     // Methods to get readonly views of all values of each type
     pub fn all_udrvs(&self) -> impl Iterator<Item = &UDrv> {
         self.udrv_to_id.values()
@@ -119,6 +129,10 @@ impl StringInterner {
         self.udrv_output_to_id.values()
     }
 
+    pub fn all_key_ids(&self) -> impl Iterator<Item = &KeyId> {
+        self.key_id_to_id.values()
+    }
+
     // Efficient count methods
     pub fn udrvs_count(&self) -> usize {
         self.udrv_to_id.len()
@@ -138,5 +152,9 @@ impl StringInterner {
 
     pub fn udrv_outputs_count(&self) -> usize {
         self.udrv_output_to_id.len()
+    }
+
+    pub fn key_ids_count(&self) -> usize {
+        self.key_id_to_id.len()
     }
 }

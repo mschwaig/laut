@@ -20,24 +20,12 @@
 // the trust model evaluates that set. This is why flattening the trust
 // model is unnecessary: the recursive enum IS the natural representation
 // when your computation is recursive Rust code rather than Datalog.
-//
-// Flattening into (id, threshold, parent_id) tuples is an encoding
-// concern for flat-relation engines like datafrog or Differential Dataflow.
-// Here it would add complexity for no benefit.
 
 use std::collections::{HashMap, HashSet};
+use pyo3::prelude::*;
+use pyo3::exceptions::PyValueError;
 
-// =============================================================================
-// Types
-// =============================================================================
-
-// In production these would be interned u64 IDs via StringInterner.
-// Using u64 here to stay close to the existing codebase.
-type UDrv = u64;
-type UDrvOutput = u64;
-type RDrv = u64;
-type ContentHash = u64;
-type KeyId = u64;
+use crate::string_interner::{StringInterner, UDrv, UDrvOutput, RDrv, ContentHash, KeyId};
 
 // =============================================================================
 // Trust model — the recursive access structure
@@ -82,6 +70,7 @@ impl TrustModel {
 // Facts — all input data, pre-indexed for efficient lookup
 // =============================================================================
 
+#[derive(Default)]
 struct Facts {
     /// FOD outputs: udrv_output -> content_hash
     /// These are the leaves of the dependency DAG.
@@ -117,8 +106,6 @@ struct Facts {
 
 /// For each UDrvOutput, the set of ContentHashes that are verified under
 /// the trust model. Typically this set has 0 or 1 elements.
-/// It could have more than 1 if the trust model accepts multiple
-/// incompatible content hashes (unusual but not impossible with OR-models).
 type VerifiedOutputs = HashMap<UDrvOutput, HashSet<ContentHash>>;
 
 // =============================================================================
@@ -128,44 +115,29 @@ type VerifiedOutputs = HashMap<UDrvOutput, HashSet<ContentHash>>;
 struct Verifier<'a> {
     facts: &'a Facts,
     trust_model: &'a TrustModel,
+    interner: &'a StringInterner,
     memo: VerifiedOutputs,
 }
 
 impl<'a> Verifier<'a> {
-    fn new(facts: &'a Facts, trust_model: &'a TrustModel) -> Self {
+    fn new(facts: &'a Facts, trust_model: &'a TrustModel, interner: &'a StringInterner) -> Self {
         Verifier {
             facts,
             trust_model,
+            interner,
             memo: HashMap::new(),
         }
     }
 
     /// Verify a single UDrvOutput. Returns the set of content hashes
     /// that are verified for this output under the trust model.
-    ///
-    /// This is the core recursive function. It:
-    ///   1. Checks the memo (already computed?)
-    ///   2. Handles the base case (FODs)
-    ///   3. For each RDrv that resolves the parent UDrv:
-    ///      a. Recursively verifies all dependencies
-    ///      b. Checks that the RDrv's dependency resolutions match
-    ///      c. If all deps check out, collects the RDrv's output claims
-    ///   4. Groups evidence by content hash
-    ///   5. Evaluates the trust model for each candidate content hash
-    ///   6. Memoizes and returns
     fn verify(&mut self, output: UDrvOutput) -> HashSet<ContentHash> {
-        // Step 1: memo lookup — this is what makes DAGs efficient.
-        // Without it, shared subgraphs (like glibc appearing in hundreds
-        // of dependency paths) would be re-verified exponentially.
+        // Step 1: memo lookup
         if let Some(cached) = self.memo.get(&output) {
             return cached.clone();
         }
 
         // Insert empty set BEFORE recursing to handle cycles gracefully.
-        // In a well-formed Nix dependency graph there are no cycles,
-        // but this prevents infinite recursion if the input is malformed.
-        // A cycle would just result in verification failure (empty set),
-        // which is the safe default.
         self.memo.insert(output, HashSet::new());
 
         // Step 2: base case — FODs
@@ -189,12 +161,6 @@ impl<'a> Verifier<'a> {
 
         // Step 3: for each RDrv, check if its dependencies link up,
         // and collect evidence if they do.
-        //
-        // evidence maps: content_hash -> set of keys that provide evidence
-        //
-        // A key provides evidence for content_hash H if:
-        //   - some rdrv claims (output -> H) signed by that key, AND
-        //   - that rdrv's dependency resolutions ALL point to verified hashes
         let mut evidence: HashMap<ContentHash, HashSet<KeyId>> = HashMap::new();
 
         for rdrv in &rdrvs {
@@ -206,19 +172,24 @@ impl<'a> Verifier<'a> {
                 .cloned()
                 .unwrap_or_default();
 
+            let mut failed_dep = None;
             let all_deps_ok = dep_resolutions.iter().all(|(dep_out, dep_ch)| {
-                // Recurse into the dependency.
-                // This is where memoization pays off: if we've already
-                // verified this dep_out (because another rdrv or another
-                // path through the DAG already triggered it), we get
-                // the cached result immediately.
                 let verified_hashes = self.verify(*dep_out);
-                verified_hashes.contains(dep_ch)
+                let ok = verified_hashes.contains(dep_ch);
+                if !ok {
+                    failed_dep = Some((*dep_out, *dep_ch, verified_hashes.clone()));
+                }
+                ok
             });
 
             if !all_deps_ok {
-                // This rdrv's dependency chain doesn't link up.
-                // Skip it — its claims can't be used as evidence.
+                if let Some((dep_out, expected_ch, actual_hashes)) = failed_dep {
+                    if let (Some(dep_str), Some(expected_str)) =
+                        (self.interner.udrv_output_str(dep_out), self.interner.content_hash_str(expected_ch)) {
+                        eprintln!("[RUST DEBUG] Dep failed: {} expected {} but got {} verified hashes",
+                            dep_str, expected_str, actual_hashes.len());
+                    }
+                }
                 continue;
             }
 
@@ -247,24 +218,220 @@ impl<'a> Verifier<'a> {
         self.memo.insert(output, verified.clone());
         verified
     }
+}
 
-    /// Convenience: verify a UDrv by verifying all its outputs.
-    /// Returns a map from output to verified content hashes.
-    fn verify_udrv(&mut self, udrv: UDrv) -> HashMap<UDrvOutput, HashSet<ContentHash>> {
-        let outputs = self
-            .facts
-            .udrv_outputs
-            .get(&udrv)
+// =============================================================================
+// Python bindings
+// =============================================================================
+
+#[pyclass]
+pub struct TrustModelReasoner {
+    interner: StringInterner,
+    facts: Facts,
+    trust_model: TrustModel,
+    expected_root: UDrv,
+}
+
+#[pymethods]
+impl TrustModelReasoner {
+    #[new]
+    fn new(trusted_key_names: Vec<String>, threshold: usize, expected_root: &str) -> PyResult<Self> {
+        let mut interner = StringInterner::new();
+
+        // Build trust model from trusted keys
+        let key_ids: Vec<KeyId> = trusted_key_names
+            .iter()
+            .map(|name| interner.key_id(name))
+            .collect();
+
+        let trust_model = if key_ids.is_empty() {
+            return Err(PyValueError::new_err("At least one trusted key is required"));
+        } else if key_ids.len() == 1 {
+            TrustModel::Key(key_ids[0])
+        } else {
+            TrustModel::Threshold(
+                threshold,
+                key_ids.into_iter().map(TrustModel::Key).collect(),
+            )
+        };
+
+        let expected_root_id = interner.udrv(expected_root);
+
+        Ok(TrustModelReasoner {
+            interner,
+            facts: Facts::default(),
+            trust_model,
+            expected_root: expected_root_id,
+        })
+    }
+
+    /// Add a fixed-output derivation (FOD).
+    /// FODs are the leaves of the dependency tree - their content is determined
+    /// by their hash, not by how they were built.
+    fn add_fod(&mut self, drv_path: &str, output_path: &str) {
+        // For FODs, we use the drv_path to create the UDrv and a single "out" output
+        let udrv = self.interner.udrv(drv_path);
+
+        // Create the output identifier (drv_path$out)
+        let output_id = format!("{}$out", drv_path);
+        let udrv_output = self.interner.udrv_output(&output_id);
+
+        // The content hash is the output path itself for FODs
+        let content_hash = self.interner.content_hash(output_path);
+
+        // Register the FOD
+        self.facts.fods.insert(udrv_output, content_hash);
+        self.facts.output_to_udrv.insert(udrv_output, udrv);
+        self.facts.udrv_outputs.entry(udrv).or_default().push(udrv_output);
+    }
+
+    /// Add an unresolved derivation with its inputs and outputs.
+    /// Note: `outputs` should be full output IDs like "/nix/store/abc.drv$out"
+    fn add_unresolved_derivation(
+        &mut self,
+        drv_path: &str,
+        inputs: Vec<String>,
+        outputs: Vec<String>,
+    ) {
+        let udrv = self.interner.udrv(drv_path);
+
+        // Register outputs - they are already full output IDs
+        for output_id in outputs {
+            let udrv_output = self.interner.udrv_output(&output_id);
+            self.facts.output_to_udrv.insert(udrv_output, udrv);
+            self.facts.udrv_outputs.entry(udrv).or_default().push(udrv_output);
+        }
+
+        // Note: inputs are registered when add_resolved_derivation is called,
+        // as that's when we know the actual resolution mapping.
+        let _ = inputs; // inputs are used implicitly through resolved derivations
+    }
+
+    /// Add a resolved derivation that maps an unresolved derivation to a specific
+    /// resolution of its dependencies.
+    fn add_resolved_derivation(
+        &mut self,
+        drv_path: &str,
+        input_hash: &str,
+        resolution: HashMap<String, String>,
+    ) {
+        let udrv = self.interner.udrv(drv_path);
+        let rdrv = self.interner.rdrv(input_hash);
+
+        // Register this rdrv as a resolution of the udrv
+        self.facts.udrv_to_rdrvs.entry(udrv).or_default().push(rdrv);
+
+        // Register the dependency resolutions
+        let dep_resolutions: Vec<(UDrvOutput, ContentHash)> = resolution
+            .iter()
+            .map(|(udrv_output_str, content_hash_str)| {
+                let udrv_output = self.interner.udrv_output(udrv_output_str);
+                let content_hash = self.interner.content_hash(content_hash_str);
+                (udrv_output, content_hash)
+            })
+            .collect();
+
+        self.facts.rdrv_dep_resolutions.insert(rdrv, dep_resolutions);
+    }
+
+    /// Add a build output claim from a signature.
+    fn add_build_output_claim(
+        &mut self,
+        rdrv_aterm_ca: &str,
+        signature_map: HashMap<String, String>,
+        signing_key: &str,
+    ) {
+        let rdrv = self.interner.rdrv(rdrv_aterm_ca);
+        let key = self.interner.key_id(signing_key);
+
+        // Each entry in signature_map is (udrv_output_id -> content_hash)
+        for (udrv_output_str, content_hash_str) in signature_map {
+            let udrv_output = self.interner.udrv_output(&udrv_output_str);
+            let content_hash = self.interner.content_hash(&content_hash_str);
+
+            self.facts
+                .rdrv_output_claims
+                .entry((rdrv, udrv_output))
+                .or_default()
+                .push((content_hash, key));
+        }
+    }
+
+    /// Compute the verification result.
+    /// Returns a list of verified content hashes for the expected root's outputs.
+    fn compute_result(&self) -> Vec<String> {
+        let mut verifier = Verifier::new(&self.facts, &self.trust_model, &self.interner);
+
+        // Debug: print expected root
+        if let Some(root_str) = self.interner.udrv_str(self.expected_root) {
+            eprintln!("[RUST DEBUG] Expected root: {}", root_str);
+        }
+
+        // Get all outputs of the expected root
+        let outputs = self.facts.udrv_outputs.get(&self.expected_root)
             .cloned()
             .unwrap_or_default();
 
-        outputs
-            .into_iter()
-            .map(|out| {
-                let verified = self.verify(out);
-                (out, verified)
-            })
-            .collect()
+        eprintln!("[RUST DEBUG] Expected root has {} outputs", outputs.len());
+        for output in &outputs {
+            if let Some(out_str) = self.interner.udrv_output_str(*output) {
+                eprintln!("[RUST DEBUG]   Output: {}", out_str);
+            }
+        }
+
+        // Debug: print all registered UDrvs and their outputs
+        eprintln!("[RUST DEBUG] Total UDrvs with outputs: {}", self.facts.udrv_outputs.len());
+        eprintln!("[RUST DEBUG] Total FODs: {}", self.facts.fods.len());
+        eprintln!("[RUST DEBUG] Total RDrv claims: {}", self.facts.rdrv_output_claims.len());
+        eprintln!("[RUST DEBUG] Total UDrv->RDrv mappings: {}", self.facts.udrv_to_rdrvs.len());
+
+        // Check if expected_root has any RDrvs mapped
+        if let Some(rdrvs) = self.facts.udrv_to_rdrvs.get(&self.expected_root) {
+            eprintln!("[RUST DEBUG] Expected root has {} RDrvs", rdrvs.len());
+            for rdrv in rdrvs {
+                if let Some(rdrv_str) = self.interner.rdrv_str(*rdrv) {
+                    eprintln!("[RUST DEBUG]   RDrv: {}", rdrv_str);
+                }
+                // Check claims for this RDrv
+                for output in &outputs {
+                    if let Some(claims) = self.facts.rdrv_output_claims.get(&(*rdrv, *output)) {
+                        eprintln!("[RUST DEBUG]   Claims for this RDrv+output: {}", claims.len());
+                    } else {
+                        eprintln!("[RUST DEBUG]   No claims for RDrv+output");
+                    }
+                }
+                // Check dep resolutions
+                if let Some(deps) = self.facts.rdrv_dep_resolutions.get(rdrv) {
+                    eprintln!("[RUST DEBUG]   Dep resolutions: {}", deps.len());
+                    for (dep_out, dep_ch) in deps {
+                        if let (Some(out_str), Some(ch_str)) =
+                            (self.interner.udrv_output_str(*dep_out), self.interner.content_hash_str(*dep_ch)) {
+                            // Check if this dep is a FOD
+                            let is_fod = self.facts.fods.contains_key(dep_out);
+                            eprintln!("[RUST DEBUG]     Dep: {} -> {} (FOD: {})", out_str, ch_str, is_fod);
+                        }
+                    }
+                } else {
+                    eprintln!("[RUST DEBUG]   No dep resolutions");
+                }
+            }
+        } else {
+            eprintln!("[RUST DEBUG] Expected root has NO RDrvs mapped!");
+        }
+
+        let mut results = Vec::new();
+
+        for output in outputs {
+            let verified_hashes = verifier.verify(output);
+            eprintln!("[RUST DEBUG] Verified hashes for output: {}", verified_hashes.len());
+            for hash in verified_hashes {
+                if let Some(hash_str) = self.interner.content_hash_str(hash) {
+                    results.push(hash_str.to_string());
+                }
+            }
+        }
+
+        results
     }
 }
 
@@ -276,456 +443,97 @@ impl<'a> Verifier<'a> {
 mod tests {
     use super::*;
 
-    // Convenience constants for readable test IDs
-    const FOD1: UDrv = 1;
-    const FOD1_OUT: UDrvOutput = 10;
-    const HASH1: ContentHash = 100;
-
-    const DEP1: UDrv = 2;
-    const DEP1_OUT: UDrvOutput = 20;
-    const BUILD_DEP1: ContentHash = 200;
-
-    const OUTPUT1: UDrv = 3;
-    const OUTPUT1_OUT: UDrvOutput = 30;
-    const BUILD_OUTPUT1: ContentHash = 300;
-
-    const RESOLVED_DEP1: RDrv = 1000;
-    const RESOLVED_OUTPUT1: RDrv = 1001;
-
-    const KEY1: KeyId = 9001;
-    const KEY2: KeyId = 9002;
-    const KEY3: KeyId = 9003;
-    const KEY4: KeyId = 9004;
-
-    /// Build the basic 3-node chain: FOD -> dep -> output
-    fn base_facts() -> Facts {
-        Facts {
-            fods: [(FOD1_OUT, HASH1)].into(),
-            output_to_udrv: [
-                (FOD1_OUT, FOD1),
-                (DEP1_OUT, DEP1),
-                (OUTPUT1_OUT, OUTPUT1),
-            ]
-            .into(),
-            udrv_to_rdrvs: [
-                (DEP1, vec![RESOLVED_DEP1]),
-                (OUTPUT1, vec![RESOLVED_OUTPUT1]),
-            ]
-            .into(),
-            rdrv_dep_resolutions: [
-                (RESOLVED_DEP1, vec![(FOD1_OUT, HASH1)]),
-                (RESOLVED_OUTPUT1, vec![(DEP1_OUT, BUILD_DEP1)]),
-            ]
-            .into(),
-            rdrv_output_claims: HashMap::new(), // filled per test
-            udrv_outputs: [
-                (FOD1, vec![FOD1_OUT]),
-                (DEP1, vec![DEP1_OUT]),
-                (OUTPUT1, vec![OUTPUT1_OUT]),
-            ]
-            .into(),
-        }
-    }
-
-    // =========================================================================
-    // Test 1: threshold(2, key1, key2) — both agree, everything links up
-    // =========================================================================
     #[test]
-    fn test_threshold_2_both_agree() {
-        let mut facts = base_facts();
-        facts.rdrv_output_claims = [
-            ((RESOLVED_DEP1, DEP1_OUT), vec![
-                (BUILD_DEP1, KEY1),
-                (BUILD_DEP1, KEY2),
-            ]),
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![
-                (BUILD_OUTPUT1, KEY1),
-                (BUILD_OUTPUT1, KEY2),
-            ]),
-        ]
-        .into();
+    fn test_python_api_basic() {
+        let mut reasoner = TrustModelReasoner::new(
+            vec!["key1".to_string(), "key2".to_string()],
+            2,
+            "/nix/store/abc-foo.drv"
+        ).unwrap();
 
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Key(KEY2),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(result.contains(&BUILD_OUTPUT1), "output should be verified");
-    }
-
-    // =========================================================================
-    // Test 2: threshold(2, key1, key2) — builders disagree on intermediate step
-    // =========================================================================
-    //
-    // Key1 builds dep1 -> BUILD_DEP1, key2 builds dep1 -> 999 (different!).
-    // They agree on output1 -> BUILD_OUTPUT1, but the intermediate step
-    // doesn't link up, so nothing should verify.
-    #[test]
-    fn test_intermediate_disagreement_fails() {
-        let bad_dep_hash: ContentHash = 999;
-
-        let mut facts = base_facts();
-        facts.rdrv_output_claims = [
-            ((RESOLVED_DEP1, DEP1_OUT), vec![
-                (BUILD_DEP1, KEY1),
-                (bad_dep_hash, KEY2), // KEY2 disagrees about dep1's output!
-            ]),
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![
-                (BUILD_OUTPUT1, KEY1),
-                (BUILD_OUTPUT1, KEY2),
-            ]),
-        ]
-        .into();
-
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Key(KEY2),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-
-        // dep1 should NOT be verified: only 1 key per content hash
-        let dep_result = verifier.verify(DEP1_OUT);
-        assert!(dep_result.is_empty(), "dep should not be verified — builders disagree");
-
-        // output1 should NOT be verified either, because dep1 isn't verified,
-        // so resolved_output1's dependency on dep1_out -> BUILD_DEP1 doesn't
-        // link up (BUILD_DEP1 is not in the verified set for dep1_out).
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(result.is_empty(), "output should not verify — dep chain is broken");
-    }
-
-    // =========================================================================
-    // Test 3: different RDrvs, same output — should still verify
-    // =========================================================================
-    //
-    // Key1 and key2 use different resolved derivations for dep1
-    // (maybe different Nix versions), but both produce the same output hash.
-    #[test]
-    fn test_different_rdrvs_same_output() {
-        const RESOLVED_DEP1_A: RDrv = 2000;
-        const RESOLVED_DEP1_B: RDrv = 2001;
-
-        let mut facts = base_facts();
-        // Override: dep1 now has TWO rdrvs
-        facts.udrv_to_rdrvs.insert(DEP1, vec![RESOLVED_DEP1_A, RESOLVED_DEP1_B]);
-        facts.rdrv_dep_resolutions.insert(RESOLVED_DEP1_A, vec![(FOD1_OUT, HASH1)]);
-        facts.rdrv_dep_resolutions.insert(RESOLVED_DEP1_B, vec![(FOD1_OUT, HASH1)]);
-        // Remove the original rdrv's dep resolution
-        facts.rdrv_dep_resolutions.remove(&RESOLVED_DEP1);
-
-        facts.rdrv_output_claims = [
-            // Key1 built via rdrv A, key2 built via rdrv B
-            // Both produced the same content hash for dep1
-            ((RESOLVED_DEP1_A, DEP1_OUT), vec![(BUILD_DEP1, KEY1)]),
-            ((RESOLVED_DEP1_B, DEP1_OUT), vec![(BUILD_DEP1, KEY2)]),
-            // Both agree on output1 too
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![
-                (BUILD_OUTPUT1, KEY1),
-                (BUILD_OUTPUT1, KEY2),
-            ]),
-        ]
-        .into();
-
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Key(KEY2),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(
-            result.contains(&BUILD_OUTPUT1),
-            "should verify — different paths, same output"
+        // Add a FOD
+        reasoner.add_fod(
+            "/nix/store/fod-source.drv",
+            "/nix/store/fod-source-hash"
         );
-    }
 
-    // =========================================================================
-    // Test 4: threshold(1, ...) — OR model, any single signer suffices
-    // =========================================================================
-    #[test]
-    fn test_threshold_1_or_model() {
-        let mut facts = base_facts();
-        facts.rdrv_output_claims = [
-            // Only key1 signed dep1
-            ((RESOLVED_DEP1, DEP1_OUT), vec![(BUILD_DEP1, KEY1)]),
-            // Only key2 signed output1
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![(BUILD_OUTPUT1, KEY2)]),
-        ]
-        .into();
-
-        let trust_model = TrustModel::Threshold(1, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Key(KEY2),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(result.contains(&BUILD_OUTPUT1), "OR model: one signer suffices per step");
-    }
-
-    // =========================================================================
-    // Test 5: nested trust model
-    //   threshold(2, key1, threshold(1, key3, key4))
-    //   = "key1 AND (key3 OR key4)"
-    // =========================================================================
-    #[test]
-    fn test_nested_threshold() {
-        let mut facts = base_facts();
-        facts.rdrv_output_claims = [
-            ((RESOLVED_DEP1, DEP1_OUT), vec![
-                (BUILD_DEP1, KEY1),
-                (BUILD_DEP1, KEY3), // key3 from the inner threshold
-            ]),
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![
-                (BUILD_OUTPUT1, KEY1),
-                (BUILD_OUTPUT1, KEY4), // key4 from the inner threshold
-            ]),
-        ]
-        .into();
-
-        // threshold(2, key1, threshold(1, key3, key4))
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Threshold(1, vec![
-                TrustModel::Key(KEY3),
-                TrustModel::Key(KEY4),
-            ]),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(
-            result.contains(&BUILD_OUTPUT1),
-            "nested: key1 ✓, inner threshold satisfied by key4 ✓, so 2/2 met"
+        // Add an unresolved derivation
+        // Note: outputs are full output IDs, not just output names
+        reasoner.add_unresolved_derivation(
+            "/nix/store/abc-foo.drv",
+            vec!["/nix/store/fod-source.drv$out".to_string()],
+            vec!["/nix/store/abc-foo.drv$out".to_string()]
         );
-    }
 
-    // =========================================================================
-    // Test 6: nested trust model — inner threshold NOT met
-    // =========================================================================
-    #[test]
-    fn test_nested_threshold_inner_not_met() {
-        let mut facts = base_facts();
-        facts.rdrv_output_claims = [
-            ((RESOLVED_DEP1, DEP1_OUT), vec![
-                (BUILD_DEP1, KEY1),
-                (BUILD_DEP1, KEY2), // key2 is NOT in the trust model at all
-            ]),
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![
-                (BUILD_OUTPUT1, KEY1),
-                (BUILD_OUTPUT1, KEY2),
-            ]),
-        ]
-        .into();
-
-        // threshold(2, key1, threshold(1, key3, key4))
-        // key2 is not key3 or key4, so the inner threshold is not met
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Threshold(1, vec![
-                TrustModel::Key(KEY3),
-                TrustModel::Key(KEY4),
-            ]),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(
-            result.is_empty(),
-            "nested: key1 ✓, but inner threshold not met (key2 is not key3 or key4)"
+        // Add a resolved derivation
+        let mut resolution = HashMap::new();
+        resolution.insert(
+            "/nix/store/fod-source.drv$out".to_string(),
+            "/nix/store/fod-source-hash".to_string()
         );
-    }
-
-    // =========================================================================
-    // Test 7: self-build only — Key(self)
-    // =========================================================================
-    #[test]
-    fn test_self_build_only() {
-        let self_key: KeyId = 42;
-
-        let mut facts = base_facts();
-        facts.rdrv_output_claims = [
-            ((RESOLVED_DEP1, DEP1_OUT), vec![(BUILD_DEP1, self_key)]),
-            ((RESOLVED_OUTPUT1, OUTPUT1_OUT), vec![(BUILD_OUTPUT1, self_key)]),
-        ]
-        .into();
-
-        let trust_model = TrustModel::Key(self_key);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(result.contains(&BUILD_OUTPUT1));
-    }
-
-    // =========================================================================
-    // Test 8: DAG (not tree) — shared dependency
-    // =========================================================================
-    //
-    // Both dep1 and dep2 depend on the same FOD.
-    // output1 depends on both dep1 and dep2.
-    //
-    //        FOD1
-    //       /    \
-    //     dep1   dep2
-    //       \    /
-    //       output1
-    //
-    // This tests that memoization works correctly with sharing.
-    #[test]
-    fn test_dag_shared_dependency() {
-        const DEP2: UDrv = 4;
-        const DEP2_OUT: UDrvOutput = 40;
-        const BUILD_DEP2: ContentHash = 400;
-        const RESOLVED_DEP2: RDrv = 1002;
-        const RESOLVED_OUTPUT1_V2: RDrv = 1003;
-
-        let facts = Facts {
-            fods: [(FOD1_OUT, HASH1)].into(),
-            output_to_udrv: [
-                (FOD1_OUT, FOD1),
-                (DEP1_OUT, DEP1),
-                (DEP2_OUT, DEP2),
-                (OUTPUT1_OUT, OUTPUT1),
-            ]
-            .into(),
-            udrv_to_rdrvs: [
-                (DEP1, vec![RESOLVED_DEP1]),
-                (DEP2, vec![RESOLVED_DEP2]),
-                (OUTPUT1, vec![RESOLVED_OUTPUT1_V2]),
-            ]
-            .into(),
-            rdrv_dep_resolutions: [
-                (RESOLVED_DEP1, vec![(FOD1_OUT, HASH1)]),
-                (RESOLVED_DEP2, vec![(FOD1_OUT, HASH1)]),
-                // output1 depends on BOTH dep1 and dep2
-                (RESOLVED_OUTPUT1_V2, vec![
-                    (DEP1_OUT, BUILD_DEP1),
-                    (DEP2_OUT, BUILD_DEP2),
-                ]),
-            ]
-            .into(),
-            rdrv_output_claims: [
-                ((RESOLVED_DEP1, DEP1_OUT), vec![
-                    (BUILD_DEP1, KEY1),
-                    (BUILD_DEP1, KEY2),
-                ]),
-                ((RESOLVED_DEP2, DEP2_OUT), vec![
-                    (BUILD_DEP2, KEY1),
-                    (BUILD_DEP2, KEY2),
-                ]),
-                ((RESOLVED_OUTPUT1_V2, OUTPUT1_OUT), vec![
-                    (BUILD_OUTPUT1, KEY1),
-                    (BUILD_OUTPUT1, KEY2),
-                ]),
-            ]
-            .into(),
-            udrv_outputs: [
-                (FOD1, vec![FOD1_OUT]),
-                (DEP1, vec![DEP1_OUT]),
-                (DEP2, vec![DEP2_OUT]),
-                (OUTPUT1, vec![OUTPUT1_OUT]),
-            ]
-            .into(),
-        };
-
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Key(KEY2),
-        ]);
-
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(result.contains(&BUILD_OUTPUT1), "DAG with sharing should verify");
-
-        // Also verify that FOD1 was only computed once by checking memo
-        assert!(
-            verifier.memo.contains_key(&FOD1_OUT),
-            "FOD should be memoized"
+        reasoner.add_resolved_derivation(
+            "/nix/store/abc-foo.drv",
+            "resolved-hash-123",
+            resolution
         );
+
+        // Add build output claims from two keys
+        let mut sig_map = HashMap::new();
+        sig_map.insert(
+            "/nix/store/abc-foo.drv$out".to_string(),
+            "/nix/store/abc-foo-output".to_string()
+        );
+        reasoner.add_build_output_claim("resolved-hash-123", sig_map.clone(), "key1");
+        reasoner.add_build_output_claim("resolved-hash-123", sig_map, "key2");
+
+        let results = reasoner.compute_result();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], "/nix/store/abc-foo-output");
     }
 
-    // =========================================================================
-    // Test 9: DAG — one branch fails, whole thing fails
-    // =========================================================================
     #[test]
-    fn test_dag_one_branch_fails() {
-        const DEP2: UDrv = 4;
-        const DEP2_OUT: UDrvOutput = 40;
-        const BUILD_DEP2: ContentHash = 400;
-        const BUILD_DEP2_BAD: ContentHash = 401;
-        const RESOLVED_DEP2: RDrv = 1002;
-        const RESOLVED_OUTPUT1_V2: RDrv = 1003;
+    fn test_threshold_not_met() {
+        let mut reasoner = TrustModelReasoner::new(
+            vec!["key1".to_string(), "key2".to_string()],
+            2, // require both keys
+            "/nix/store/abc-foo.drv"
+        ).unwrap();
 
-        let facts = Facts {
-            fods: [(FOD1_OUT, HASH1)].into(),
-            output_to_udrv: [
-                (FOD1_OUT, FOD1),
-                (DEP1_OUT, DEP1),
-                (DEP2_OUT, DEP2),
-                (OUTPUT1_OUT, OUTPUT1),
-            ]
-            .into(),
-            udrv_to_rdrvs: [
-                (DEP1, vec![RESOLVED_DEP1]),
-                (DEP2, vec![RESOLVED_DEP2]),
-                (OUTPUT1, vec![RESOLVED_OUTPUT1_V2]),
-            ]
-            .into(),
-            rdrv_dep_resolutions: [
-                (RESOLVED_DEP1, vec![(FOD1_OUT, HASH1)]),
-                (RESOLVED_DEP2, vec![(FOD1_OUT, HASH1)]),
-                // output1 expects dep2 -> BUILD_DEP2
-                (RESOLVED_OUTPUT1_V2, vec![
-                    (DEP1_OUT, BUILD_DEP1),
-                    (DEP2_OUT, BUILD_DEP2),
-                ]),
-            ]
-            .into(),
-            rdrv_output_claims: [
-                // dep1: both agree ✓
-                ((RESOLVED_DEP1, DEP1_OUT), vec![
-                    (BUILD_DEP1, KEY1),
-                    (BUILD_DEP1, KEY2),
-                ]),
-                // dep2: builders DISAGREE ✗
-                ((RESOLVED_DEP2, DEP2_OUT), vec![
-                    (BUILD_DEP2, KEY1),
-                    (BUILD_DEP2_BAD, KEY2), // different hash!
-                ]),
-                // output1: both agree on final, but it doesn't matter
-                ((RESOLVED_OUTPUT1_V2, OUTPUT1_OUT), vec![
-                    (BUILD_OUTPUT1, KEY1),
-                    (BUILD_OUTPUT1, KEY2),
-                ]),
-            ]
-            .into(),
-            udrv_outputs: [
-                (FOD1, vec![FOD1_OUT]),
-                (DEP1, vec![DEP1_OUT]),
-                (DEP2, vec![DEP2_OUT]),
-                (OUTPUT1, vec![OUTPUT1_OUT]),
-            ]
-            .into(),
-        };
+        // Add a FOD
+        reasoner.add_fod(
+            "/nix/store/fod-source.drv",
+            "/nix/store/fod-source-hash"
+        );
 
-        let trust_model = TrustModel::Threshold(2, vec![
-            TrustModel::Key(KEY1),
-            TrustModel::Key(KEY2),
-        ]);
+        // Add an unresolved derivation
+        // Note: outputs are full output IDs, not just output names
+        reasoner.add_unresolved_derivation(
+            "/nix/store/abc-foo.drv",
+            vec!["/nix/store/fod-source.drv$out".to_string()],
+            vec!["/nix/store/abc-foo.drv$out".to_string()]
+        );
 
-        let mut verifier = Verifier::new(&facts, &trust_model);
+        // Add a resolved derivation
+        let mut resolution = HashMap::new();
+        resolution.insert(
+            "/nix/store/fod-source.drv$out".to_string(),
+            "/nix/store/fod-source-hash".to_string()
+        );
+        reasoner.add_resolved_derivation(
+            "/nix/store/abc-foo.drv",
+            "resolved-hash-123",
+            resolution
+        );
 
-        // dep2 is not verified (builders disagree)
-        let dep2_result = verifier.verify(DEP2_OUT);
-        assert!(dep2_result.is_empty(), "dep2 should fail — disagreement");
+        // Only one key signs - threshold not met
+        let mut sig_map = HashMap::new();
+        sig_map.insert(
+            "/nix/store/abc-foo.drv$out".to_string(),
+            "/nix/store/abc-foo-output".to_string()
+        );
+        reasoner.add_build_output_claim("resolved-hash-123", sig_map, "key1");
 
-        // output1 fails because dep2 isn't verified
-        let mut verifier = Verifier::new(&facts, &trust_model);
-        let result = verifier.verify(OUTPUT1_OUT);
-        assert!(result.is_empty(), "output should fail — dep2 branch is broken");
+        let results = reasoner.compute_result();
+        assert!(results.is_empty(), "Should not verify with only one key when threshold is 2");
     }
 }

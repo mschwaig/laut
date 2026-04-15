@@ -12,9 +12,7 @@ use trust_model_reasoner::TrustModelReasoner;
 
 #[pymodule]
 fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
-
     m.add_class::<TrustModelReasoner>()?;
-
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_drv_path_from_aterm, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_nar_hash, m)?)?;
