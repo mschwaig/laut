@@ -7,6 +7,8 @@
   pkgsCA,
   nixpkgs-swh,
   packageToBuild,
+  fodScanPackage ? packageToBuild,
+  supplementaryFods ? [],
   builderPublicKey,
   builderPrivateKey,
   cacheStoreUrl,
@@ -17,17 +19,32 @@
 }:
 
 let
-  # use infra built for collaboration with software heritage foundation
-  # to find fixed output derivations
-  # so we can make them available ahead of time
-  # and run the tests without network access
+  # Use infra built for collaboration with Software Heritage Foundation
+  # to find fixed-output derivations via expression-level traversal.
+  # This finds most FODs but misses some hidden behind passthru attributes.
   nixpkgs-swh-patched = pkgsIA.applyPatches {
     name = "patch-swh-find-tarballs";
     src = nixpkgs-swh;
     patches = [ ../../patches/nixpkgs-swh/0001-make-find-tarballs.nix-return-drvs-and-be-pure.patch ];
   };
-  findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix" );
-  prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath packageToBuild pkgsCA; });
+  findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix");
+  autoDiscoveredFods = findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath fodScanPackage pkgsCA; };
+  autoDiscoveredHashes = map (drv: drv.outputHash) autoDiscoveredFods;
+
+  # Sanity checks for supplementary FODs:
+  # 1. Each entry must actually be a FOD (has outputHash)
+  # 2. Each entry must NOT already be found by find-tarballs (so the list stays minimal)
+  checkedSupplementaryFods = map (fod:
+    assert fod.outputHash or "" != ""
+      || throw "supplementary FOD '${fod.name or "unknown"}' is not a fixed-output derivation";
+    assert !builtins.elem fod.outputHash autoDiscoveredHashes
+      || throw "supplementary FOD '${fod.name}' is already found by find-tarballs — remove it from the supplementary list";
+    fod
+  ) supplementaryFods;
+
+  prefetchedSources =
+    map (drv: drv.out.outPath) autoDiscoveredFods
+    ++ map (drv: drv.out.outPath) checkedSupplementaryFods;
 in {
   virtualisation.memorySize = 1024 * 6;
   virtualisation.cores = 4;  # Reduced from 6 to lower peak memory usage during parallel GCC builds

@@ -21,6 +21,23 @@
 }@args:
 let
   flattenList = builtins.concatLists;
+
+  # FODs that find-tarballs never discovers (hidden in let-bindings
+  # or behind inaccessible passthru paths) regardless of test size.
+  globalSupplementaryFods = [
+    (pkgsIA.fetchurl {
+      name = "config.guess-948ae97";
+      url = "https://git.savannah.gnu.org/cgit/config.git/plain/config.guess?id=948ae97ca5703224bd3eada06b7a69f40dd15a02";
+      hash = "sha256-ZByuPAx0xJNU0+3gCfP+vYD+vhUBp3wdn6yNQsxFtss=";
+    })
+    (pkgsIA.fetchurl {
+      name = "config.sub-948ae97";
+      url = "https://git.savannah.gnu.org/cgit/config.git/plain/config.sub?id=948ae97ca5703224bd3eada06b7a69f40dd15a02";
+      hash = "sha256-/jovMvuv9XhIcyVJ9I2YP9ZSYCTsLw9ancdcL0NZo6Y=";
+    })
+    pkgsIA.pkg-config-unwrapped.src
+  ];
+
   fullArgs = {
     inherit system scope laut laut-sign-only nixpkgs lib pkgsIA pkgsCA nixpkgs-swh;
     verifierExtraConfig = {};
@@ -28,6 +45,8 @@ let
   makeTestSet = {
     name,
     packageToBuild,
+    fodScanPackage ? packageToBuild,
+    supplementaryFods ? [],
     isLarge ? false,
     isMemoryConstrained ? false
   }:
@@ -38,13 +57,12 @@ let
     sign-test-name = namef name "sign";
     verify-test-name = namef name "verify";
     common = fullArgs // {
-      inherit isMemoryConstrained packageToBuild;
+      inherit isMemoryConstrained packageToBuild fodScanPackage supplementaryFods;
       needsExtraTime = isLarge;
     };
     sign-test = import ./test-template.nix ({
         testName = sign-test-name;
         testScriptFile = ./sign-script.py;
-        needsImpure = isLarge;
     } // common);
   in {
     ${sign-test-name} = sign-test;
@@ -52,7 +70,6 @@ let
     ${verify-test-name} = import ./test-template.nix ( {
         testName = verify-test-name;
         testScriptFile = ./verify-script.py;
-        needsImpure = isLarge;
         binaryCacheData = "${sign-test}/data";
       } // common);
   };
@@ -65,11 +82,16 @@ in
   }) // (makeTestSet {
     name = "large";
     packageToBuild = [ "hello" ];
+    supplementaryFods = globalSupplementaryFods;
     isLarge = true;
     isMemoryConstrained = false;
   }) // (makeTestSet {
     name = "medium";
     packageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    # Scan hello's expression tree for FODs — it covers the medium closure
+    # and finds FODs hidden behind passthru at the medium bootstrap depth.
+    fodScanPackage = [ "hello" ];
+    supplementaryFods = globalSupplementaryFods;
     isLarge = true;
     isMemoryConstrained = false;
   }))
