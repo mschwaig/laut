@@ -30,7 +30,7 @@ let
   prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath packageToBuild pkgsCA; });
 in {
   virtualisation.memorySize = 1024 * 6;
-  virtualisation.cores = 6;
+  virtualisation.cores = 4;  # Reduced from 6 to lower peak memory usage during parallel GCC builds
   virtualisation.diskSize = 1024 * 4;
   virtualisation.writableStore = true;
   virtualisation.useNixStoreImage = true;
