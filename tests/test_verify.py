@@ -91,7 +91,6 @@ def test_verify_ca_drv_small(mock_derivation_lookup, mock_config_debug, mock_sig
     resolved_derivaiton = next(iter(set))
     assert resolved_derivaiton.input_hash == "mdw7ghk4133r650ali5jdmgqi4ccwp65"
 
-@pytest.mark.skip(reason="Test data missing signatures for intermediate bootstrap derivations - needs investigation")
 def test_verify_ca_drv_large(mock_derivation_lookup, mock_signature_fetch, mock_config_debug):
     with open(ca_data_file) as f:
         hello_recursive = json.load(f) # TODO: update this file
