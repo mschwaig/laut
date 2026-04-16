@@ -7,6 +7,7 @@
   pkgsCA,
   nixpkgs-swh,
   packageToBuild,
+  fodScanPackage ? packageToBuild,
   builderPublicKey,
   builderPrivateKey,
   cacheStoreUrl,
@@ -17,17 +18,36 @@
 }:
 
 let
-  # use infra built for collaboration with software heritage foundation
-  # to find fixed output derivations
-  # so we can make them available ahead of time
-  # and run the tests without network access
+  # Use infra built for collaboration with Software Heritage Foundation
+  # to find fixed-output derivations via expression-level traversal.
+  # This finds most FODs but misses some hidden behind passthru attributes.
   nixpkgs-swh-patched = pkgsIA.applyPatches {
     name = "patch-swh-find-tarballs";
     src = nixpkgs-swh;
     patches = [ ../../patches/nixpkgs-swh/0001-make-find-tarballs.nix-return-drvs-and-be-pure.patch ];
   };
-  findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix" );
-  prefetchedSources = map (drv: drv.out.outPath) (findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath packageToBuild pkgsCA; });
+  findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix");
+  autoDiscoveredFods = findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath fodScanPackage pkgsCA; };
+
+  # FODs that find-tarballs never discovers (hidden in let-bindings
+  # or behind inaccessible passthru paths).
+  supplementaryFods = [
+    (pkgsIA.fetchurl {
+      name = "config.guess-948ae97";
+      url = "https://git.savannah.gnu.org/cgit/config.git/plain/config.guess?id=948ae97ca5703224bd3eada06b7a69f40dd15a02";
+      hash = "sha256-ZByuPAx0xJNU0+3gCfP+vYD+vhUBp3wdn6yNQsxFtss=";
+    })
+    (pkgsIA.fetchurl {
+      name = "config.sub-948ae97";
+      url = "https://git.savannah.gnu.org/cgit/config.git/plain/config.sub?id=948ae97ca5703224bd3eada06b7a69f40dd15a02";
+      hash = "sha256-/jovMvuv9XhIcyVJ9I2YP9ZSYCTsLw9ancdcL0NZo6Y=";
+    })
+    pkgsIA.pkg-config-unwrapped.src
+  ];
+
+  prefetchedSources =
+    map (drv: drv.out.outPath) autoDiscoveredFods
+    ++ map (drv: drv.out.outPath) supplementaryFods;
 in {
   virtualisation.memorySize = 1024 * 6;
   virtualisation.cores = 4;  # Reduced from 6 to lower peak memory usage during parallel GCC builds

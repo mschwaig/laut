@@ -21,6 +21,7 @@
 }@args:
 let
   flattenList = builtins.concatLists;
+
   fullArgs = {
     inherit system scope laut laut-sign-only nixpkgs lib pkgsIA pkgsCA nixpkgs-swh;
     verifierExtraConfig = {};
@@ -28,6 +29,7 @@ let
   makeTestSet = {
     name,
     packageToBuild,
+    fodScanPackage ? packageToBuild,
     isLarge ? false,
     isMemoryConstrained ? false
   }:
@@ -38,13 +40,12 @@ let
     sign-test-name = namef name "sign";
     verify-test-name = namef name "verify";
     common = fullArgs // {
-      inherit isMemoryConstrained packageToBuild;
+      inherit isMemoryConstrained packageToBuild fodScanPackage;
       needsExtraTime = isLarge;
     };
     sign-test = import ./test-template.nix ({
         testName = sign-test-name;
         testScriptFile = ./sign-script.py;
-        needsImpure = isLarge;
     } // common);
   in {
     ${sign-test-name} = sign-test;
@@ -52,7 +53,6 @@ let
     ${verify-test-name} = import ./test-template.nix ( {
         testName = verify-test-name;
         testScriptFile = ./verify-script.py;
-        needsImpure = isLarge;
         binaryCacheData = "${sign-test}/data";
       } // common);
   };
@@ -70,6 +70,9 @@ in
   }) // (makeTestSet {
     name = "medium";
     packageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+    # this is necessary because some FODs involved in the bootstrap
+    # are easier to discover later in the bootstrap
+    fodScanPackage = [ "hello" ];
     isLarge = true;
     isMemoryConstrained = false;
   }))

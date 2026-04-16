@@ -10,7 +10,6 @@
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
   needsExtraTime ? false,
-  needsImpure ? false,
   testScriptFile,
   binaryCacheData? "",
   ...
@@ -65,6 +64,4 @@ let
     extraDriverArgs = ["--global-timeout=28800"];
   } else { }));
 in
-  test.overrideTestDerivation(_: if needsImpure then {
-    _impure = true;
-  } else {})
+  test
