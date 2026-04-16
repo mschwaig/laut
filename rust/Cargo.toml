@@ -9,7 +9,10 @@ version = "2.0.1"
 
 [dependencies.pyo3]
 version = "0.24.1"
-features = ["extension-module"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
@@ -17,4 +20,4 @@ laut-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", pac
 
 [lib]
 name = "lautr"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
