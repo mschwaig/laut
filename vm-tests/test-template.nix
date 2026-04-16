@@ -66,5 +66,5 @@ let
   } else { }));
 in
   test.overrideTestDerivation(_: if needsImpure then {
-    _impure = true;
+    __impure = true;
   } else {})
