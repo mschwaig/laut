@@ -29,8 +29,7 @@ let
     name,
     packageToBuild,
     isLarge ? false,
-    isMemoryConstrained ? false,
-    signTestOutputHash ? null  # Set to lib.fakeHash or real hash to make sign test a FOD
+    isMemoryConstrained ? false
   }:
   let
     namef = name: part: "${name}-${part}${
@@ -42,22 +41,19 @@ let
       inherit isMemoryConstrained packageToBuild;
       needsExtraTime = isLarge;
     };
-    sign-test-base = import ./test-template.nix ({
+    sign-test = import ./test-template.nix ({
         testName = sign-test-name;
         testScriptFile = ./sign-script.py;
+        needsImpure = isLarge;
     } // common);
-    sign-test = if signTestOutputHash != null
-      then sign-test-base.overrideTestDerivation (_: {
-        outputHash = signTestOutputHash;
-      })
-      else sign-test-base;
   in {
     ${sign-test-name} = sign-test;
 
-    ${verify-test-name} = import ./test-template.nix ( {
+    ${verify-test-name} = import ./test-template.nix ({
         testName = verify-test-name;
         testScriptFile = ./verify-script.py;
         binaryCacheData = "${sign-test}/data";
+        needsImpure = isLarge;
       } // common);
   };
 in
@@ -71,13 +67,11 @@ in
     packageToBuild = [ "hello" ];
     isLarge = true;
     isMemoryConstrained = false;
-    signTestOutputHash = lib.fakeHash;
   }) // (makeTestSet {
     name = "medium";
     packageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
     isLarge = true;
     isMemoryConstrained = false;
-    signTestOutputHash = lib.fakeHash;
   }))
 
   # Full local reproducibility model - trusts only itself

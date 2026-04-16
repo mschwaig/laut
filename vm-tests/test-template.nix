@@ -10,6 +10,7 @@
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
   needsExtraTime ? false,
+  needsImpure ? false,
   testScriptFile,
   binaryCacheData? "",
   ...
@@ -63,5 +64,23 @@ let
     # Set timeout to 8 hours for large VM tests
     extraDriverArgs = ["--global-timeout=28800"];
   } else { }));
+  # Apply __impure to both test and driver when needed
+  # Uses the module system's extend to properly override both derivations
+  testWithImpure = if needsImpure then
+    test.passthru.extend {
+      modules = [
+        ({ options, lib, ... }: {
+          # Override driver to be impure - use mkOverride to layer on top of original
+          driver = lib.mkOverride (options.driver.highestPrio - 1) (
+            options.driver.value.overrideAttrs (_: { __impure = true; })
+          );
+          # Override test derivation args to be impure
+          rawTestDerivationArg = lib.mkOverride (options.rawTestDerivationArg.highestPrio - 1) (
+            finalAttrs: (options.rawTestDerivationArg.value finalAttrs) // { __impure = true; }
+          );
+        })
+      ];
+    }
+  else test;
 in
-  test
+  testWithImpure
