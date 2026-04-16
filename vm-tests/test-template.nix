@@ -65,21 +65,25 @@ let
     extraDriverArgs = ["--global-timeout=28800"];
   } else { }));
   # Apply __impure to both test and driver when needed
-  # Uses the module system's extend to properly override both derivations
+  # We need to:
+  # 1. Make the driver impure (so it can depend on impure sign test)
+  # 2. Make the test impure AND use the impure driver
+  impureDriver = test.driver.overrideAttrs (_: { __impure = true; });
+  impureDriverInteractive = test.driverInteractive.overrideAttrs (_: { __impure = true; });
+  impureTest = test.config.rawTestDerivation.overrideAttrs (old: {
+    __impure = true;
+    # Replace the original driver reference with the impure driver in buildCommand
+    buildCommand = builtins.replaceStrings
+      [ "${test.driver}" ]
+      [ "${impureDriver}" ]
+      old.buildCommand;
+  });
   testWithImpure = if needsImpure then
-    test.passthru.extend {
-      modules = [
-        ({ options, lib, ... }: {
-          # Override driver to be impure - use mkOverride to layer on top of original
-          driver = lib.mkOverride (options.driver.highestPrio - 1) (
-            options.driver.value.overrideAttrs (_: { __impure = true; })
-          );
-          # Override test derivation args to be impure
-          rawTestDerivationArg = lib.mkOverride (options.rawTestDerivationArg.highestPrio - 1) (
-            finalAttrs: (options.rawTestDerivationArg.value finalAttrs) // { __impure = true; }
-          );
-        })
-      ];
+    impureTest // {
+      driver = impureDriver;
+      driverInteractive = impureDriverInteractive;
+      # Preserve other useful attributes from original test
+      inherit (test) config nodes meta;
     }
   else test;
 in
