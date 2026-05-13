@@ -19,11 +19,11 @@ jobs:
     - name: Free Disk Space (Ubuntu)
       uses: jlumbroso/free-disk-space@main
     - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v9
+      uses: cachix/install-nix-action@v31
       with:
-        extra-conf: |
-          experimental-features = ca-derivations impure-derivations
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        extra_nix_config: |
+          experimental-features = flakes nix-command ca-derivations impure-derivations
+        github_access_token: ${{ secrets.GITHUB_TOKEN }}
     - name: Set-up cachix to push the results to
       uses: cachix/cachix-action@v13
       with:
