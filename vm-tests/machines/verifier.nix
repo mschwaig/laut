@@ -2,6 +2,7 @@
   system,
   laut,
   nixpkgs,
+  nixpkgs-for-ca,
   lib,
   pkgsIA,
   verifierExtraConfig,
@@ -28,7 +29,7 @@
               ''
                 { ... }@args:
                 let
-                  pkgs = import <nixpkgs> (args // {
+                  pkgs = import ${nixpkgs-for-ca} (args // {
                     config = args.config or { } // {
                       contentAddressedByDefault = true;
                     };

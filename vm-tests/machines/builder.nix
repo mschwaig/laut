@@ -2,6 +2,7 @@
   system,
   laut-sign-only,
   nixpkgs,
+  nixpkgs-for-ca,
   lib,
   pkgsIA,
   pkgsCA,
@@ -75,7 +76,7 @@ in {
           ''
             { ... }@args:
             let
-              pkgs = import <nixpkgs> (args // {
+              pkgs = import ${nixpkgs-for-ca} (args // {
                 config = args.config or { } // {
                   contentAddressedByDefault = true;
                 };

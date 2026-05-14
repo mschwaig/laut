@@ -3,10 +3,11 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs-for-ca.url = "github:nixos/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e";
     bombon.url = "github:nikstur/bombon";
   };
 
-  outputs = { self, nixpkgs, bombon }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-for-ca, bombon }@inputs:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -41,7 +42,7 @@
 
       checks.${system} = (import ./vm-tests {
           pkgsIA = pkgs;
-          inherit nixpkgs;
+          inherit nixpkgs nixpkgs-for-ca;
           inherit (scope) laut;
         });
 
