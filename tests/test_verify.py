@@ -65,7 +65,7 @@ def mock_signature_fetch(monkeypatch):
             return None
 
     mock = Mock(side_effect=_fetch_signatures_mock)
-    monkeypatch.setattr("laut.verification.fetch_signatures.fetch_resolved_trace_signature_from_s3_bucket", mock)
+    monkeypatch.setattr("laut.verification.fetch_signatures.fetch_resolved_trace_signature", mock)
     monkeypatch.setattr('laut.config.config.cache_urls', [ "mock_url" ])
 
     return mock

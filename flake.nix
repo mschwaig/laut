@@ -50,7 +50,6 @@
           rfc8785
           pyjwt
           cryptography
-          boto3
           click
           loguru
           #sigstore

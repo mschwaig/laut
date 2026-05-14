@@ -7,7 +7,6 @@
   rfc8785,
   pyjwt,
   cryptography,
-  boto3,
   click,
   difftastic,
   sigstore,
@@ -82,7 +81,6 @@ buildPythonApplication {
       rfc8785
       pyjwt
       cryptography
-      boto3
       click
       #sigstore
       loguru

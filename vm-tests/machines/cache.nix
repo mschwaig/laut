@@ -5,43 +5,33 @@
   pkgsIA,
   cachePort,
   cacheStoreUrl,
-  cacheAccessKey,
-  cacheSecretKey,
   ...
 }:
+
+let
+  httpCacheServer = pkgsIA.writeShellScriptBin "http-cache-server" ''
+    exec ${pkgsIA.python3}/bin/python3 ${../http-cache-server.py}
+  '';
+in
 
 {
   virtualisation.writableStore = true;
   virtualisation.memorySize = 2 * 1024;
   virtualisation.cores = 2;
-  environment.systemPackages = [ pkgsIA.minio-client ];
   nix.extraOptions = "experimental-features = nix-command";
-  services.minio = {
-    enable = true;
-    region = "eu-west-1";
-    listenAddress = "127.0.0.1:9002";
-    rootCredentialsFile = pkgsIA.writeText "minio-credentials" ''
-      MINIO_ROOT_USER=${cacheAccessKey}
-      MINIO_ROOT_PASSWORD=${cacheSecretKey}
-    '';
-  };
 
-  environment.variables = {
-    AWS_ACCESS_KEY_ID = cacheAccessKey;
-    AWS_SECRET_ACCESS_KEY = cacheSecretKey;
-  };
-
-  services.caddy = {
-    enable = true;
-    virtualHosts."http://cache:9000" = {
-      extraConfig = ''
-        reverse_proxy localhost:9002
-      '';
+  systemd.services.http-cache-server = {
+    description = "HTTP binary cache server with PUT support";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    serviceConfig = {
+      ExecStart = "${httpCacheServer}/bin/http-cache-server";
+      User = "root";
+      Group = "root";
     };
   };
 
   networking.firewall.allowedTCPPorts = [
     cachePort
-    9001
   ];
 }

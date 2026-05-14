@@ -11,8 +11,6 @@
   builderPublicKey,
   builderPrivateKey,
   cacheStoreUrl,
-  cacheAccessKey,
-  cacheSecretKey,
   nixPackage ? pkgsIA.nix,
   ...
 }:
@@ -121,10 +119,6 @@ in {
   };
 
   environment = {
-    variables = {
-      AWS_ACCESS_KEY_ID = cacheAccessKey;
-      AWS_SECRET_ACCESS_KEY = cacheSecretKey;
-    };
     etc = {
       "nix/public-key".source = builderPublicKey;
       "nix/private-key".source = builderPrivateKey;

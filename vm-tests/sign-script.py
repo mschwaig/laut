@@ -13,22 +13,20 @@ def run_in_background(func: Callable):
 
 cache.start()
 cache.forward_port(9000, 9000)
-cache.forward_port(9001, 9001)
-cache.wait_for_unit("minio")
-cache.wait_for_open_port(9002)
+cache.wait_for_unit("http-cache-server")
 cache.wait_for_open_port(cachePort)
 
-# configure cache
-cache.succeed(f"mc alias set minio http://cache:{cachePort} {cacheAccessKey} {cacheSecretKey} --api s3v4")
-cache.succeed("mc mb minio/binary-cache")
-cache.succeed("mc anonymous set download minio/binary-cache") # allow public read
+cache.succeed("mkdir -p /var/lib/cache/traces /var/lib/cache/nar")
+cache.succeed("echo 'StoreDir: /nix/store' > /var/lib/cache/nix-cache-info")
+cache.succeed("echo 'WantMassQuery: 0' >> /var/lib/cache/nix-cache-info")
+cache.succeed("echo 'Priority: 30' >> /var/lib/cache/nix-cache-info")
 
 @run_in_background
 def boot_and_configure(builder):
   builder.start()
   builder.wait_for_unit("network.target")
 
-  builder.succeed(f"curl -fv http://cache:{cachePort}/minio/health/ready")
+  builder.succeed(f"curl -fv http://cache:{cachePort}/nix-cache-info")
 
   builder.wait_for_unit("default.target")
 
@@ -58,7 +56,7 @@ else:
   builderA.shutdown()
   builderB.shutdown()
 
-cache.copy_from_vm("/var/lib/minio/data", "")
+cache.copy_from_vm("/var/lib/cache", "")
 cache.shutdown()
 
 # verifier.fail("nix path-info cowsayPackage")

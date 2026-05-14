@@ -117,7 +117,7 @@ def sign(drv_path, secret_key_file, out_paths):
 @click.option('--secret-key-file', required=True, type=click.Path(exists=True),
               help='Path to the secret key file', multiple=True)
 @click.option('--to', required=True,
-              help='URL of the target store (e.g., s3://bucket-name)')
+              help='URL of the target store (e.g., http://cache:9000)')
 @click.option('--out-paths', help='Comma-separated list of output paths (default: check $OUT_PATHS env var)',
               default=None)
 def sign_and_upload(drv_path, secret_key_file, to, out_paths):
@@ -138,7 +138,7 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
 @cli.command()
 @click.argument('target', required=True)
 @click.option('--cache', required=False, multiple=True,
-            help='URL of signature cache to query (can be specified multiple times)')
+            help='URL of HTTP signature cache to query (can be specified multiple times)')
 @click.option('--trusted-key', required=False, multiple=True, type=click.Path(exists=True),
             help='Path to trusted public key file (can be specified multiple times)')
 def verify(target, cache, trusted_key):
@@ -156,14 +156,14 @@ def verify(target, cache, trusted_key):
 
     Examples:
         laut verify \\
-            --cache s3://binary-cache \\
-            --cache s3://backup-cache \\
+            --cache http://cache:9000 \\
+            --cache http://backup:9000 \\
             --trusted-key ./keys/builder1.public \\
             --trusted-key ./keys/builder2.public \\
             nixpkgs#hello
 
         laut verify \\
-            --cache s3://binary-cache \\
+            --cache http://cache:9000 \\
             --trusted-key ./keys/trusted.public \\
             /nix/store/xxx.drv
     """

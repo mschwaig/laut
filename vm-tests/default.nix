@@ -53,7 +53,7 @@ let
     ${verify-test-name} = import ./test-template.nix ( {
         testName = verify-test-name;
         testScriptFile = ./verify-script.py;
-        binaryCacheData = "${sign-test}/data";
+        binaryCacheData = "${sign-test}/cache";
       } // common);
   };
 in

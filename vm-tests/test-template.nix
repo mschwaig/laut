@@ -5,7 +5,7 @@
   pkgsIA,
   testName,
   cachePort ? 9000,
-  cacheStoreUrl ? "s3://binary-cache?endpoint=http://cache:${builtins.toString cachePort}&region=eu-west-1",
+  cacheStoreUrl ? "http://cache:${builtins.toString cachePort}",
   packageToBuild,
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
@@ -18,8 +18,6 @@
 let
   fullArgs = {
     inherit cacheStoreUrl cachePort verifierExtraConfig;
-    cacheAccessKey = "BKIKJAA5BMMU2RHO6IBB";
-    cacheSecretKey = "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12";
   } // args;
   testLib =  import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
   packageToBuildStr = lib.concatStringsSep "." packageToBuild;
@@ -48,8 +46,6 @@ let
 
     testScript = ''
         cachePort = ${builtins.toString cachePort}
-        cacheAccessKey = "${fullArgs.cacheAccessKey}"
-        cacheSecretKey = "${fullArgs.cacheSecretKey}"
         packageToBuild = "${packageToBuildStr}"
         cacheStoreUrl = "${cacheStoreUrl}"
         isMemoryConstrained = ${if isMemoryConstrained then "True" else "False"}

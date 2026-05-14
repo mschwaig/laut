@@ -13,22 +13,15 @@ def run_in_background(func: Callable):
 
 cache.start()
 cache.forward_port(9000, 9000)
-cache.forward_port(9001, 9001)
-cache.wait_for_unit("minio")
-cache.wait_for_open_port(9002)
+cache.wait_for_unit("http-cache-server")
 cache.wait_for_open_port(cachePort)
 
-# configure cache
-cache.succeed(f"mc alias set minio http://cache:{cachePort} {cacheAccessKey} {cacheSecretKey} --api s3v4")
-cache.succeed("mc mb minio/binary-cache")
-cache.succeed("mc anonymous set download minio/binary-cache") # allow public read
-
 cache.wait_for_unit("default.target")
-cache.succeed("systemctl stop minio.service")
-#cache.succeed("mkdir -p /var/lib/minio/data/binary-cache/traces")
-cache.copy_from_host(binaryCacheData, "/var/lib/minio")
-cache.succeed("chown -R minio:minio /var/lib/minio/data")
-cache.succeed("systemctl start minio.service")
+cache.succeed("mkdir -p /var/lib/cache/traces /var/lib/cache/nar")
+cache.succeed("systemctl stop http-cache-server.service")
+cache.copy_from_host(binaryCacheData, "/var/lib")
+cache.succeed("chmod -R 755 /var/lib/cache")
+cache.succeed("systemctl start http-cache-server.service")
 
 # for now we only care about extracting the cache outputs from this test
 # and using them as input for the unit and integration tests in python
