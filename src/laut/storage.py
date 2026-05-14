@@ -88,7 +88,8 @@ def upload_signature(store_url, input_hash, signature):
                         Body=json.dumps(new_content),
                         ContentType='application/json'
                     )
-                    break
+                    retry_count += 1
+                    continue
                 elif signature not in existing_content["signatures"]:
                     new_content = {
                         "signatures": existing_content["signatures"] + [signature]
