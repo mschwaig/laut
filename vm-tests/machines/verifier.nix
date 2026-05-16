@@ -17,7 +17,7 @@
       virtualisation.mountHostNixStore = false;
 
       nix = {
-        package = pkgsIA.lix;
+        package = pkgsIA.nix;
         checkConfig = false;
         nixPath = [
           "nixpkgs=${nixpkgs}"
@@ -50,7 +50,7 @@
       };
 
       environment.systemPackages = with pkgsIA; [
-        lix
+        nix
         git
         laut
       ];
