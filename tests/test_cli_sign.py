@@ -84,7 +84,7 @@ def mock_derivation_lookup(monkeypatch):
 @pytest.fixture
 def runner():
     """Provides a Click CLI test runner."""
-    return CliRunner(mix_stderr=False)
+    return CliRunner()
 
 def test_sign_resolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [

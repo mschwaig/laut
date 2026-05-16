@@ -84,6 +84,8 @@ def get_derivation(drv_path, recursive: bool):
             )
         drv_dict = json.loads(result.stdout)
         logger.debug("Successfully parsed derivation JSON")
+        if "derivations" in drv_dict:
+            drv_dict = { f"/nix/store/{k}": v for k, v in drv_dict["derivations"].items() }
         if recursive:
             return drv_dict
         else:

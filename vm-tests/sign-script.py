@@ -56,7 +56,7 @@ else:
   builderA.shutdown()
   builderB.shutdown()
 
-cache.copy_from_vm("/var/lib/cache", "")
+cache.copy_from_machine("/var/lib/cache", "")
 cache.shutdown()
 
 # verifier.fail("nix path-info cowsayPackage")

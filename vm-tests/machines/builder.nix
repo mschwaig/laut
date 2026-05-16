@@ -26,7 +26,7 @@ let
     patches = [ ../../patches/nixpkgs-swh/0001-make-find-tarballs.nix-return-drvs-and-be-pure.patch ];
   };
   findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix");
-  autoDiscoveredFods = findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath fodScanPackage pkgsCA; };
+  autoDiscoveredFods = findTarballFods { pkgs = pkgsCA; expr = lib.getAttrFromPath fodScanPackage pkgsCA; };
 
   # FODs that find-tarballs never discovers (hidden in let-bindings
   # or behind inaccessible passthru paths).
@@ -41,7 +41,9 @@ let
       url = "https://git.savannah.gnu.org/cgit/config.git/plain/config.sub?id=948ae97ca5703224bd3eada06b7a69f40dd15a02";
       hash = "sha256-/jovMvuv9XhIcyVJ9I2YP9ZSYCTsLw9ancdcL0NZo6Y=";
     })
-    pkgsIA.pkg-config-unwrapped.src
+    pkgsCA.pkg-config-unwrapped.src
+    pkgsCA.bison.src
+    pkgsCA.coreutils.src
   ];
 
   prefetchedSources =

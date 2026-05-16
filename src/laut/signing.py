@@ -52,7 +52,7 @@ def sign_and_upload_impl(drv_path, secret_key_file, to, out_paths: List[str]):
 def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tuple[str, str]]:
     from laut.nix import commands
     drv_data = commands.get_derivation(drv_path, False)
-    if drv_data['inputDrvs'] != {}:
+    if 'inputDrvs' in drv_data and drv_data['inputDrvs'] != {}:
         # we have to return gracefully in this case, because
         # nix calls the post-build-hook twice
         # once for the resolved derivation

@@ -57,7 +57,7 @@ let
       '';
 } // (if needsExtraTime then {
     # Set timeout to 8 hours for large VM tests
-    extraDriverArgs = ["--global-timeout=28800"];
+    globalTimeout = 28800;
   } else { }));
 in
   test

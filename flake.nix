@@ -56,7 +56,7 @@
           #sigstore
           pytest
           debugpy
-          memory_profiler
+          memory-profiler
         ] ++ [
           pkgs.pyright
         ] ++ [
