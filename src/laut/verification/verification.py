@@ -177,6 +177,9 @@ def collect_valid_signatures_tree(derivation: UnresolvedDerivation) -> set[Trust
     config.expected_root = derivation.drv_path
     # Reset the global reasoner to ensure fresh state for each verification
     _reasoner = None
+    # Clear the per-derivation memo too, otherwise a prior verification's cached
+    # results would skip the calls that populate the new reasoner's fact set.
+    collect_valid_signatures_tree_rec.cache_clear()
 
     with tempfile.TemporaryDirectory(delete=False) as temp_dir:
 
