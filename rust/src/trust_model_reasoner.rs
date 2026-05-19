@@ -128,10 +128,19 @@ impl TrustModelReasoner {
     /// Try to verify every plausible output map for the expected root.
     /// Returns a list of debug strings, one per verified output map. The Python caller
     /// only checks emptiness today, but the strings are useful in logs.
+    ///
+    /// When no candidate verifies, prints a per-candidate diagnostic to stderr listing
+    /// the positions whose accumulated evidence didn't satisfy the trust model. This
+    /// is what you want to read when verification fails in the field: it tells you
+    /// which build steps are missing signatures vs. which are signed but disagree.
     fn compute_result(&mut self) -> PyResult<Vec<String>> {
         let candidates = collect_candidate_output_maps(&self.facts, self.expected_root);
 
         if candidates.is_empty() {
+            eprintln!(
+                "[laut verify] no signed claims found for root udrv {}",
+                self.interner.udrv_str(self.expected_root).unwrap_or("?")
+            );
             return Ok(Vec::new());
         }
 
@@ -139,17 +148,79 @@ impl TrustModelReasoner {
             .map_err(|e| PyValueError::new_err(e))?;
 
         let mut verified = Vec::new();
+        let mut failures: Vec<String> = Vec::new();
         for subset in candidates {
             let result = verifier.verify(self.expected_root, subset.clone());
             if result.verified {
                 verified.push(self.format_subset(&subset));
+            } else {
+                failures.push(self.format_verification_failure(&subset, &result));
             }
         }
+
+        if verified.is_empty() {
+            eprintln!(
+                "[laut verify] all {} candidate output map(s) for root failed verification:",
+                failures.len()
+            );
+            for failure in &failures {
+                eprintln!("{}", failure);
+            }
+        }
+
         Ok(verified)
     }
 }
 
 impl TrustModelReasoner {
+    /// Describe why a particular candidate output_map didn't verify. Lists every
+    /// position whose evidence set fails the trust model, and includes that set so
+    /// the operator can see whether the position has zero, one, or "wrong" keys.
+    fn format_verification_failure(
+        &self,
+        subset: &Subset,
+        result: &crate::verifier::VerifyResult,
+    ) -> String {
+        use std::fmt::Write;
+        let mut out = String::new();
+        let _ = writeln!(out, "  candidate: {}", self.format_subset(subset));
+
+        if !result.reachable.contains(&(self.expected_root, subset.clone())) {
+            let _ = writeln!(out, "    no supporting threads to this candidate");
+            return out;
+        }
+
+        let mut bad_positions: Vec<_> = result
+            .evidence
+            .iter()
+            .filter(|(_, keys)| !self.trust_model.satisfied_by(keys))
+            .collect();
+        bad_positions.sort_by_key(|(u, _)| u.0);
+
+        if !result.evidence.contains_key(&self.expected_root)
+            && !self.facts.fods.contains_key(&self.expected_root)
+        {
+            let _ = writeln!(
+                out,
+                "    root position has no signed claims (no rdrv-claim at the root matched the candidate output map)"
+            );
+        }
+
+        for (udrv, keys) in bad_positions {
+            let key_names: Vec<&str> = keys
+                .iter()
+                .map(|k| self.interner.key_str(*k).unwrap_or("?"))
+                .collect();
+            let _ = writeln!(
+                out,
+                "    position {} insufficient: keys={{{}}}",
+                self.interner.udrv_str(*udrv).unwrap_or("?"),
+                key_names.join(", ")
+            );
+        }
+        out
+    }
+
     fn format_subset(&self, subset: &Subset) -> String {
         let parts: Vec<String> = subset
             .entries()
