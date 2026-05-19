@@ -3,8 +3,10 @@ use pyo3::exceptions::PyValueError;
 use nix_compat::store_path;
 use laut_compat::content_hash;
 use nix_compat::derivation::calculate_derivation_path_from_aterm;
+use std::collections::HashMap;
 use std::path::Path;
 
+mod constructive_trace;
 mod string_interner;
 mod trust_model_reasoner;
 mod verifier;
@@ -23,6 +25,7 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(calculate_drv_path_from_aterm, m)?)?;
     m.add_function(wrap_pyfunction!(calculate_nar_hash, m)?)?;
     m.add_function(wrap_pyfunction!(create_castore_entry, m)?)?;
+    m.add_function(wrap_pyfunction!(compute_aterm_resolved_input_hash, m)?)?;
 
     Ok(())
 }
@@ -56,3 +59,18 @@ fn calculate_drv_path_from_aterm(drv_name: &str, drv_aterm: &str) -> PyResult<St
         .map_err(|err| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("{}", err)))?;
     Ok(result)
  }
+
+/// Compute the resolved drv path and resolved ATerm for an unresolved derivation.
+///
+/// `resolutions` maps unresolved input-derivation paths to output-name ->
+/// content-hash-path maps. An empty `resolutions` (e.g. for a FOD or a
+/// derivation with no input derivations) returns the input ATerm unchanged.
+#[pyfunction]
+fn compute_aterm_resolved_input_hash(
+    drv_name: &str,
+    drv_aterm: &[u8],
+    resolutions: HashMap<String, HashMap<String, String>>,
+) -> PyResult<(String, String)> {
+    constructive_trace::compute_resolved_input_hash(drv_name, drv_aterm, &resolutions)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}

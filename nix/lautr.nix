@@ -5,10 +5,10 @@
   rustPlatform,
 }:
 let
-  snix-hash = "sha256-db2cocguvGrQqKQOEYtf2CqC8gh1XRPzEjXA2lCdup8=";
+  snix-hash = "sha256-pDe6ZiimQfxmNSDdemzshh0i9LyuUw3Lr6gjxMxUu+E=";
   snix = fetchgit {
     url = "https://github.com/mschwaig/snix";
-    rev = "b1b380ff9cec6c9885083727a6bba3fb6b4a099d";
+    rev = "1715bb275f345b745888554edd475c233331a99c";
     hash = snix-hash;
   };
 in
