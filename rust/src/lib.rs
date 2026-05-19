@@ -7,6 +7,10 @@ use std::path::Path;
 
 mod string_interner;
 mod trust_model_reasoner;
+mod verifier;
+
+#[cfg(test)]
+mod type_confusion_test;
 
 use trust_model_reasoner::TrustModelReasoner;
 
