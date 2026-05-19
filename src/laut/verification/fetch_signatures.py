@@ -2,37 +2,30 @@ from functools import lru_cache
 from pathlib import Path
 import json
 from typing import Iterable, Optional, List
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError
 
 from loguru import logger
 
 from laut.storage import parse_http_cache_url
-from laut.verification.verify_signatures import verify_resolved_trace_signature
 from laut.config import config
-import jwt
+from lautr import (
+    fetch_signatures_from_cache,
+    verify_resolved_trace_signatures,
+)
 
 
-def fetch_resolved_trace_signature(cache_url, input_hash: str) -> Optional[str]:
+def fetch_resolved_trace_signature(cache_url, input_hash: str) -> Optional[bytes]:
     """Fetch signature from HTTP binary cache. Returns content or None on 404."""
-    try:
-        base_url = parse_http_cache_url(cache_url)
-        url = f"{base_url}/traces/{input_hash}"
-        req = Request(url, method='GET')
-        response = urlopen(req)
-        content = response.read()
-    except HTTPError as err:
-        if err.code == 404:
-            logger.debug(f"no signatures found at traces/{input_hash}")
-            return None
-        raise
+    base_url = parse_http_cache_url(cache_url)
+    content = fetch_signatures_from_cache(base_url, input_hash)
+    if content is None:
+        logger.debug(f"no signatures found at traces/{input_hash}")
     return content
 
 
 @lru_cache(maxsize=None)
-def fetch_resolved_trace_signatures(input_hash: str) -> List[dict]:
+def fetch_resolved_trace_signatures(input_hash: str) -> List[str]:
     """Fetch and parse signatures from all configured caches"""
-    all_signatures = []
+    all_signatures: List[str] = []
     for cache_url in config.cache_urls:
         try:
             content = fetch_resolved_trace_signature(cache_url, input_hash)
@@ -48,19 +41,9 @@ def fetch_resolved_trace_signatures(input_hash: str) -> List[dict]:
 
 
 def verify_signatures(input_hash, all_signatures):
-    valid_signature_data_list = []
-    for key in config.trusted_keys:
-        for signature in all_signatures:
-            valid_signature_data = verify_resolved_trace_signature(key.key_bytes, signature, input_hash)
-            if valid_signature_data:
-                header = jwt.get_unverified_header(signature)
-                if 'kid' not in header:
-                    logger.warning("signature missing kid in header, skipping")
-                    continue
-
-                kid = header['kid']
-                valid_signature_data_list.append((valid_signature_data, kid))
-
+    trusted_keys = [(k.name, k.key_bytes) for k in config.trusted_keys]
+    results = verify_resolved_trace_signatures(input_hash, all_signatures, trusted_keys)
+    valid_signature_data_list = [(json.loads(payload), kid) for payload, kid in results]
     logger.debug(f"found {len(valid_signature_data_list)} valid output hash mappings")
     return valid_signature_data_list
 

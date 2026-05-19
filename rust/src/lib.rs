@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 mod constructive_trace;
+mod signatures;
 mod string_interner;
 mod trust_model_reasoner;
 mod verifier;
@@ -26,6 +27,9 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(calculate_nar_hash, m)?)?;
     m.add_function(wrap_pyfunction!(create_castore_entry, m)?)?;
     m.add_function(wrap_pyfunction!(compute_aterm_resolved_input_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(ed25519_thumbprint, m)?)?;
+    m.add_function(wrap_pyfunction!(fetch_signatures_from_cache, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_resolved_trace_signatures, m)?)?;
 
     Ok(())
 }
@@ -72,5 +76,27 @@ fn compute_aterm_resolved_input_hash(
     resolutions: HashMap<String, HashMap<String, String>>,
 ) -> PyResult<(String, String)> {
     constructive_trace::compute_resolved_input_hash(drv_name, drv_aterm, &resolutions)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+#[pyfunction]
+fn ed25519_thumbprint(public_key: &[u8]) -> PyResult<String> {
+    signatures::ed25519_thumbprint(public_key)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+#[pyfunction]
+fn fetch_signatures_from_cache(base_url: &str, input_hash: &str) -> PyResult<Option<Vec<u8>>> {
+    signatures::fetch_signatures_from_cache(base_url, input_hash)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+#[pyfunction]
+fn verify_resolved_trace_signatures(
+    input_hash: &str,
+    signatures: Vec<String>,
+    trusted_keys: Vec<(String, Vec<u8>)>,
+) -> PyResult<Vec<(String, String)>> {
+    crate::signatures::verify_resolved_trace_signatures(input_hash, &signatures, &trusted_keys)
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
