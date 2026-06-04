@@ -10,7 +10,9 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 
-use lautr_core::{constructive_trace, content_hash, derivation, keyfiles, store_path, thumbprint};
+use lautr_core::{
+    constructive_trace, content_hash, derivation, keyfiles, nix_cmd, store_path, thumbprint,
+};
 
 #[cfg(feature = "verify")]
 mod trust_model_reasoner;
@@ -25,6 +27,10 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ed25519_thumbprint, m)?)?;
     m.add_function(wrap_pyfunction!(get_nix_path_input_hash, m)?)?;
     m.add_function(wrap_pyfunction!(parse_nix_private_key, m)?)?;
+    m.add_function(wrap_pyfunction!(nix_derivation_show, m)?)?;
+    m.add_function(wrap_pyfunction!(nix_derivation_show_recursive, m)?)?;
+    m.add_function(wrap_pyfunction!(nix_derivation_aterm, m)?)?;
+    m.add_function(wrap_pyfunction!(nix_output_hash_from_disk, m)?)?;
 
     #[cfg(feature = "verify")]
     register_verify(m)?;
@@ -101,6 +107,31 @@ fn parse_nix_private_key(path: &str) -> PyResult<(String, Vec<u8>)> {
     keyfiles::parse_private_key_file(Path::new(path))
         .map(|(name, seed)| (name, seed.to_vec()))
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// `nix derivation show <drv>` — returns raw JSON.
+#[pyfunction]
+fn nix_derivation_show(drv_path: &str) -> PyResult<String> {
+    nix_cmd::derivation_show(drv_path).map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// `nix derivation show --recursive <drv>` — returns raw JSON.
+#[pyfunction]
+fn nix_derivation_show_recursive(drv_path: &str) -> PyResult<String> {
+    nix_cmd::derivation_show_recursive(drv_path)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// `nix store cat <drv>` — returns the derivation's ATerm.
+#[pyfunction]
+fn nix_derivation_aterm(drv_path: &str) -> PyResult<String> {
+    nix_cmd::derivation_aterm(drv_path).map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// `nix-store --query --hash <path>` — returns the trimmed `hashAlgo:hash` line.
+#[pyfunction]
+fn nix_output_hash_from_disk(out_path: &str) -> PyResult<String> {
+    nix_cmd::output_hash_from_disk(out_path).map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
 #[cfg(feature = "verify")]
