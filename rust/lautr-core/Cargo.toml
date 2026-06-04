@@ -1,0 +1,11 @@
+[package]
+name = "lautr-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nix-compat = { workspace = true }
+laut-compat = { workspace = true }
+sha2 = { workspace = true }
+data-encoding = { workspace = true }
+thiserror = { workspace = true }

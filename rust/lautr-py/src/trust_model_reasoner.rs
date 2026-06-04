@@ -1,4 +1,4 @@
-//! Python-facing wrapper around `verifier::Verifier`.
+//! Python-facing wrapper around `lautr_verify::verifier::Verifier`.
 //!
 //! The Python verification pipeline calls this incrementally as it walks the unresolved
 //! dependency tree, fetches signatures, and feeds in everything the verifier needs.
@@ -8,8 +8,8 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-use crate::string_interner::{ContentHash, KeyId, OutputName, StringInterner, UDrv};
-use crate::verifier::{Facts, Subset, TrustModel, VerifyResult, Verifier};
+use lautr_verify::string_interner::{ContentHash, KeyId, OutputName, StringInterner, UDrv};
+use lautr_verify::verifier::{Facts, Subset, TrustModel, VerifyResult, Verifier};
 
 #[pyclass(unsendable)]
 pub struct TrustModelReasoner {
@@ -221,7 +221,7 @@ impl TrustModelReasoner {
     fn format_verification_failure(
         &self,
         subset: &Subset,
-        result: &crate::verifier::VerifyResult,
+        result: &VerifyResult,
     ) -> String {
         use std::fmt::Write;
         let mut out = String::new();

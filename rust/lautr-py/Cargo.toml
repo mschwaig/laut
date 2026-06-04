@@ -1,0 +1,20 @@
+[package]
+name = "lautr"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "lautr"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# `verify` is on by default so a plain `cargo build` / `maturin develop`
+# yields the full module. Sign-only builds pass `--no-default-features`.
+default = ["verify"]
+extension-module = ["pyo3/extension-module"]
+verify = ["dep:lautr-verify"]
+
+[dependencies]
+lautr-core = { path = "../lautr-core" }
+lautr-verify = { path = "../lautr-verify", optional = true }
+pyo3 = { workspace = true }

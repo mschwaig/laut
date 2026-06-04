@@ -1505,16 +1505,32 @@ dependencies = [
 
 [[package]]
 name = "lautr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "base64",
+ "lautr-core",
+ "lautr-verify",
+ "pyo3",
+]
+
+[[package]]
+name = "lautr-core"
+version = "0.2.0"
+dependencies = [
  "data-encoding",
- "ed25519-dalek",
  "laut-compat",
  "nix-compat",
- "pyo3",
- "serde_json",
  "sha2",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "lautr-verify"
+version = "0.2.0"
+dependencies = [
+ "base64",
+ "ed25519-dalek",
+ "lautr-core",
+ "serde_json",
  "thiserror 1.0.69",
  "ureq",
 ]

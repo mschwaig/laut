@@ -7,4 +7,5 @@ name = "lautr"
 version = "0.2.0"
 
 [tool.maturin]
+manifest-path = "lautr-py/Cargo.toml"
 features = ["pyo3/extension-module"]

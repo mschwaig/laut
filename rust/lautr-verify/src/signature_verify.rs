@@ -1,8 +1,9 @@
+//! Fetch JWS signatures from an S3-backed cache and verify them against trusted keys.
+
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use data_encoding::HEXLOWER;
 use ed25519_dalek::{Signature, VerifyingKey};
-use sha2::{Digest, Sha256};
+use lautr_core::thumbprint::{self, ed25519_thumbprint};
 use std::io::Read;
 
 #[derive(Debug, thiserror::Error)]
@@ -23,21 +24,8 @@ pub enum Error {
     Http(String),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
-}
-
-const ED25519_SPKI_PREFIX: [u8; 12] = [
-    0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
-];
-
-pub fn ed25519_thumbprint(public_key: &[u8]) -> Result<String, Error> {
-    if public_key.len() != 32 {
-        return Err(Error::InvalidKeyLength(public_key.len()));
-    }
-    let mut spki = Vec::with_capacity(ED25519_SPKI_PREFIX.len() + 32);
-    spki.extend_from_slice(&ED25519_SPKI_PREFIX);
-    spki.extend_from_slice(public_key);
-    let digest = Sha256::digest(&spki);
-    Ok(HEXLOWER.encode(&digest))
+    #[error("{0}")]
+    Thumbprint(#[from] thumbprint::Error),
 }
 
 pub fn fetch_signatures_from_cache(
@@ -171,13 +159,6 @@ mod tests {
         let sig = signing_key.sign(signing_input.as_bytes());
         let sig_b64 = URL_SAFE_NO_PAD.encode(sig.to_bytes());
         format!("{}.{}", signing_input, sig_b64)
-    }
-
-    #[test]
-    fn thumbprint_known_format() {
-        let pk = [0u8; 32];
-        let t = ed25519_thumbprint(&pk).unwrap();
-        assert_eq!(t.len(), 64);
     }
 
     #[test]

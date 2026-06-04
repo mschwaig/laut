@@ -1,17 +1,16 @@
-[package]
-name = "lautr"
-version = "0.1.0"
+[workspace]
+resolver = "2"
+members = [
+    "lautr-core",
+    "lautr-verify",
+    "lautr-py",
+]
+
+[workspace.package]
+version = "0.2.0"
 edition = "2024"
 
-
-[dependencies.pyo3]
-version = "0.24.1"
-
-[features]
-default = []
-extension-module = ["pyo3/extension-module"]
-
-[dependencies]
+[workspace.dependencies]
 nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
 laut-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "laut-compat" }
 ureq = { version = "2", default-features = false, features = ["tls"] }
@@ -21,7 +20,4 @@ base64 = "0.22"
 serde_json = "1"
 data-encoding = "2"
 thiserror = "1"
-
-[lib]
-name = "lautr"
-crate-type = ["cdylib", "rlib"]
+pyo3 = "0.24.1"
