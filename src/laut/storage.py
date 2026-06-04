@@ -59,13 +59,25 @@ def upload_signature(store_url, input_hash, signature):
                 if existing_content is None:
                     new_content = {"signatures": [signature]}
                     url = f"{base_url}/traces/{key}"
+                    # `If-None-Match: *` makes this a conditional create: if
+                    # another builder PUT a signature for the same input hash
+                    # between our GET and our PUT, the server returns 412 and
+                    # we fall through to the retry loop, which GETs the now-
+                    # populated cache and appends our signature with If-Match.
                     req = Request(
                         url,
                         data=json.dumps(new_content).encode('utf-8'),
                         method='PUT',
-                        headers={'Content-Type': 'application/json'}
+                        headers={
+                            'Content-Type': 'application/json',
+                            'If-None-Match': '*',
+                        }
                     )
-                    urlopen(req)
+                    try:
+                        urlopen(req)
+                    except HTTPError as err:
+                        if err.code not in (412, 409):
+                            raise
                     retry_count += 1
                     continue
                 elif signature not in existing_content["signatures"]:

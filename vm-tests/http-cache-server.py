@@ -20,16 +20,21 @@ def compute_etag(path):
 
 
 class PUTHandler(SimpleHTTPRequestHandler):
-    def _check_if_match(self, path):
-        """Check If-Match header against the current file's ETag.
-        Returns (ok, etag) where ok is True if the condition is satisfied
-        (or no condition was given), and etag is the current file's ETag.
+    def _check_preconditions(self, path):
+        """Evaluate If-Match and If-None-Match against the current file's ETag.
+        Returns (ok, etag) where ok is True if all conditions hold (or none
+        were given). Only `If-None-Match: *` is supported; specific etag
+        values aren't needed by laut.
         """
         current_etag = compute_etag(path)
         if_match = self.headers.get('If-Match')
         if if_match:
             expected = if_match.strip().strip('"')
             if current_etag is None or expected != current_etag:
+                return False, current_etag
+        if_none_match = self.headers.get('If-None-Match')
+        if if_none_match and if_none_match.strip() == '*':
+            if current_etag is not None:
                 return False, current_etag
         return True, current_etag
 
@@ -54,7 +59,7 @@ class PUTHandler(SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         path = self.translate_path(self.path)
-        ok, current_etag = self._check_if_match(path)
+        ok, current_etag = self._check_preconditions(path)
         if not ok:
             self.send_response(412)
             self.end_headers()
