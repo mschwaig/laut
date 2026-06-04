@@ -6,10 +6,10 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::string_interner::{ContentHash, KeyId, OutputName, StringInterner, UDrv};
-use crate::verifier::{Facts, Subset, TrustModel, Verifier};
+use crate::verifier::{Facts, Subset, TrustModel, VerifyResult, Verifier};
 
 #[pyclass(unsendable)]
 pub struct TrustModelReasoner {
@@ -148,23 +148,33 @@ impl TrustModelReasoner {
             .map_err(|e| PyValueError::new_err(e))?;
 
         let mut verified = Vec::new();
+        let mut successes: Vec<(Subset, VerifyResult)> = Vec::new();
         let mut failures: Vec<String> = Vec::new();
         for subset in candidates {
             let result = verifier.verify(self.expected_root, subset.clone());
             if result.verified {
                 verified.push(self.format_subset(&subset));
+                successes.push((subset, result));
             } else {
                 failures.push(self.format_verification_failure(&subset, &result));
             }
         }
 
-        if verified.is_empty() {
+        if !successes.is_empty() {
             eprintln!(
-                "[laut verify] all {} candidate output map(s) for root failed verification:",
+                "[laut verify] verification SUCCEEDED for root {}",
+                self.interner.udrv_str(self.expected_root).unwrap_or("?")
+            );
+            for (subset, result) in &successes {
+                self.print_success_summary(subset, result);
+            }
+        } else {
+            eprintln!(
+                "[laut verify] verification FAILED — all {} candidate output map(s) at the root rejected:",
                 failures.len()
             );
             for failure in &failures {
-                eprintln!("{}", failure);
+                eprint!("{}", failure);
             }
         }
 
@@ -173,6 +183,38 @@ impl TrustModelReasoner {
 }
 
 impl TrustModelReasoner {
+    /// Describe what verified for a particular candidate output_map.
+    /// Lists each verified output and its content hash, then summarises the bundle:
+    /// number of build-step positions whose evidence satisfied the trust model, and
+    /// the union of distinct signing keys observed across the bundle.
+    fn print_success_summary(&self, subset: &Subset, result: &VerifyResult) {
+        eprintln!("  verified outputs:");
+        for (out, ch) in subset.entries() {
+            eprintln!(
+                "    {} = {}",
+                self.interner.output_name_str(*out).unwrap_or("?"),
+                self.interner.content_hash_str(*ch).unwrap_or("?")
+            );
+        }
+
+        let position_count = result.evidence.len();
+        let mut all_signers: HashSet<KeyId> = HashSet::new();
+        for keys in result.evidence.values() {
+            all_signers.extend(keys.iter().copied());
+        }
+        let mut signer_names: Vec<&str> = all_signers
+            .iter()
+            .map(|k| self.interner.key_str(*k).unwrap_or("?"))
+            .collect();
+        signer_names.sort();
+
+        eprintln!(
+            "  trust model satisfied at {} build-step position(s)",
+            position_count
+        );
+        eprintln!("  signers contributing to the bundle: {{{}}}", signer_names.join(", "));
+    }
+
     /// Describe why a particular candidate output_map didn't verify. Lists every
     /// position whose evidence set fails the trust model, and includes that set so
     /// the operator can see whether the position has zero, one, or "wrong" keys.
