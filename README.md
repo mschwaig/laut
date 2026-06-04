@@ -25,7 +25,7 @@ The fundamentals are in place, but some of the cool things about it still neeed 
 
 Right now this can resovle the dependencies for and verify a fully content-addressed `hello` binary, testing Nix against Lix using different keys, in our VM tests.
 
-At the same time, it's not ready for users yet. For example, the datalog implemenation for verification is not entirely correct yet.
+At the same time, it's not quite ready for users yet, but it's getting there.
 As a project we are also not yet commited to supporting the current format of the signatures long term, we might for example still want to change things like the envelope format.
 
 I want to get a scientific paper, and later my PhD thesis published based on this work, so if you do something that's inspired by this project, please give me a shoutout in your README.md, your docs or the relevant issue in your issue tracker. This really helps me demonstrate the relevance of my work.
@@ -55,7 +55,7 @@ It's a python program, with some internals written in Rust, and a dependency on 
 
 The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree to gather information.
 As part of this verification phase, the tool also gathers signatures from a set of caches, taking into account possible combinations of inputs by content hash, which could satisfy the dependency on those same inputs by input hash.
-Thes data then serves as the input to a datalog program written in Rust, to make the actual determination about the validity of the dependency tree.
+This data then feeds into a verifier written in Rust that decides whether the configured trust model is satisfied. The verification semantics are defined in [docs/semantics.md](docs/semantics.md).
 
 ### How can I test it
 
@@ -119,6 +119,8 @@ Here is a list of technical terms we use in this project with their definitions:
   <dd>Each derivation can have more than one derivation output, which show up in the Nix store as/at separate output paths, but were created by building the same derivation. This step of indirection and distinction between individual outputs of a derivation is not an important concern when reasoning about trust, but it shows up in the technical details sometimes. Derivation outputs refers to the abstract names of these outputs, written as <code>/nix/store/{hash}-{name}.drv$out</code>, while output path refers to their "physical manifestation" in terms of a path / address and the contents of those outputs in the store, like <code>/nix/store/{hash}-{name}</code> and its content.</dd>
   <dt>content hash</dt>
   <dd>Describes the bitwise identity of a file or path by hashing it in a defined manner.</dd>
+  <dt>output map</dt>
+  <dd>A mapping from each <em>derivation output</em> name of a derivation to its corresponding <em>content hash</em>. Together with a <em>resolved input hash</em>, an output map describes one execution of <code>build</code>: the resolved input hash names the input set, and the output map names what was produced for each named output.</dd>
   <dt>dependency resolution / resolution</dt>
   <dd>The process of resolving a derivation, by replacing each dependency on another derivation in terms of a derivation output of another unresolved derivation with its bitwise identity in term of a content hash.
   <br>
