@@ -12,4 +12,5 @@
 pub mod constructive_trace;
 pub mod content_hash;
 pub mod derivation;
+pub mod store_path;
 pub mod thumbprint;

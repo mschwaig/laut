@@ -3,7 +3,6 @@ import os
 import copy
 import struct
 
-from laut.nix.deep_constructive_trace import get_nix_path_input_hash
 from loguru import logger
 import jwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -26,6 +25,7 @@ from laut.config import config
 from lautr import (
     calculate_nar_hash,
     create_castore_entry,
+    get_nix_path_input_hash,
 )
 import re
 

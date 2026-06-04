@@ -1,6 +1,5 @@
-from laut.nix.deep_constructive_trace import get_nix_path_input_hash
 from lautr import (
-    hash_upstream_placeholder
+    hash_upstream_placeholder,
 )
 
 def test_downstream_placeholder_generation():

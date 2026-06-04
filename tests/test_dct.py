@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from laut.nix.deep_constructive_trace import get_nix_path_input_hash
+from lautr import get_nix_path_input_hash
 
 import pytest
 from loguru import logger

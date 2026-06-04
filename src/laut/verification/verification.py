@@ -16,10 +16,6 @@ from laut.nix.commands import (
 from laut.nix.constructive_trace import (
     compute_ATERMbased_resolved_input_hash
 )
-from laut.nix.deep_constructive_trace import (
-    get_nix_path_input_hash,
-    _extract_store_hash,
-)
 from laut.nix.types import (
     UnresolvedDerivation,
     UnresolvedOutput,
@@ -33,7 +29,10 @@ from laut.verification.fetch_signatures import (
 )
 from loguru import logger
 from laut.config import config
-from lautr import TrustModelReasoner
+from lautr import (
+    TrustModelReasoner,
+    get_nix_path_input_hash,
+)
 
 from laut.verification.frogification import (
     inputs_to_string_list,
@@ -283,7 +282,7 @@ def collect_valid_signatures_tree_rec(unresolved_derivation: UnresolvedDerivatio
             unresolved_derivation.json_attrs["name"],
             resolution
         )
-        ct_input_hash = _extract_store_hash(ct_resolved_path)
+        ct_input_hash = get_nix_path_input_hash(ct_resolved_path)
 
         resolution_str = {}
         for unresolved_drv, resolved_drv in resolution.items():

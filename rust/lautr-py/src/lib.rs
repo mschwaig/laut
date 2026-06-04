@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 
-use lautr_core::{constructive_trace, content_hash, derivation, thumbprint};
+use lautr_core::{constructive_trace, content_hash, derivation, store_path, thumbprint};
 
 #[cfg(feature = "verify")]
 mod trust_model_reasoner;
@@ -23,6 +23,7 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(create_castore_entry, m)?)?;
     m.add_function(wrap_pyfunction!(compute_aterm_resolved_input_hash, m)?)?;
     m.add_function(wrap_pyfunction!(ed25519_thumbprint, m)?)?;
+    m.add_function(wrap_pyfunction!(get_nix_path_input_hash, m)?)?;
 
     #[cfg(feature = "verify")]
     register_verify(m)?;
@@ -81,6 +82,13 @@ fn compute_aterm_resolved_input_hash(
 #[pyfunction]
 fn ed25519_thumbprint(public_key: &[u8]) -> PyResult<String> {
     thumbprint::ed25519_thumbprint(public_key)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// Return the 32-character digest portion of a Nix store path.
+#[pyfunction]
+fn get_nix_path_input_hash(path: &str) -> PyResult<String> {
+    store_path::extract_store_hash(path)
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
