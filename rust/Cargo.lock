@@ -1516,6 +1516,7 @@ dependencies = [
 name = "lautr-core"
 version = "0.2.0"
 dependencies = [
+ "base64",
  "data-encoding",
  "laut-compat",
  "nix-compat",

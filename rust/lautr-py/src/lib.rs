@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::path::Path;
 
-use lautr_core::{constructive_trace, content_hash, derivation, store_path, thumbprint};
+use lautr_core::{constructive_trace, content_hash, derivation, keyfiles, store_path, thumbprint};
 
 #[cfg(feature = "verify")]
 mod trust_model_reasoner;
@@ -24,6 +24,7 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compute_aterm_resolved_input_hash, m)?)?;
     m.add_function(wrap_pyfunction!(ed25519_thumbprint, m)?)?;
     m.add_function(wrap_pyfunction!(get_nix_path_input_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_nix_private_key, m)?)?;
 
     #[cfg(feature = "verify")]
     register_verify(m)?;
@@ -37,6 +38,7 @@ fn register_verify(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TrustModelReasoner>()?;
     m.add_function(wrap_pyfunction!(fetch_signatures_from_cache, m)?)?;
     m.add_function(wrap_pyfunction!(verify_resolved_trace_signatures, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_nix_public_key, m)?)?;
     Ok(())
 }
 
@@ -92,6 +94,15 @@ fn get_nix_path_input_hash(path: &str) -> PyResult<String> {
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
+/// Parse a Nix `name:base64` private-key file. Returns `(name, seed_bytes)`
+/// where `seed_bytes` is the 32-byte ed25519 seed.
+#[pyfunction]
+fn parse_nix_private_key(path: &str) -> PyResult<(String, Vec<u8>)> {
+    keyfiles::parse_private_key_file(Path::new(path))
+        .map(|(name, seed)| (name, seed.to_vec()))
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
 #[cfg(feature = "verify")]
 #[pyfunction]
 fn fetch_signatures_from_cache(base_url: &str, input_hash: &str) -> PyResult<Option<Vec<u8>>> {
@@ -112,4 +123,14 @@ fn verify_resolved_trace_signatures(
         &trusted_keys,
     )
     .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// Parse a Nix `name:base64` public-key file. Returns `(name, key_bytes)`
+/// where `key_bytes` is the 32-byte ed25519 public key.
+#[cfg(feature = "verify")]
+#[pyfunction]
+fn parse_nix_public_key(path: &str) -> PyResult<(String, Vec<u8>)> {
+    lautr_verify::keyfiles::parse_public_key_file(Path::new(path))
+        .map(|(name, key)| (name, key.to_vec()))
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }

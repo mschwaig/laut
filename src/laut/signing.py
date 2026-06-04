@@ -11,9 +11,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 from laut.thumbprint import get_ed25519_thumbprint
 from laut.storage import upload_signature
-from laut.nix.keyfiles import (
-    parse_nix_private_key,
-)
 from laut.nix.constructive_trace import (
     compute_ATERMbased_input_hash
 )
@@ -26,6 +23,7 @@ from lautr import (
     calculate_nar_hash,
     create_castore_entry,
     get_nix_path_input_hash,
+    parse_nix_private_key,
 )
 import re
 
@@ -83,11 +81,8 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
         logger.exception(f"not handeling IA derivation {drv_path}")
         return None
 
-    # Read key and create signature
-    with open(secret_key_file[0], 'r') as f:
-        content = f.read().strip()
-    key_name = content.split(':', 1)[0]
-    private_key = parse_nix_private_key(secret_key_file[0])
+    key_name, private_key_bytes = parse_nix_private_key(secret_key_file[0])
+    private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
 
     computed_drv_path, aterm_bytes = compute_ATERMbased_input_hash(drv_data["name"], drv_path)
 
