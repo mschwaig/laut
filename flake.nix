@@ -35,7 +35,7 @@
     in {
       packages.${system} = {
         inherit nix nix-vsbom test-drv-json;
-        inherit (scope) laut laut-sign-only lautr;
+        inherit (scope) laut laut-sign-only lautr lautr-sign-only;
         default = scope.laut;
       };
 
