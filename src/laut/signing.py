@@ -10,7 +10,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 from laut.thumbprint import get_ed25519_thumbprint
-from laut.storage import upload_signature
 from laut.nix.constructive_trace import (
     compute_ATERMbased_input_hash
 )
@@ -24,6 +23,7 @@ from lautr import (
     create_castore_entry,
     get_nix_path_input_hash,
     parse_nix_private_key,
+    upload_signature,
 )
 import re
 

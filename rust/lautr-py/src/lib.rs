@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use lautr_core::{
-    constructive_trace, content_hash, derivation, keyfiles, nix_cmd, store_path, thumbprint,
+    constructive_trace, content_hash, derivation, http_cache, keyfiles, nix_cmd, store_path,
+    thumbprint,
 };
 
 #[cfg(feature = "verify")]
@@ -31,6 +32,8 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(nix_derivation_show_recursive, m)?)?;
     m.add_function(wrap_pyfunction!(nix_derivation_aterm, m)?)?;
     m.add_function(wrap_pyfunction!(nix_output_hash_from_disk, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_http_cache_url, m)?)?;
+    m.add_function(wrap_pyfunction!(upload_signature, m)?)?;
 
     #[cfg(feature = "verify")]
     register_verify(m)?;
@@ -132,6 +135,21 @@ fn nix_derivation_aterm(drv_path: &str) -> PyResult<String> {
 #[pyfunction]
 fn nix_output_hash_from_disk(out_path: &str) -> PyResult<String> {
     nix_cmd::output_hash_from_disk(out_path).map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// Validate an http(s) cache URL and return its canonical base form.
+#[pyfunction]
+fn parse_http_cache_url(store_url: &str) -> PyResult<String> {
+    http_cache::parse_http_cache_url(store_url)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// Upload a JWS signature for `input_hash` to the HTTP cache at `store_url`,
+/// merging with any concurrent uploads via ETag-based optimistic concurrency.
+#[pyfunction]
+fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> PyResult<()> {
+    http_cache::upload_signature(store_url, input_hash, signature)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
 #[cfg(feature = "verify")]

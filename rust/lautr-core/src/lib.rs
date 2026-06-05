@@ -12,6 +12,7 @@
 pub mod constructive_trace;
 pub mod content_hash;
 pub mod derivation;
+pub mod http_cache;
 pub mod keyfiles;
 pub mod nix_cmd;
 pub mod store_path;

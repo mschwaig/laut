@@ -5,10 +5,10 @@ from typing import Iterable, Optional, List
 
 from loguru import logger
 
-from laut.storage import parse_http_cache_url
 from laut.config import config
 from lautr import (
     fetch_signatures_from_cache,
+    parse_http_cache_url,
     verify_resolved_trace_signatures,
 )
 
