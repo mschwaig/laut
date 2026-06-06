@@ -88,7 +88,7 @@ def runner():
 
 def test_sign_resolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
-            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.private"),
             "/nix/store/jy80sl8j6218d6mwnqlyirmhskxibags-bootstrap-tools.drv"
         ],
         env = {
@@ -104,7 +104,7 @@ def test_sign_resolved_hook(runner, mock_derivation_lookup):
 
 def test_sign_multi_output(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
-            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.private"),
             "/nix/store/0685sic9d3nzvf940sj4aflllsq99pqk-zlib-1.3.1.drv"
         ],
         env = {
@@ -120,7 +120,7 @@ def test_sign_multi_output(runner, mock_derivation_lookup):
 
 def test_ascii(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
-            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.private"),
             "/nix/store/23xwpgqwja339ljkq4zqgymwyawnlhar-gettext-0.22.5.drv"
         ],
         env = {
@@ -140,7 +140,7 @@ does not work in sandbox for some unknown reason
 ''')
 def test_sign_resolved_problematic_derivaion_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
-            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.private"),
             "/nix/store/5gwiavq50bzhsfr71r12qzl9a32njsb8-bootstrap-stage0-binutils-wrapper-.drv"
         ],
         env = {
@@ -156,7 +156,7 @@ def test_sign_resolved_problematic_derivaion_hook(runner, mock_derivation_lookup
 
 def test_sign_resolved_problematic_derivaion_fixed_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
-            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.private"),
             "/nix/store/jpvka5j1mc84byi7czzdrlr8rdib0fck-bootstrap-stage0-binutils-wrapper-.drv"
         ],
         env = {
@@ -172,7 +172,7 @@ def test_sign_resolved_problematic_derivaion_fixed_hook(runner, mock_derivation_
 
 def test_sign_unresolved_hook(runner, mock_derivation_lookup):
     result = runner.invoke(sign, [
-            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.public"),
+            '--secret-key-file', str(Path(__file__).parent.parent / "testkeys" / "builderA_key.private"),
             "/nix/store/w14fhgwzx0421c2ry4d9hx1cpsfsjlf5-bootstrap-tools.drv"
         ],
         env = {
