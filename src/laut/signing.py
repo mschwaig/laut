@@ -1,15 +1,12 @@
-from typing import Dict, List, Optional
+from typing import List, Optional
 import os
 import copy
 import struct
+import json
+import re
 
 from loguru import logger
-import jwt
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey
-)
 
-from laut.thumbprint import get_ed25519_thumbprint
 from laut.nix.constructive_trace import (
     compute_ATERMbased_input_hash
 )
@@ -19,13 +16,12 @@ from laut.nix.commands import (
 )
 from laut.config import config
 from lautr import (
-    calculate_nar_hash,
     create_castore_entry,
+    create_trace_signature,
     get_nix_path_input_hash,
     parse_nix_private_key,
     upload_signature,
 )
-import re
 
 
 def extract_nix_version_from_NIX_CONFIG(NIX_CONFIG_env_var: str):
@@ -37,7 +33,7 @@ def extract_nix_version_from_NIX_CONFIG(NIX_CONFIG_env_var: str):
             )
             if match:
                 return match.groups()
-    
+
     return (None, None)
 
 
@@ -82,7 +78,6 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
         return None
 
     key_name, private_key_bytes = parse_nix_private_key(secret_key_file[0])
-    private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
 
     computed_drv_path, aterm_bytes = compute_ATERMbased_input_hash(drv_data["name"], drv_path)
 
@@ -90,92 +85,34 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
         "drv_name": drv_data["name"],
         "rdrv_path": drv_path,
         "rdrv_computed_path": computed_drv_path,
-        "rdrv_aterm_ca_preimage": aterm_bytes
-    }
+        "rdrv_aterm_ca_preimage": aterm_bytes,
+    } if config.debug else None
 
-    # if a derivation were not able to observe its own name
-    # we could factor out  the name before hashing
-    # to get more cache hits
-    input_hash = get_nix_path_input_hash(drv_path)
-    
-    jws_token = create_trace_signature(input_hash, debug_data, output_hashes, private_key, key_name)
-    logger.debug(f"{jws_token}")
-
-    return input_hash, jws_token
-
-def create_trace_signature(input_hash: str, debug_data: dict[str,str], output_hashes: Dict,
-                         private_key: Ed25519PrivateKey, key_name: str) -> str:
-    """
-    Create a JWS signature for outputs
-
-    Args:
-        input_hash: The input hash of the resolved CA derivation
-        debug_data: Debug information including ATerm preimage
-        output_hashes: Dictionary mapping output names to their hashes
-        private_key: Ed25519 private key for signing
-        key_name: Name of the signing key
-
-    Returns:
-        str: The JWS signature token
-    """
-    thumbprint = get_ed25519_thumbprint(private_key.public_key())
-    alg = "EdDSA"
-    headers = {
-        "type": "laut",
-        "alg": alg,
-        "crv": "Ed25519",
-        "v": "2",
-        "kid": f"{key_name}:{thumbprint[:16]}",
-        "detachHash": "nix-ca-path"
-    }
-
-    logger.debug(f"Creating signature for input hash {input_hash} with outputs {output_hashes}")
     castore_outputs = { k: create_castore_entry(v["path"]) for k,v in output_hashes.items() }
 
-    rebuild_id_bytes = os.urandom(4)
-    rebuild_id = struct.unpack('I', rebuild_id_bytes)[0]
+    rebuild_id = struct.unpack('I', os.urandom(4))[0]
 
     NIX_CONFIG_env_var = os.getenv("NIX_CONFIG")
     builder_nix_flavor, builder_nix_version = None, None
     if NIX_CONFIG_env_var:
         builder_nix_flavor, builder_nix_version = extract_nix_version_from_NIX_CONFIG(NIX_CONFIG_env_var)
 
-    payload = {
-        "in": {
-            # "snix": for hash of canonicalized build request?
-            # the best we have right now, unless we define our own competing format
-            # we could also make up any other representation of the state here if we wanted to
-            "rdrv_aterm_ca": input_hash,
-            **({
-                "debug": debug_data
-            } if config.debug else {}),
-        },
-        "out": {
-            "castore-entry": castore_outputs,
-            "nix": output_hashes,
-            # TODO: add info about
-            # * self-references and
-            # * if this contains any references at all
-            #   - because if if does not, rewriting does nothing,
-            #     therefore no harm - especially relevant for bit-level reasoning
-        },
-        "builder": {
-            # a random rebuild id so we can reason about reproducibility on the same machine
-            "rebuild_id": rebuild_id,
-            # TODO: compute this or get it from config
-            "store_root": "/nix/store",
-            **({"nix_flavor": builder_nix_flavor} if builder_nix_flavor else {}),
-            **({"nix_version": builder_nix_version} if builder_nix_version else {}),
-            # "logHash": log
-            # "version" = "lix",
-            # "src":  ̛{ "flake": builder_flake_url}
-            # nix.systemFeature.cudaCrit = "v1";
-        }
-    }
+    # if a derivation were not able to observe its own name
+    # we could factor out  the name before hashing
+    # to get more cache hits
+    input_hash = get_nix_path_input_hash(drv_path)
 
-    return jwt.encode(
-        payload,
-        private_key,
-        algorithm=alg,
-        headers=headers
+    jws_token = create_trace_signature(
+        input_hash,
+        json.dumps(debug_data) if debug_data is not None else None,
+        json.dumps(output_hashes),
+        json.dumps(castore_outputs),
+        rebuild_id,
+        builder_nix_flavor,
+        builder_nix_version,
+        key_name,
+        private_key_bytes,
     )
+    logger.debug(f"{jws_token}")
+
+    return input_hash, jws_token

@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use lautr_core::{
-    constructive_trace, content_hash, derivation, http_cache, keyfiles, nix_cmd, store_path,
-    thumbprint,
+    constructive_trace, content_hash, derivation, http_cache, keyfiles, nix_cmd, signing,
+    store_path, thumbprint,
 };
 
 #[cfg(feature = "verify")]
@@ -34,6 +34,7 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(nix_output_hash_from_disk, m)?)?;
     m.add_function(wrap_pyfunction!(parse_http_cache_url, m)?)?;
     m.add_function(wrap_pyfunction!(upload_signature, m)?)?;
+    m.add_function(wrap_pyfunction!(create_trace_signature, m)?)?;
 
     #[cfg(feature = "verify")]
     register_verify(m)?;
@@ -150,6 +151,60 @@ fn parse_http_cache_url(store_url: &str) -> PyResult<String> {
 fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> PyResult<()> {
     http_cache::upload_signature(store_url, input_hash, signature)
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// Build and sign a laut trace JWS. Nested fields are passed as JSON strings
+/// so the orchestrator (Python today) can shape them however it wants without
+/// crossing PyO3 with a typed structure.
+#[pyfunction]
+#[pyo3(signature = (
+    input_hash,
+    debug_data_json,
+    output_hashes_json,
+    castore_outputs_json,
+    rebuild_id,
+    builder_nix_flavor,
+    builder_nix_version,
+    key_name,
+    seed,
+))]
+fn create_trace_signature(
+    input_hash: &str,
+    debug_data_json: Option<&str>,
+    output_hashes_json: &str,
+    castore_outputs_json: &str,
+    rebuild_id: u32,
+    builder_nix_flavor: Option<&str>,
+    builder_nix_version: Option<&str>,
+    key_name: &str,
+    seed: &[u8],
+) -> PyResult<String> {
+    let seed_arr: &[u8; 32] = seed
+        .try_into()
+        .map_err(|_| PyValueError::new_err(format!("expected 32-byte seed, got {}", seed.len())))?;
+    let debug_data = match debug_data_json {
+        Some(s) => Some(parse_json(s, "debug_data")?),
+        None => None,
+    };
+    let output_hashes = parse_json(output_hashes_json, "output_hashes")?;
+    let castore_outputs = parse_json(castore_outputs_json, "castore_outputs")?;
+    signing::create_trace_signature(
+        input_hash,
+        debug_data.as_ref(),
+        &output_hashes,
+        &castore_outputs,
+        rebuild_id,
+        builder_nix_flavor,
+        builder_nix_version,
+        key_name,
+        seed_arr,
+    )
+    .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+fn parse_json(s: &str, field: &str) -> PyResult<serde_json::Value> {
+    serde_json::from_str(s)
+        .map_err(|e| PyValueError::new_err(format!("{}: invalid json: {}", field, e)))
 }
 
 #[cfg(feature = "verify")]

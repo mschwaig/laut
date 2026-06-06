@@ -18,3 +18,4 @@ verify = ["dep:lautr-verify"]
 lautr-core = { path = "../lautr-core" }
 lautr-verify = { path = "../lautr-verify", optional = true }
 pyo3 = { workspace = true }
+serde_json = { workspace = true }
