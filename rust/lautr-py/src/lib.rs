@@ -27,7 +27,6 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compute_aterm_resolved_input_hash, m)?)?;
     m.add_function(wrap_pyfunction!(ed25519_thumbprint, m)?)?;
     m.add_function(wrap_pyfunction!(get_nix_path_input_hash, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_nix_private_key, m)?)?;
     m.add_function(wrap_pyfunction!(nix_derivation_show, m)?)?;
     m.add_function(wrap_pyfunction!(nix_derivation_show_recursive, m)?)?;
     m.add_function(wrap_pyfunction!(nix_derivation_aterm, m)?)?;
@@ -104,15 +103,6 @@ fn get_nix_path_input_hash(path: &str) -> PyResult<String> {
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
-/// Parse a Nix `name:base64` private-key file. Returns `(name, seed_bytes)`
-/// where `seed_bytes` is the 32-byte ed25519 seed.
-#[pyfunction]
-fn parse_nix_private_key(path: &str) -> PyResult<(String, Vec<u8>)> {
-    keyfiles::parse_private_key_file(Path::new(path))
-        .map(|(name, seed)| (name, seed.to_vec()))
-        .map_err(|e| PyValueError::new_err(format!("{}", e)))
-}
-
 /// `nix derivation show <drv>` — returns raw JSON.
 #[pyfunction]
 fn nix_derivation_show(drv_path: &str) -> PyResult<String> {
@@ -153,9 +143,11 @@ fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> PyRes
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
-/// Build and sign a laut trace JWS. Nested fields are passed as JSON strings
-/// so the orchestrator (Python today) can shape them however it wants without
-/// crossing PyO3 with a typed structure.
+/// Parse the signing key file (via snix) and build+sign a laut trace JWS.
+///
+/// Seed bytes never cross PyO3: snix validates the keypair and produces the
+/// `ed25519_dalek::SigningKey`, signing happens here, and Python only sees
+/// the resulting JWS string.
 #[pyfunction]
 #[pyo3(signature = (
     input_hash,
@@ -165,8 +157,7 @@ fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> PyRes
     rebuild_id,
     builder_nix_flavor,
     builder_nix_version,
-    key_name,
-    seed,
+    secret_key_file,
 ))]
 fn create_trace_signature(
     input_hash: &str,
@@ -176,12 +167,10 @@ fn create_trace_signature(
     rebuild_id: u32,
     builder_nix_flavor: Option<&str>,
     builder_nix_version: Option<&str>,
-    key_name: &str,
-    seed: &[u8],
+    secret_key_file: &str,
 ) -> PyResult<String> {
-    let seed_arr: &[u8; 32] = seed
-        .try_into()
-        .map_err(|_| PyValueError::new_err(format!("expected 32-byte seed, got {}", seed.len())))?;
+    let (key_name, signing_key) = keyfiles::parse_private_key_file(Path::new(secret_key_file))
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))?;
     let debug_data = match debug_data_json {
         Some(s) => Some(parse_json(s, "debug_data")?),
         None => None,
@@ -196,8 +185,8 @@ fn create_trace_signature(
         rebuild_id,
         builder_nix_flavor,
         builder_nix_version,
-        key_name,
-        seed_arr,
+        &key_name,
+        &signing_key,
     )
     .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }

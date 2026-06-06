@@ -1488,7 +1488,7 @@ dependencies = [
 [[package]]
 name = "laut-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#1715bb275f345b745888554edd475c233331a99c"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1533,8 +1533,10 @@ name = "lautr-verify"
 version = "0.2.0"
 dependencies = [
  "base64",
+ "data-encoding",
  "ed25519-dalek",
  "lautr-core",
+ "nix-compat",
  "serde_json",
  "thiserror 1.0.69",
  "ureq",
@@ -1779,7 +1781,7 @@ dependencies = [
 [[package]]
 name = "nix-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#1715bb275f345b745888554edd475c233331a99c"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
 dependencies = [
  "bitflags 2.6.0",
  "blake3",
@@ -1811,7 +1813,7 @@ dependencies = [
 [[package]]
 name = "nix-compat-derive"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#1715bb275f345b745888554edd475c233331a99c"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2986,7 +2988,7 @@ dependencies = [
 [[package]]
 name = "snix-castore"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#1715bb275f345b745888554edd475c233331a99c"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -3040,7 +3042,7 @@ dependencies = [
 [[package]]
 name = "snix-store"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#1715bb275f345b745888554edd475c233331a99c"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -3096,7 +3098,7 @@ dependencies = [
 [[package]]
 name = "snix-tracing"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#1715bb275f345b745888554edd475c233331a99c"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
 dependencies = [
  "http",
  "indicatif",

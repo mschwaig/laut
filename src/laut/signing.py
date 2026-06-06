@@ -19,7 +19,6 @@ from lautr import (
     create_castore_entry,
     create_trace_signature,
     get_nix_path_input_hash,
-    parse_nix_private_key,
     upload_signature,
 )
 
@@ -77,8 +76,6 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
         logger.exception(f"not handeling IA derivation {drv_path}")
         return None
 
-    key_name, private_key_bytes = parse_nix_private_key(secret_key_file[0])
-
     computed_drv_path, aterm_bytes = compute_ATERMbased_input_hash(drv_data["name"], drv_path)
 
     debug_data = {
@@ -110,8 +107,7 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
         rebuild_id,
         builder_nix_flavor,
         builder_nix_version,
-        key_name,
-        private_key_bytes,
+        secret_key_file[0],
     )
     logger.debug(f"{jws_token}")
 

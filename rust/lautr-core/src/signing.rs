@@ -32,9 +32,8 @@ pub fn create_trace_signature(
     builder_nix_flavor: Option<&str>,
     builder_nix_version: Option<&str>,
     key_name: &str,
-    seed: &[u8; 32],
+    signing_key: &SigningKey,
 ) -> Result<String, Error> {
-    let signing_key = SigningKey::from_bytes(seed);
     let public = signing_key.verifying_key().to_bytes();
     let thumbprint = ed25519_thumbprint(&public)?;
 
@@ -48,13 +47,21 @@ pub fn create_trace_signature(
     });
 
     let mut in_obj: Map<String, Value> = Map::new();
+    // TODO: alternative representations of the build request — e.g. a "snix"
+    // field for the hash of a canonicalized build request, or any other
+    // shape we'd want to make up — could live alongside `rdrv_aterm_ca`.
+    // For now `rdrv_aterm_ca` is the best we have without defining a
+    // competing format.
     in_obj.insert("rdrv_aterm_ca".into(), Value::String(input_hash.to_owned()));
     if let Some(debug) = debug_data {
         in_obj.insert("debug".into(), debug.clone());
     }
 
     let mut builder_obj: Map<String, Value> = Map::new();
+    // a random rebuild id so we can reason about reproducibility on the
+    // same machine
     builder_obj.insert("rebuild_id".into(), json!(rebuild_id));
+    // TODO: compute this or get it from config rather than hard-coding.
     builder_obj.insert("store_root".into(), Value::String("/nix/store".into()));
     if let Some(flavor) = builder_nix_flavor {
         builder_obj.insert("nix_flavor".into(), Value::String(flavor.to_owned()));
@@ -62,12 +69,22 @@ pub fn create_trace_signature(
     if let Some(version) = builder_nix_version {
         builder_obj.insert("nix_version".into(), Value::String(version.to_owned()));
     }
+    // Other builder fields we may want to add later:
+    //   "logHash": <hash of the build log>
+    //   "version": "lix"
+    //   "src": { "flake": <builder flake url> }
+    //   "nix.systemFeature.cudaCrit": "v1"
 
     let payload = json!({
         "in": Value::Object(in_obj),
         "out": {
             "castore-entry": castore_outputs,
             "nix": output_hashes,
+            // TODO: add info about
+            //   * self-references, and
+            //   * whether the output contains any references at all
+            //     — if not, rewriting is a no-op and therefore harmless,
+            //     which is especially relevant for bit-level reasoning.
         },
         "builder": Value::Object(builder_obj),
     });
@@ -103,6 +120,7 @@ mod tests {
     #[test]
     fn round_trip_signs_and_verifies() {
         let seed = [7u8; 32];
+        let signing_key = SigningKey::from_bytes(&seed);
         let output_hashes = json!({
             "out": { "path": "/nix/store/x-foo", "hash": "sha256:0000" }
         });
@@ -117,7 +135,7 @@ mod tests {
             Some("lix"),
             Some("2.91.1"),
             "builderA",
-            &seed,
+            &signing_key,
         )
         .unwrap();
 
@@ -129,7 +147,7 @@ mod tests {
         let kid = header["kid"].as_str().unwrap();
         let (name, head) = kid.split_once(':').unwrap();
         assert_eq!(name, "builderA");
-        let pk = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        let pk = signing_key.verifying_key().to_bytes();
         assert_eq!(ed25519_thumbprint(&pk).unwrap()[..16], *head);
 
         // Payload roundtrips its inputs verbatim.
@@ -153,7 +171,7 @@ mod tests {
 
     #[test]
     fn debug_block_included_when_provided() {
-        let seed = [3u8; 32];
+        let signing_key = SigningKey::from_bytes(&[3u8; 32]);
         let debug = json!({
             "drv_name": "hello",
             "rdrv_path": "/nix/store/yyy.drv",
@@ -167,7 +185,7 @@ mod tests {
             None,
             None,
             "k",
-            &seed,
+            &signing_key,
         )
         .unwrap();
         let (_, payload, _) = split_jws(&jws);

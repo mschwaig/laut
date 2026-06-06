@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 lautr-core = { path = "../lautr-core" }
+nix-compat = { workspace = true }
 ureq = { workspace = true }
 ed25519-dalek = { workspace = true }
 base64 = { workspace = true }
@@ -13,3 +14,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 ed25519-dalek = { workspace = true }
+data-encoding = { workspace = true }
