@@ -1537,6 +1537,7 @@ dependencies = [
  "ed25519-dalek",
  "lautr-core",
  "nix-compat",
+ "serde",
  "serde_json",
  "thiserror 1.0.69",
  "ureq",

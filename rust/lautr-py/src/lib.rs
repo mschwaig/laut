@@ -15,9 +15,6 @@ use lautr_core::{
     store_path, thumbprint,
 };
 
-#[cfg(feature = "verify")]
-mod trust_model_reasoner;
-
 #[pymodule]
 fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hash_upstream_placeholder, m)?)?;
@@ -31,7 +28,6 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(nix_derivation_show_recursive, m)?)?;
     m.add_function(wrap_pyfunction!(nix_derivation_aterm, m)?)?;
     m.add_function(wrap_pyfunction!(nix_output_hash_from_disk, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_http_cache_url, m)?)?;
     m.add_function(wrap_pyfunction!(upload_signature, m)?)?;
     m.add_function(wrap_pyfunction!(create_trace_signature, m)?)?;
 
@@ -43,11 +39,8 @@ fn lautr(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(feature = "verify")]
 fn register_verify(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    use crate::trust_model_reasoner::TrustModelReasoner;
-    m.add_class::<TrustModelReasoner>()?;
-    m.add_function(wrap_pyfunction!(fetch_signatures_from_cache, m)?)?;
-    m.add_function(wrap_pyfunction!(verify_resolved_trace_signatures, m)?)?;
     m.add_function(wrap_pyfunction!(parse_nix_public_key, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_tree, m)?)?;
     Ok(())
 }
 
@@ -128,13 +121,6 @@ fn nix_output_hash_from_disk(out_path: &str) -> PyResult<String> {
     nix_cmd::output_hash_from_disk(out_path).map_err(|e| PyValueError::new_err(format!("{}", e)))
 }
 
-/// Validate an http(s) cache URL and return its canonical base form.
-#[pyfunction]
-fn parse_http_cache_url(store_url: &str) -> PyResult<String> {
-    http_cache::parse_http_cache_url(store_url)
-        .map_err(|e| PyValueError::new_err(format!("{}", e)))
-}
-
 /// Upload a JWS signature for `input_hash` to the HTTP cache at `store_url`,
 /// merging with any concurrent uploads via ETag-based optimistic concurrency.
 #[pyfunction]
@@ -196,28 +182,6 @@ fn parse_json(s: &str, field: &str) -> PyResult<serde_json::Value> {
         .map_err(|e| PyValueError::new_err(format!("{}: invalid json: {}", field, e)))
 }
 
-#[cfg(feature = "verify")]
-#[pyfunction]
-fn fetch_signatures_from_cache(base_url: &str, input_hash: &str) -> PyResult<Option<Vec<u8>>> {
-    lautr_verify::signature_verify::fetch_signatures_from_cache(base_url, input_hash)
-        .map_err(|e| PyValueError::new_err(format!("{}", e)))
-}
-
-#[cfg(feature = "verify")]
-#[pyfunction]
-fn verify_resolved_trace_signatures(
-    input_hash: &str,
-    signatures: Vec<String>,
-    trusted_keys: Vec<(String, Vec<u8>)>,
-) -> PyResult<Vec<(String, String)>> {
-    lautr_verify::signature_verify::verify_resolved_trace_signatures(
-        input_hash,
-        &signatures,
-        &trusted_keys,
-    )
-    .map_err(|e| PyValueError::new_err(format!("{}", e)))
-}
-
 /// Parse a Nix `name:base64` public-key file. Returns `(name, key_bytes)`
 /// where `key_bytes` is the 32-byte ed25519 public key.
 #[cfg(feature = "verify")]
@@ -225,5 +189,28 @@ fn verify_resolved_trace_signatures(
 fn parse_nix_public_key(path: &str) -> PyResult<(String, Vec<u8>)> {
     lautr_verify::keyfiles::parse_public_key_file(Path::new(path))
         .map(|(name, key)| (name, key.to_vec()))
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))
+}
+
+/// Verify a derivation tree end-to-end. Returns a list of description strings
+/// (one per verified candidate output map). Empty list = verification failed.
+#[cfg(feature = "verify")]
+#[pyfunction]
+fn verify_tree(
+    drv_path: &str,
+    cache_urls: Vec<String>,
+    trusted_keys: Vec<(String, Vec<u8>)>,
+    allow_ia: bool,
+) -> PyResult<Vec<String>> {
+    let cfg = lautr_verify::orchestrator::Config {
+        root_drv_path: drv_path.to_owned(),
+        cache_urls,
+        trusted_keys,
+        allow_ia,
+    };
+    let mut orch =
+        lautr_verify::orchestrator::Orchestrator::new(lautr_verify::backend::RealBackend, cfg)
+            .map_err(|e| PyValueError::new_err(format!("{}", e)))?;
+    orch.verify()
         .map_err(|e| PyValueError::new_err(format!("{}", e)))
 }

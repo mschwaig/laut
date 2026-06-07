@@ -1,25 +1,20 @@
 import sys
 import os
-from typing import List
 import subprocess
 
 import click
 from loguru import logger
 
 from laut.config import config
-from laut.nix.keyfiles import parse_nix_public_key
 from laut.signing import (
     sign_impl,
     sign_and_upload_impl
 )
-from laut.nix.keyfiles import TrustedKey
-from laut.thumbprint import get_ed25519_thumbprint
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from laut import build_config
 
 if not build_config.sign_only:
-    from laut.verification.verification import verify_tree_from_drv_path
+    from lautr import parse_nix_public_key, verify_tree
 
 def resolve_flake_to_drv(flake_ref: str) -> str:
     """
@@ -47,25 +42,6 @@ def is_flake_reference(ref: str) -> bool:
     """Check if the given string looks like a flake reference"""
     return "#" in ref
 
-def read_public_key(key_path: str) -> TrustedKey:
-    """Read and validate a public key file, including thumbprint"""
-    try:
-        # Parse the key from file
-        trusted_key = parse_nix_public_key(key_path)
-
-        # Create an Ed25519PublicKey from the raw bytes
-        ed25519_key = Ed25519PublicKey.from_public_bytes(trusted_key.key_bytes)
-
-        # Calculate the thumbprint
-        thumbprint = get_ed25519_thumbprint(ed25519_key)
-
-        # Create the full key ID in the same format as signing
-        key_id = f"{trusted_key.name}:{thumbprint[:16]}"
-
-        # Return a new TrustedKey with the updated name
-        return TrustedKey(name=key_id, key_bytes=trusted_key.key_bytes)
-    except Exception as e:
-        raise click.BadParameter(f"Error reading public key file {key_path}: {str(e)}")
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
@@ -167,21 +143,13 @@ def verify(target, cache, trusted_key):
             --trusted-key ./keys/trusted.public \\
             /nix/store/xxx.drv
     """
-    config.cache_urls = cache
-    logger.debug(f"configured cache urls: {config.cache_urls}")
-
     try:
-        # Read and validate trusted keys
-        trusted_keys : List[TrustedKey] = []
+        trusted_keys_raw = []
         for key_path in trusted_key:
-            public_key = read_public_key(key_path)
-            trusted_keys.append(public_key)
+            name, key_bytes = parse_nix_public_key(key_path)
+            trusted_keys_raw.append((name, bytes(key_bytes)))
             logger.debug(f"Added trusted key from {key_path}")
 
-        config.trusted_keys = trusted_keys
-        logger.debug(f"configured trusted keys: {config.trusted_keys}")
-
-        # Convert target to derivation path if needed
         if is_derivation_path(target):
             logger.debug(f"Detected derivation path: {target}")
             if not os.path.exists(target):
@@ -196,10 +164,10 @@ def verify(target, cache, trusted_key):
                 "or a flake reference (e.g., nixpkgs#hello)"
             )
 
-        sucessfully_resolved = verify_tree_from_drv_path(drv_path)
+        verified = verify_tree(drv_path, list(cache), trusted_keys_raw, False)
 
-        if sucessfully_resolved:
-            click.echo(f"successfully resolved {target} to {sucessfully_resolved}")
+        if verified:
+            click.echo(f"successfully resolved {target} to {verified[0]}")
             sys.exit(0)
         else:
             click.echo(f"failed to resolve {target}", err=True)
