@@ -97,7 +97,7 @@ pub enum CorpusError {
         "cache at {url:?} does not support listing /traces/ (HTTP {status}); --debug-preimage-corpus needs a cache with a listing endpoint, like the test cache server"
     )]
     ListingNotSupported { url: String, status: u16 },
-    #[error("cache at {url:?} returned a listing that is not a JSON array of filenames: {detail}")]
+    #[error("cache at {url:?} returned a listing that is not a JSON array of objects: {detail}")]
     MalformedListing { url: String, detail: String },
     #[error("failed to talk to cache at {url:?}: {source}")]
     Transport {
@@ -111,6 +111,20 @@ pub enum CorpusError {
         #[source]
         source: std::io::Error,
     },
+    #[error("{0}")]
+    Backend(#[from] crate::backend::Error),
+    #[error("failed to read directory {path:?}: {source}")]
+    DirRead {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to read trace file {path:?}: {source}")]
+    FileRead {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 /// Build an `InMemoryCorpusIndex` by listing the cache's `/traces/` directory
@@ -118,10 +132,22 @@ pub enum CorpusError {
 /// whose signatures don't verify (or have no debug block at all) are simply
 /// not indexed. The flag-gated invariant is "preimages are only ever
 /// generated when the signer opts in", so absence is expected.
-pub fn build_corpus_from_cache_listing(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
+///
+/// Dispatches on the same URL schemes as `Backend::fetch_signatures`:
+/// `http(s)://` requires a JSON listing endpoint at `/traces/`; `file://`
+/// reads `<path>/traces/` from disk.
+pub fn build_corpus_from_cache(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
+    match crate::backend::parse_cache_url(cache_url)? {
+        crate::backend::CacheTransport::Http(url) => build_from_http(&url),
+        crate::backend::CacheTransport::File(dir) => {
+            build_from_dir(&dir.join("traces"))
+        }
+    }
+}
+
+fn build_from_http(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
     let base_url = cache_url.trim_end_matches('/');
     let listing_url = format!("{}/traces/", base_url);
-
     let names = fetch_listing(&listing_url)?;
     let mut index = InMemoryCorpusIndex::new();
     for name in names {
@@ -129,27 +155,55 @@ pub fn build_corpus_from_cache_listing(cache_url: &str) -> Result<InMemoryCorpus
         let Ok(body) = fetch_bytes(&trace_url) else {
             continue;
         };
-        let Ok(parsed): serde_json::Result<Value> = serde_json::from_slice(&body) else {
-            continue;
-        };
-        let Some(sigs) = parsed.get("signatures").and_then(|v| v.as_array()) else {
-            continue;
-        };
-        for sig in sigs {
-            let Some(jws) = sig.as_str() else { continue };
-            let Some((drv_name, drv_path, aterm)) = extract_debug_from_jws(jws) else {
-                continue;
-            };
-            index.add(
-                drv_name,
-                PreimageCandidate {
-                    drv_path,
-                    aterm_preimage: aterm,
-                },
-            );
-        }
+        extract_into(&mut index, &body);
     }
     Ok(index)
+}
+
+fn build_from_dir(traces_dir: &std::path::Path) -> Result<InMemoryCorpusIndex, CorpusError> {
+    let mut index = InMemoryCorpusIndex::new();
+    let entries = std::fs::read_dir(traces_dir).map_err(|source| CorpusError::DirRead {
+        path: traces_dir.display().to_string(),
+        source,
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|source| CorpusError::DirRead {
+            path: traces_dir.display().to_string(),
+            source,
+        })?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let body = std::fs::read(&path).map_err(|source| CorpusError::FileRead {
+            path: path.display().to_string(),
+            source,
+        })?;
+        extract_into(&mut index, &body);
+    }
+    Ok(index)
+}
+
+fn extract_into(index: &mut InMemoryCorpusIndex, body: &[u8]) {
+    let Ok(parsed): serde_json::Result<Value> = serde_json::from_slice(body) else {
+        return;
+    };
+    let Some(sigs) = parsed.get("signatures").and_then(|v| v.as_array()) else {
+        return;
+    };
+    for sig in sigs {
+        let Some(jws) = sig.as_str() else { continue };
+        let Some((drv_name, drv_path, aterm)) = extract_debug_from_jws(jws) else {
+            continue;
+        };
+        index.add(
+            drv_name,
+            PreimageCandidate {
+                drv_path,
+                aterm_preimage: aterm,
+            },
+        );
+    }
 }
 
 fn fetch_listing(url: &str) -> Result<Vec<String>, CorpusError> {

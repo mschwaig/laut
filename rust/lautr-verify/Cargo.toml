@@ -16,3 +16,4 @@ thiserror = { workspace = true }
 [dev-dependencies]
 ed25519-dalek = { workspace = true }
 data-encoding = { workspace = true }
+tempfile = "3"

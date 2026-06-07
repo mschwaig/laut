@@ -54,13 +54,16 @@ let
         binaryCacheData = "${sign-test}/cache";
       } // common);
   };
-in
-  ((makeTestSet {
+  smallSet = makeTestSet {
     name = "small";
     packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
     isLarge = false;
     isMemoryConstrained = false;
-  }) // (makeTestSet {
+  };
+  smallSign = smallSet."small-sign";
+  smallPackageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+in
+  smallSet // (makeTestSet {
     name = "large";
     packageToBuild = [ "hello" ];
     isLarge = true;
@@ -73,7 +76,33 @@ in
     fodScanPackage = [ "hello" ];
     isLarge = true;
     isMemoryConstrained = false;
-  }))
+  }) // {
+    # Exercises the hash-divergence debug probe end-to-end: reuses the
+    # small-sign cache (preimages on), tampers one trace's preimage with a
+    # known marker on the verifier, then runs `laut verify
+    # --debug-preimage-corpus file://...` and asserts difft surfaces the
+    # marker. Single instance — the probe doesn't benefit from scale variants.
+    #
+    # The verifierExtraConfig injects just-this-test-needs-it tooling:
+    # difftastic for the structural diff, and a writePython3Bin-wrapped
+    # tamper helper that becomes a PATH-accessible `tamper-preimage` command.
+    debug-probe = import ./test-template.nix (fullArgs // {
+      testName = "debug-probe";
+      testScriptFile = ./debug-probe-script.py;
+      binaryCacheData = "${smallSign}/cache";
+      packageToBuild = smallPackageToBuild;
+      isMemoryConstrained = false;
+      needsExtraTime = false;
+      verifierExtraConfig = {
+        environment.systemPackages = [
+          pkgsIA.difftastic
+          (pkgsIA.writers.writePython3Bin "tamper-preimage" { } (
+            builtins.readFile ./tamper-preimage.py
+          ))
+        ];
+      };
+    });
+  }
 
   # Full local reproducibility model - trusts only itself
   #fullReproVM = import ./test-template.nix (fullArgs // {

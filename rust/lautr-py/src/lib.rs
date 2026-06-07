@@ -219,11 +219,11 @@ fn verify_tree(
     debug_preimage_corpus: Option<String>,
     debug_out_dir: Option<String>,
 ) -> PyResult<Vec<String>> {
-    use lautr_verify::debug::{build_corpus_from_cache_listing, DebugProbe, DifftProbe, NullProbe};
+    use lautr_verify::debug::{build_corpus_from_cache, DebugProbe, DifftProbe, NullProbe};
 
     let probe: Box<dyn DebugProbe> = match debug_preimage_corpus {
         Some(corpus_url) => {
-            let index = build_corpus_from_cache_listing(&corpus_url)
+            let index = build_corpus_from_cache(&corpus_url)
                 .map_err(|e| PyValueError::new_err(format!("{}", e)))?;
             let out_dir = debug_out_dir
                 .map(std::path::PathBuf::from)

@@ -8,7 +8,12 @@
   verifierExtraConfig,
   ...
 }:
- (lib.recursiveUpdate ({
+# `imports` rather than `lib.recursiveUpdate` so list-typed options like
+# `environment.systemPackages` get *merged* by the NixOS module system instead
+# of being silently overwritten when a test pulls in extra packages.
+{
+  imports = [ verifierExtraConfig ];
+  config = {
       virtualisation.memorySize = 2 * 1024;
       virtualisation.cores = 2;
       virtualisation.writableStore = true;
@@ -54,4 +59,5 @@
         git
         laut
       ];
-    }) verifierExtraConfig)
+    };
+}
