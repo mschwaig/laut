@@ -194,19 +194,53 @@ fn parse_nix_public_key(path: &str) -> PyResult<(String, Vec<u8>)> {
 
 /// Verify a derivation tree end-to-end. Returns a list of description strings
 /// (one per verified candidate output map). Empty list = verification failed.
+///
+/// `debug_preimage_corpus` opts into hash-divergence debugging: when set, the
+/// verifier lists the given cache's `/traces/`, parses any debug preimages it
+/// finds (permissive — unverified signatures still contribute), and renders a
+/// structural diff against locally-computed preimages whenever a `ct_input_hash`
+/// lookup misses. The flag is intended for test/dev environments; production
+/// caches won't list and don't carry preimages.
 #[cfg(feature = "verify")]
 #[pyfunction]
+#[pyo3(signature = (
+    drv_path,
+    cache_urls,
+    trusted_keys,
+    allow_ia,
+    debug_preimage_corpus = None,
+    debug_out_dir = None,
+))]
 fn verify_tree(
     drv_path: &str,
     cache_urls: Vec<String>,
     trusted_keys: Vec<(String, Vec<u8>)>,
     allow_ia: bool,
+    debug_preimage_corpus: Option<String>,
+    debug_out_dir: Option<String>,
 ) -> PyResult<Vec<String>> {
+    use lautr_verify::debug::{build_corpus_from_cache_listing, DebugProbe, DifftProbe, NullProbe};
+
+    let probe: Box<dyn DebugProbe> = match debug_preimage_corpus {
+        Some(corpus_url) => {
+            let index = build_corpus_from_cache_listing(&corpus_url)
+                .map_err(|e| PyValueError::new_err(format!("{}", e)))?;
+            let out_dir = debug_out_dir
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir);
+            let difft = DifftProbe::new(index, out_dir)
+                .map_err(|e| PyValueError::new_err(format!("debug dir: {}", e)))?;
+            Box::new(difft)
+        }
+        None => Box::new(NullProbe),
+    };
+
     let cfg = lautr_verify::orchestrator::Config {
         root_drv_path: drv_path.to_owned(),
         cache_urls,
         trusted_keys,
         allow_ia,
+        debug_probe: probe,
     };
     let mut orch =
         lautr_verify::orchestrator::Orchestrator::new(lautr_verify::backend::RealBackend, cfg)

@@ -83,7 +83,7 @@ def sign_impl(drv_path, secret_key_file, out_paths : List[str]) -> Optional[tupl
         "rdrv_path": drv_path,
         "rdrv_computed_path": computed_drv_path,
         "rdrv_aterm_ca_preimage": aterm_bytes,
-    } if config.debug else None
+    } if config.include_preimage else None
 
     castore_outputs = { k: create_castore_entry(v["path"]) for k,v in output_hashes.items() }
 

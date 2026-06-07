@@ -13,6 +13,7 @@ use serde_json::Value;
 use lautr_core::{constructive_trace, store_path, thumbprint};
 
 use crate::backend::{self, Backend};
+use crate::debug::{DebugProbe, LocalWitness, NullProbe};
 use crate::drv_json::{self, DrvJson};
 use crate::signature_verify;
 use crate::string_interner::{ContentHash, KeyId, OutputName, StringInterner, UDrv};
@@ -57,6 +58,21 @@ pub struct Config {
     /// `(key_name, raw_32_byte_public_key)` for each trusted key.
     pub trusted_keys: Vec<(String, Vec<u8>)>,
     pub allow_ia: bool,
+    /// Defaults to a `NullProbe`; the verify CLI swaps in a `DifftProbe` when
+    /// `--debug-preimage-corpus` is set.
+    pub debug_probe: Box<dyn DebugProbe>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            root_drv_path: String::new(),
+            cache_urls: Vec::new(),
+            trusted_keys: Vec::new(),
+            allow_ia: false,
+            debug_probe: Box::new(NullProbe),
+        }
+    }
 }
 
 pub struct Orchestrator<B: Backend> {
@@ -65,6 +81,7 @@ pub struct Orchestrator<B: Backend> {
     /// `(kid, raw_key)` for verification + reasoner; `kid` is `name:thumbprint16`.
     trusted_keys: Vec<(String, Vec<u8>)>,
     allow_ia: bool,
+    debug_probe: Box<dyn DebugProbe>,
 
     derivations: HashMap<String, DrvJson>,
 
@@ -118,6 +135,7 @@ impl<B: Backend> Orchestrator<B> {
             cache_urls: cfg.cache_urls,
             trusted_keys: kid_keys,
             allow_ia: cfg.allow_ia,
+            debug_probe: cfg.debug_probe,
             derivations,
             interner,
             facts: Facts::new(),
@@ -309,13 +327,23 @@ impl<B: Backend> Orchestrator<B> {
         let mut plausible: Vec<TrustlesslyResolvedDerivation> = Vec::new();
         let mut seen_resolution_hashes: HashSet<String> = HashSet::new();
         for combo in cartesian_product(&dep_resolutions) {
-            let (ct_input_hash, _aterm_bytes) = self.compute_resolved(udrv, &combo)?;
+            let (ct_input_hash, aterm_bytes) = self.compute_resolved(udrv, &combo)?;
             // Avoid pushing the same `(udrv, ct_input_hash, output_map)` twice
             // when distinct dep choices happen to collapse to the same resolved
             // input hash (rare but possible).
             self.add_resolved_to_facts(udrv, &ct_input_hash, &combo);
 
             let signatures = self.fetch_and_verify_signatures(&ct_input_hash)?;
+            if signatures.is_empty() {
+                self.debug_probe.on_signature_miss(&LocalWitness {
+                    udrv_drv_path: &udrv.drv_path,
+                    udrv_name: &udrv.name,
+                    udrv_input_hash: &udrv.input_hash,
+                    ct_input_hash: &ct_input_hash,
+                    aterm_bytes: &aterm_bytes,
+                });
+                continue;
+            }
             for (payload, kid) in signatures {
                 let nix_outputs = payload
                     .get("out")

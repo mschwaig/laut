@@ -63,8 +63,13 @@ def cli(ctx: click.Context, debug: bool):
               help='Path to the secret key file', multiple=True)
 @click.option('--out-paths', help='Comma-separated list of output paths (default: check $OUT_PATHS env var)',
               default=None)
-def sign(drv_path, secret_key_file, out_paths):
+@click.option('--include-preimage/--no-include-preimage', default=False,
+              help='Include the ATerm preimage in the signed JWS debug block. '
+                   'For test environments only — production signers should keep '
+                   'this off so preimages never leak into shared caches.')
+def sign(drv_path, secret_key_file, out_paths, include_preimage):
     """Sign a derivation"""
+    config.include_preimage = include_preimage
     try:
         if out_paths is None:
             out_paths = os.environ.get('OUT_PATHS')
@@ -96,8 +101,13 @@ def sign(drv_path, secret_key_file, out_paths):
               help='URL of the target store (e.g., http://cache:9000)')
 @click.option('--out-paths', help='Comma-separated list of output paths (default: check $OUT_PATHS env var)',
               default=None)
-def sign_and_upload(drv_path, secret_key_file, to, out_paths):
+@click.option('--include-preimage/--no-include-preimage', default=False,
+              help='Include the ATerm preimage in the signed JWS debug block. '
+                   'For test environments only — production signers should keep '
+                   'this off so preimages never leak into shared caches.')
+def sign_and_upload(drv_path, secret_key_file, to, out_paths, include_preimage):
     """Sign a derivation and upload the signature"""
+    config.include_preimage = include_preimage
     try:
         if out_paths is None:
             out_paths = os.environ.get('OUT_PATHS')
@@ -117,7 +127,16 @@ def sign_and_upload(drv_path, secret_key_file, to, out_paths):
             help='URL of HTTP signature cache to query (can be specified multiple times)')
 @click.option('--trusted-key', required=False, multiple=True, type=click.Path(exists=True),
             help='Path to trusted public key file (can be specified multiple times)')
-def verify(target, cache, trusted_key):
+@click.option('--debug-preimage-corpus', required=False, default=None,
+            help='Cache URL to scan for signer-side debug preimages. When a '
+                 'resolved-input-hash lookup misses, runs difft against any '
+                 'preimage with a matching drv-name. Requires the cache to '
+                 'expose a GET /traces/ listing endpoint, which most production '
+                 'caches will refuse.')
+@click.option('--debug-out-dir', required=False, default=None, type=click.Path(),
+            help='Directory to drop preimage artifacts into for --debug-preimage-corpus. '
+                 'Defaults to a temp dir.')
+def verify(target, cache, trusted_key, debug_preimage_corpus, debug_out_dir):
     """
     Verify signatures for a derivation or flake reference
 
@@ -164,7 +183,14 @@ def verify(target, cache, trusted_key):
                 "or a flake reference (e.g., nixpkgs#hello)"
             )
 
-        verified = verify_tree(drv_path, list(cache), trusted_keys_raw, False)
+        verified = verify_tree(
+            drv_path,
+            list(cache),
+            trusted_keys_raw,
+            False,
+            debug_preimage_corpus,
+            debug_out_dir,
+        )
 
         if verified:
             click.echo(f"successfully resolved {target} to {verified[0]}")

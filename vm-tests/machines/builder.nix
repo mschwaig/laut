@@ -114,7 +114,7 @@ in {
         printf "%s" "$OUT_PATHS" | xargs nix copy --to "${cacheStoreUrl}" --no-require-sigs
         printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${cacheStoreUrl}" --secret-key-files /etc/nix/private-key
 
-        laut --debug sign-and-upload "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${cacheStoreUrl}"
+        laut --debug sign-and-upload --include-preimage "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${cacheStoreUrl}"
       '';
     };
   };

@@ -102,6 +102,7 @@ fn make_orchestrator(
             cache_urls: vec!["http://mock".to_owned()],
             trusted_keys: trusted_keys(),
             allow_ia,
+            ..Default::default()
         },
     )
 }

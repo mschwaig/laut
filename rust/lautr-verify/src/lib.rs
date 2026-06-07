@@ -6,6 +6,7 @@
 //! or its derivation hash.
 
 pub mod backend;
+pub mod debug;
 pub mod drv_json;
 pub mod keyfiles;
 pub mod orchestrator;
