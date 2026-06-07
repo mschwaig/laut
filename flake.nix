@@ -23,7 +23,7 @@
       test-drv-json = pkgs.writeShellScriptBin "examine-derivation" ''
         # Change to the drv_lookup directory first
         cd tests/data/drv_lookup
-        
+
         # Generate JSON data and pipe directly to the Python script
         (cd ${nixpkgs.outPath} && ${pkgs.lix}/bin/nix derivation show --recursive -f . hello --arg config '{ contentAddressedByDefault = true; }') | \
         ${pkgs.python3}/bin/python3 ${./tests/data/drv_lookup/generate_test_data_with_aterm.py} \
@@ -35,7 +35,7 @@
     in {
       packages.${system} = {
         inherit nix nix-vsbom test-drv-json;
-        inherit (scope) laut laut-sign-only lautr lautr-sign-only;
+        inherit (scope) laut laut-sign-only;
         default = scope.laut;
       };
 
@@ -46,33 +46,14 @@
           inherit (scope) laut;
         });
 
-      devShell.${system} = let
-        pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-          rfc8785
-          pyjwt
-          cryptography
-          click
-          loguru
-          #sigstore
-          pytest
-          debugpy
-          memory_profiler
-        ] ++ [
-          pkgs.pyright
-        ] ++ [
-          scope.lautr
-        ]);
-      in pkgs.mkShell {
+      devShell.${system} = pkgs.mkShell {
         shellHook = ''
           export PATH=${lib.makeBinPath [ pkgs.difftastic ]}:$PATH
-          export PYTHONPATH="$PYTHONPATH"
         '';
 
-        PYTEST_FOR_VSCODE = "${pythonEnv}/bin/pytest";
         buildInputs = [
           pkgs.cargo
           pkgs.rustc
-          pythonEnv
         ];
 
         nativeBuildInputs = [

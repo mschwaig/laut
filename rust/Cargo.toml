@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "lautr-core",
     "lautr-verify",
-    "lautr-py",
+    "laut",
 ]
 
 [workspace.package]
@@ -20,4 +20,7 @@ base64 = "0.22"
 serde_json = "1"
 data-encoding = "2"
 thiserror = "1"
-pyo3 = "0.24.1"
+serde = { version = "1", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
+rand = "0.8"
+regex = "1"

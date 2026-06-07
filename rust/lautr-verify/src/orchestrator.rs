@@ -13,11 +13,11 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use lautr_core::drv_json::DrvJson;
 use lautr_core::{store_path, thumbprint};
 
 use crate::backend::{self, Backend};
 use crate::debug::{DebugProbe, NullProbe};
-use crate::drv_json::DrvJson;
 use crate::signature_verify;
 use crate::string_interner::{KeyId, StringInterner, UDrv};
 use crate::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};

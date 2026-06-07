@@ -1,91 +1,84 @@
 {
   lib,
-  buildPythonApplication,
-  setuptools,
-  setuptools-scm,
-  pytestCheckHook,
-  rfc8785,
-  pyjwt,
-  cryptography,
-  click,
+  pkgs,
+  fetchgit,
+  rustPlatform,
+  makeWrapper,
   difftastic,
-  sigstore,
-  loguru,
   sign-only ? false,
-  lautr,
 }:
+let
+  snix-hash = "sha256-UcHOQmNKzhzw+8IbO86fGbiQFfwityudeV8K9E23dT4=";
+  snix = fetchgit {
+    url = "https://github.com/mschwaig/snix";
+    rev = "21e90c2dae1827bb98963279d020b3009e032a21";
+    hash = snix-hash;
+  };
 
-buildPythonApplication {
-  pname = "laut";
-  version = "0.1.0";
-  pyproject = true;
-
-  src =
-    let
-      fs = lib.fileset;
-    in
+  # In sign-only mode, exclude rust/lautr-verify/ from the source tree entirely
+  # so that edits to verification-only Rust code don't change the derivation hash.
+  # The accompanying postPatch drops lautr-verify from the workspace and from
+  # the laut binary crate's Cargo.toml so the remaining crates still resolve.
+  rustSrc =
+    let fs = lib.fileset; in
+    if sign-only then
       fs.toSource {
-        root = ../.;
-        fileset = fs.difference (fs.unions [
-            ../src/laut
-            ../tests
-            ../testkeys
-            ../pyproject.toml
-            ../LICENSE.md
-            ../README.md
-          ]) (
-            if sign-only then
-              ../src/laut/verification
-            else
-              fs.unions []);
+        root = ../rust;
+        fileset = fs.difference ../rust ../rust/lautr-verify;
+      }
+    else
+      ../rust;
+in
+  rustPlatform.buildRustPackage {
+    pname = if sign-only then "laut-sign-only" else "laut";
+    version = "0.2.0";
+
+    src = rustSrc;
+
+    cargoLock = {
+      lockFile = ../rust/Cargo.lock;
+      outputHashes = {
+        "laut-compat-0.1.0" = snix-hash;
+        "wu-manber-0.1.0" = "sha256-7YIttaQLfFC/32utojh2DyOHVsZiw8ul/z0lvOhAE/4=";
       };
+    };
 
-  build-system = [
-    setuptools
-    setuptools-scm
-  ];
+    PROTO_ROOT = snix;
 
-  postPatch =
-    if sign-only then
-      ''
-        substituteInPlace "src/laut/build_config.py" \
-          --replace-fail "sign_only = False" "sign_only = True"
-      ''
-    else
-      "";
-
-  preCheck =
-    if sign-only then "" else
-      ''
-        export PATH=${lib.makeBinPath [ difftastic ]}:$PATH
-      '';
-
-  postInstall =
-    if sign-only then "" else
-      ''
-        wrapProgram $out/bin/laut \
-          --prefix PATH : ${lib.makeBinPath [ difftastic ]}
-      '';
-
-  nativeCheckInputs = (
-    if sign-only then
-      [ ]
-    else
-      [
-        pytestCheckHook
-      ]
-  );
-
-  dependencies =
-    [
-      rfc8785
-      pyjwt
-      cryptography
-      click
-      #sigstore
-      loguru
-      lautr
+    nativeBuildInputs = [
+      pkgs.protobuf
+    ] ++ lib.optionals (!sign-only) [
+      makeWrapper
     ];
 
-  pythonImportsCheck = [ "laut" ];
-}
+    # Strip lautr-verify out of the workspace and out of the laut binary's
+    # manifest so cargo can resolve the workspace without the (excluded)
+    # lautr-verify dir. Kept as literal substitutions on purpose: if someone
+    # reformats the affected lines, this fails loudly rather than silently
+    # producing a build that still pulls in the verification code.
+    postPatch = lib.optionalString sign-only ''
+      substituteInPlace Cargo.toml \
+        --replace-fail '    "lautr-verify",
+' ""
+
+      substituteInPlace laut/Cargo.toml \
+        --replace-fail 'default = ["verify"]' 'default = []' \
+        --replace-fail 'verify = ["dep:lautr-verify"]
+' "" \
+        --replace-fail 'lautr-verify = { path = "../lautr-verify", optional = true }
+' ""
+    '';
+
+    cargoBuildFlags = lib.optionals sign-only [ "--no-default-features" ];
+
+    # Integration tests reference fixtures under the repo's `tests/data/`,
+    # which isn't part of the Rust source root. Skip the check phase here;
+    # `cargo test --workspace` in the dev shell covers it, and the VM tests
+    # exercise the binary end-to-end.
+    doCheck = false;
+
+    postInstall = lib.optionalString (!sign-only) ''
+      wrapProgram $out/bin/laut \
+        --prefix PATH : ${lib.makeBinPath [ difftastic ]}
+    '';
+  }
