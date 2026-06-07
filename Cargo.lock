@@ -1480,12 +1480,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "laut"
-version = "0.2.0"
+name = "laut-cli"
+version = "0.4.0"
 dependencies = [
  "clap",
- "lautr-core",
- "lautr-verify",
+ "laut-sign",
+ "laut-verify",
  "thiserror 1.0.69",
 ]
 
@@ -1508,8 +1508,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "lautr-core"
-version = "0.2.0"
+name = "laut-sign"
+version = "0.4.0"
 dependencies = [
  "base64",
  "data-encoding",
@@ -1526,13 +1526,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "lautr-verify"
-version = "0.2.0"
+name = "laut-verify"
+version = "0.4.0"
 dependencies = [
  "base64",
  "data-encoding",
  "ed25519-dalek",
- "lautr-core",
+ "laut-sign",
  "nix-compat",
  "serde_json",
  "tempfile",

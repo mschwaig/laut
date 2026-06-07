@@ -2,28 +2,28 @@
 //!
 //! Resolves flake-ref targets via `nix eval --raw <ref>.drvPath`, loads each
 //! trusted public key, then hands everything to
-//! [`lautr_verify::orchestrator`]. Exit code `118` matches the Python CLI's
+//! [`laut_verify::orchestrator`]. Exit code `118` matches the Python CLI's
 //! "verification failed" code so post-build hooks can distinguish failure
 //! from a hard error.
 
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
-use lautr_verify::backend::RealBackend;
-use lautr_verify::debug::{build_corpus_from_cache, DebugProbe, DifftProbe, NullProbe};
-use lautr_verify::keyfiles;
-use lautr_verify::orchestrator::{Config, Orchestrator};
+use laut_verify::backend::RealBackend;
+use laut_verify::debug::{build_corpus_from_cache, DebugProbe, DifftProbe, NullProbe};
+use laut_verify::keyfiles;
+use laut_verify::orchestrator::{Config, Orchestrator};
 
 use crate::cli::VerifyArgs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("verifier: {0}")]
-    Orchestrator(#[from] lautr_verify::orchestrator::Error),
+    Orchestrator(#[from] laut_verify::orchestrator::Error),
     #[error("keyfile: {0}")]
     Keyfile(#[from] keyfiles::Error),
     #[error("debug corpus: {0}")]
-    DebugCorpus(#[from] lautr_verify::debug::CorpusError),
+    DebugCorpus(#[from] laut_verify::debug::CorpusError),
     #[error("temp dir: {0}")]
     Io(#[from] std::io::Error),
     #[error("invalid target {target:?}: must be a /nix/store/*.drv path or a flake reference (pkg#attr)")]

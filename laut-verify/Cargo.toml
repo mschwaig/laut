@@ -1,10 +1,10 @@
 [package]
-name = "lautr-verify"
+name = "laut-verify"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-lautr-core = { path = "../lautr-core" }
+laut-sign = { path = "../laut-sign" }
 nix-compat = { workspace = true }
 ureq = { workspace = true }
 ed25519-dalek = { workspace = true }

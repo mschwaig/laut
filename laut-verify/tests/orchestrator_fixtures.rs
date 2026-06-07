@@ -9,19 +9,18 @@ use std::fs;
 use std::path::PathBuf;
 
 use ed25519_dalek::SigningKey;
-use lautr_verify::backend::InMemoryBackend;
-use lautr_verify::keyfiles;
-use lautr_verify::orchestrator::{cartesian_product, Config, Error, Orchestrator};
-use lautr_verify::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};
+use laut_verify::backend::InMemoryBackend;
+use laut_verify::keyfiles;
+use laut_verify::orchestrator::{cartesian_product, Config, Error, Orchestrator};
+use laut_verify::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// `<repo-root>/tests/data`. We resolve relative to `CARGO_MANIFEST_DIR`
-/// (this crate's dir is `rust/lautr-verify`), then go up two levels.
+/// (this crate's dir is `laut-verify` at the repo root).
 fn data_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
         .join("..")
         .join("tests")
         .join("data")
@@ -55,7 +54,6 @@ fn read_all_signatures() -> HashMap<String, Vec<u8>> {
 
 fn read_public_key(name: &str) -> (String, Vec<u8>) {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
         .join("..")
         .join("testkeys")
         .join(name);

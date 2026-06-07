@@ -18,7 +18,7 @@ A *verification target* is a pair `(D, S)` where:
 
 ## Trust models
 
-A *trust model* `M` is a recursive structure with two node kinds, matching the implementation in `rust/src/verifier.rs`:
+A *trust model* `M` is a recursive structure with two node kinds, matching the implementation in `laut-verify/src/verifier.rs`:
 
 - `Key(k)` — a leaf naming a single trusted signing key.
 - `Threshold(t, [M₁, …, Mₙ])` — an internal node combining `n` sub-models via a *threshold function*. Children may themselves be `Key` leaves or further `Threshold` nodes.
@@ -72,7 +72,7 @@ To keep the meaning of `B` unambiguous, legacy signers are permitted only as dir
 
 ## Implementation
 
-The verifier in `rust/src/verifier.rs` computes the maximal bundle in two passes over the provenance log entries fed in from the verification pipeline:
+The verifier in `laut-verify/src/verifier.rs` computes the maximal bundle in two passes over the provenance log entries fed in from the verification pipeline:
 
 1. **`supports(D', S')`** — bottom-up, memoised. True iff some closure exists from FODs to `(D', S')`. For an FOD: match `S'` against the FOD's known output map. Otherwise: look for some provenance log entry for a rdrv of `D'` whose output map agrees with `S'` and whose rdrv's *dependency resolution* groups into per-dependency subsets that all themselves *support*.
 

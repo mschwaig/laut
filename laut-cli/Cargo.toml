@@ -1,5 +1,5 @@
 [package]
-name = "laut"
+name = "laut-cli"
 version.workspace = true
 edition.workspace = true
 
@@ -9,13 +9,13 @@ path = "src/main.rs"
 
 [features]
 # `verify` is on by default so a plain `cargo build` yields the full CLI.
-# Sign-only Nix builds pass `--no-default-features`, dropping `lautr-verify`
+# Sign-only Nix builds pass `--no-default-features`, dropping `laut-verify`
 # from the dep graph and from the clap subcommand surface.
 default = ["verify"]
-verify = ["dep:lautr-verify"]
+verify = ["dep:laut-verify"]
 
 [dependencies]
-lautr-core = { path = "../lautr-core" }
-lautr-verify = { path = "../lautr-verify", optional = true }
+laut-sign = { path = "../laut-sign" }
+laut-verify = { path = "../laut-verify", optional = true }
 clap = { workspace = true }
 thiserror = { workspace = true }

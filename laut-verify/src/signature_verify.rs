@@ -3,7 +3,7 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ed25519_dalek::{Signature, VerifyingKey};
-use lautr_core::thumbprint::{self, ed25519_thumbprint};
+use laut_sign::thumbprint::{self, ed25519_thumbprint};
 use std::io::Read;
 
 #[derive(Debug, thiserror::Error)]

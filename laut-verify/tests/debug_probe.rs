@@ -8,14 +8,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-use lautr_verify::debug::{
+use laut_verify::debug::{
     build_corpus_from_cache, extract_debug_from_jws, DebugProbe, DifftProbe, Identity,
     InMemoryCorpusIndex, LocalWitness, NullProbe, PreimageCandidate,
 };
 
 fn data_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
         .join("..")
         .join("tests")
         .join("data")

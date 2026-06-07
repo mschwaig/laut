@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde_json::Value;
 
-use lautr_core::{constructive_trace, store_path};
+use laut_sign::{constructive_trace, store_path};
 
 use crate::backend::Backend;
 use crate::signature_verify;

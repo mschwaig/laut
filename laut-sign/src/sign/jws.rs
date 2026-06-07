@@ -1,6 +1,6 @@
 //! Build a laut trace JWS (compact serialization) and sign it with ed25519.
 //!
-//! The companion verifier lives in `lautr-verify::signature_verify`; the wire
+//! The companion verifier lives in `laut-verify::signature_verify`; the wire
 //! format here is the JWS this signer produces is what that verifier accepts.
 
 use base64::Engine as _;

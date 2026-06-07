@@ -2,7 +2,7 @@
 //! post-build out-paths, build the trace JWS and (optionally) upload it.
 //!
 //! Mirrors the pipeline phases used by [`crate::drv_json`] and the verify-side
-//! [`lautr-verify::orchestrator`]: a small entry surface declared here, with
+//! [`laut-verify::orchestrator`]: a small entry surface declared here, with
 //! the JWS payload assembly and the `$NIX_CONFIG` parsing factored into
 //! [`jws`] and [`nix_version`].
 

@@ -1,6 +1,6 @@
 //! How the orchestrator obtains derivation data and signatures.
 //!
-//! Real runs shell out via `lautr_core::nix_cmd` for nix data and dispatch
+//! Real runs shell out via `laut_sign::nix_cmd` for nix data and dispatch
 //! by URL scheme for signatures: `http(s)://` goes over HTTP via
 //! `signature_verify::fetch_signatures_from_cache`, `file://` reads from
 //! `<path>/traces/<input_hash>` on disk. Tests inject an in-memory backend
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
-    NixCmd(#[from] lautr_core::nix_cmd::Error),
+    NixCmd(#[from] laut_sign::nix_cmd::Error),
     #[error("no aterm fixture for {0:?}")]
     MissingAtermFixture(String),
     #[error("{0}")]
@@ -70,11 +70,11 @@ pub struct RealBackend;
 
 impl Backend for RealBackend {
     fn derivation_show_recursive(&self, drv_path: &str) -> Result<String, Error> {
-        Ok(lautr_core::nix_cmd::derivation_show_recursive(drv_path)?)
+        Ok(laut_sign::nix_cmd::derivation_show_recursive(drv_path)?)
     }
 
     fn derivation_aterm(&self, drv_path: &str) -> Result<String, Error> {
-        Ok(lautr_core::nix_cmd::derivation_aterm(drv_path)?)
+        Ok(laut_sign::nix_cmd::derivation_aterm(drv_path)?)
     }
 
     fn fetch_signatures(
@@ -84,7 +84,7 @@ impl Backend for RealBackend {
     ) -> Result<Option<Vec<u8>>, Error> {
         match parse_cache_url(cache_url)? {
             CacheTransport::Http(url) => {
-                let base_url = match lautr_core::http_cache::parse_http_cache_url(&url) {
+                let base_url = match laut_sign::http_cache::parse_http_cache_url(&url) {
                     Ok(b) => b,
                     // Already passed scheme check; only a malformed http URL
                     // gets here. Treat as "not in this cache" rather than

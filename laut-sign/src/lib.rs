@@ -6,8 +6,7 @@
 //! ed25519 JWK thumbprint that signers use to produce a `kid` and verifiers
 //! use to match a signature against a trusted key.
 //!
-//! Nothing in this crate links against PyO3; the PyO3 bindings live in
-//! `lautr-py`. Verification-specific logic lives in `lautr-verify`.
+//! Verification-specific logic lives in `laut-verify`.
 
 pub mod constructive_trace;
 pub mod content_hash;

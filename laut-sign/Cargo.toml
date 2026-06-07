@@ -1,5 +1,5 @@
 [package]
-name = "lautr-core"
+name = "laut-sign"
 version.workspace = true
 edition.workspace = true
 

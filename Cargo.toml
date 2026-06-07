@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "lautr-core",
-    "lautr-verify",
-    "laut",
+    "laut-cli",
+    "laut-sign",
+    "laut-verify",
 ]
 
 [workspace.package]

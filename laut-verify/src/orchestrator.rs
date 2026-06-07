@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use lautr_core::drv_json::DrvJson;
-use lautr_core::{store_path, thumbprint};
+use laut_sign::drv_json::DrvJson;
+use laut_sign::{store_path, thumbprint};
 
 use crate::backend::{self, Backend};
 use crate::debug::{DebugProbe, NullProbe};

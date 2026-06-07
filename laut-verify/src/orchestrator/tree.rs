@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use lautr_core::drv_json::{self, DrvJson};
-use lautr_core::store_path;
+use laut_sign::drv_json::{self, DrvJson};
+use laut_sign::store_path;
 
 use crate::backend::Backend;
 use crate::types::{UnresolvedDerivation, UnresolvedOutput, UnresolvedReferencedInputs};

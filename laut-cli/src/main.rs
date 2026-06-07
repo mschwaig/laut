@@ -1,8 +1,8 @@
 //! `laut` — Nix build trace signature CLI.
 //!
 //! Subcommands: `sign`, `sign-and-upload`, and (verify-feature-gated)
-//! `verify`. The orchestration lives in [`lautr_core::sign`] (and, for
-//! verify, [`lautr_verify::orchestrator`]); this binary is just argument
+//! `verify`. The orchestration lives in [`laut_sign::sign`] (and, for
+//! verify, [`laut_verify::orchestrator`]); this binary is just argument
 //! parsing + dispatch.
 
 use std::process::ExitCode;

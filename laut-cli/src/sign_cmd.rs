@@ -1,12 +1,12 @@
 //! Sign / sign-and-upload command handlers.
 //!
-//! Translate clap args into `lautr_core::sign::SignConfig`, dispatch, and
+//! Translate clap args into `laut_sign::sign::SignConfig`, dispatch, and
 //! pick the right exit code. Exit code `117` is preserved from the Python
 //! CLI to signal "post-build hook fired on unresolved drv, nothing to do".
 
 use std::process::ExitCode;
 
-use lautr_core::sign::{self, SignConfig};
+use laut_sign::sign::{self, SignConfig};
 
 use crate::cli::{SignAndUploadArgs, SignArgs};
 
