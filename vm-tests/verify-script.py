@@ -28,7 +28,8 @@ cache.succeed("systemctl start http-cache-server.service")
 verifier.start()
 verifier.wait_for_unit("default.target")
 
-verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} $(nix-instantiate '<nixpkgs-ca>' -A {packageToBuild})"
+nixpkgs_attr = "<nixpkgs-ca>" if addressing == "ca" else "<nixpkgs>"
+verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} $(nix-instantiate '{nixpkgs_attr}' -A {packageToBuild})"
 output = verifier.succeed(verify_cmd)
 print(f"laut verify output:\n{output}")
 

@@ -26,19 +26,21 @@ let
   } // args;
   makeTestSet = {
     name,
+    addressing,             # "ca" | "ia"
     packageToBuild,
     fodScanPackage ? packageToBuild,
     isLarge ? false,
     isMemoryConstrained ? false
   }:
   let
+    fullName = "${name}-${addressing}";
     namef = name: part: "${name}-${part}${
       if isMemoryConstrained then "-mem-constrained" else ""
     }";
-    sign-test-name = namef name "sign";
-    verify-test-name = namef name "verify";
+    sign-test-name = namef fullName "sign";
+    verify-test-name = namef fullName "verify";
     common = fullArgs // {
-      inherit isMemoryConstrained packageToBuild fodScanPackage;
+      inherit isMemoryConstrained packageToBuild fodScanPackage addressing;
       needsExtraTime = isLarge;
     };
     sign-test = import ./test-template.nix ({
@@ -54,34 +56,52 @@ let
         binaryCacheData = "${sign-test}/cache";
       } // common);
   };
-  smallSet = makeTestSet {
-    name = "small";
-    packageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-    isLarge = false;
-    isMemoryConstrained = false;
-  };
-  smallSign = smallSet."small-sign";
   smallPackageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
-in
-  smallSet // (makeTestSet {
-    name = "large";
-    packageToBuild = [ "hello" ];
-    isLarge = true;
-    isMemoryConstrained = false;
-  }) // (makeTestSet {
-    name = "medium";
-    packageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+  mediumPackageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
+  largePackageToBuild = [ "hello" ];
+  smallCaSet = makeTestSet {
+    name = "small"; addressing = "ca";
+    packageToBuild = smallPackageToBuild;
+    isLarge = false; isMemoryConstrained = false;
+  };
+  smallIaSet = makeTestSet {
+    name = "small"; addressing = "ia";
+    packageToBuild = smallPackageToBuild;
+    isLarge = false; isMemoryConstrained = false;
+  };
+  mediumCaSet = makeTestSet {
+    name = "medium"; addressing = "ca";
+    packageToBuild = mediumPackageToBuild;
     # this is necessary because some FODs involved in the bootstrap
     # are easier to discover later in the bootstrap
     fodScanPackage = [ "hello" ];
-    isLarge = true;
-    isMemoryConstrained = false;
-  }) // {
+    isLarge = true; isMemoryConstrained = false;
+  };
+  mediumIaSet = makeTestSet {
+    name = "medium"; addressing = "ia";
+    packageToBuild = mediumPackageToBuild;
+    fodScanPackage = [ "hello" ];
+    isLarge = true; isMemoryConstrained = false;
+  };
+  largeCaSet = makeTestSet {
+    name = "large"; addressing = "ca";
+    packageToBuild = largePackageToBuild;
+    isLarge = true; isMemoryConstrained = false;
+  };
+  largeIaSet = makeTestSet {
+    name = "large"; addressing = "ia";
+    packageToBuild = largePackageToBuild;
+    isLarge = true; isMemoryConstrained = false;
+  };
+  smallCaSign = smallCaSet."small-ca-sign";
+in
+  smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // {
     # Exercises the hash-divergence debug probe end-to-end: reuses the
-    # small-sign cache (preimages on), tampers one trace's preimage with a
+    # small-ca-sign cache (preimages on), tampers one trace's preimage with a
     # known marker on the verifier, then runs `laut verify
     # --debug-preimage-corpus file://...` and asserts difft surfaces the
-    # marker. Single instance — the probe doesn't benefit from scale variants.
+    # marker. CA-only for now; an IA analog can come later alongside other
+    # out-of-scope IA followups.
     #
     # The verifierExtraConfig injects just-this-test-needs-it tooling:
     # difftastic for the structural diff, and a writePython3Bin-wrapped
@@ -89,8 +109,9 @@ in
     debug-probe = import ./test-template.nix (fullArgs // {
       testName = "debug-probe";
       testScriptFile = ./debug-probe-script.py;
-      binaryCacheData = "${smallSign}/cache";
+      binaryCacheData = "${smallCaSign}/cache";
       packageToBuild = smallPackageToBuild;
+      addressing = "ca";
       isMemoryConstrained = false;
       needsExtraTime = false;
       verifierExtraConfig = {
