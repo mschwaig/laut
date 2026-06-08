@@ -7,6 +7,7 @@
   cachePort ? 9000,
   cacheStoreUrl ? "http://cache:${builtins.toString cachePort}",
   packageToBuild,
+  addressing,
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
   needsExtraTime ? false,
@@ -48,6 +49,7 @@ let
         cachePort = ${builtins.toString cachePort}
         packageToBuild = "${packageToBuildStr}"
         cacheStoreUrl = "${cacheStoreUrl}"
+        addressing = "${addressing}"
         isMemoryConstrained = ${if isMemoryConstrained then "True" else "False"}
         builderA_pub = "${../testkeys/builderA_key.public}"
         builderB_pub = "${../testkeys/builderB_key.public}"

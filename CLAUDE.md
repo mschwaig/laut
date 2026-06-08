@@ -62,20 +62,24 @@ nix build .#laut .#laut-sign-only
 ```
 
 ### NixOS VM tests
-End-to-end integration tests (signer + verifier VMs):
+End-to-end integration tests (signer + verifier VMs). Tests come in
+`{small,medium,large} × {ca,ia}` flavors; the IA flavors exist as red
+baselines until IA support is wired up end-to-end.
 ```bash
-nix build .#checks.x86_64-linux.small-sign
-nix build .#checks.x86_64-linux.small-verify
+nix build .#checks.x86_64-linux.small-ca-sign
+nix build .#checks.x86_64-linux.small-ca-verify
+nix build .#checks.x86_64-linux.small-ia-sign
+nix build .#checks.x86_64-linux.small-ia-verify
 nix build .#checks.x86_64-linux.debug-probe
 ```
 
 The `debug-probe` test exercises `laut verify --debug-preimage-corpus` by
 tampering one trace's signed preimage and asserting the structural diff
-surfaces the marker.
+surfaces the marker. CA-only.
 
 Run interactively:
 ```bash
-nix build .#checks.x86_64-linux.small-sign.driverInteractive
+nix build .#checks.x86_64-linux.small-ca-sign.driverInteractive
 ./result/bin/nixos-test-driver
 # then: test_script()
 ```

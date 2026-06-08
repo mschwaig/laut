@@ -30,10 +30,12 @@ def boot_and_configure(builder):
 
   builder.wait_for_unit("default.target")
 
+nixpkgs_attr = "<nixpkgs-ca>" if addressing == "ca" else "<nixpkgs>"
+
 @run_in_background
 def build_and_upload(builder):
   # builder.succeed("nix build --expr 'derivation { name = \"test\"; builder = \"/bin/sh\"; args = [ \"-c\" \"echo $RANDOM > $out\" ]; system = \"x86_64-linux\"; __contentAddressed = true; }' --secret-key-files \"/etc/nix/private-key\" --no-link --print-out-paths")
-  builder.succeed(f"nix build -f '<nixpkgs-ca>' {packageToBuild} --secret-key-files \"/etc/nix/private-key\" -L")
+  builder.succeed(f"nix build -f '{nixpkgs_attr}' {packageToBuild} --secret-key-files \"/etc/nix/private-key\" -L")
 
 if isMemoryConstrained:
   future = boot_and_configure(builderA)
