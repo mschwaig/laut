@@ -1492,7 +1492,7 @@ dependencies = [
 [[package]]
 name = "laut-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1500,6 +1500,7 @@ dependencies = [
  "data-encoding",
  "nix-compat",
  "prost",
+ "sha2",
  "snix-castore",
  "snix-store",
  "thiserror 2.0.9",
@@ -1770,7 +1771,7 @@ dependencies = [
 [[package]]
 name = "nix-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
 dependencies = [
  "bitflags 2.6.0",
  "blake3",
@@ -1802,7 +1803,7 @@ dependencies = [
 [[package]]
 name = "nix-compat-derive"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2914,7 +2915,7 @@ dependencies = [
 [[package]]
 name = "snix-castore"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -2968,7 +2969,7 @@ dependencies = [
 [[package]]
 name = "snix-store"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -3024,7 +3025,7 @@ dependencies = [
 [[package]]
 name = "snix-tracing"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#21e90c2dae1827bb98963279d020b3009e032a21"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
 dependencies = [
  "http",
  "indicatif",

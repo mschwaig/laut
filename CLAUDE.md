@@ -192,13 +192,14 @@ the orchestrator's resolution combinatorics, run
 
 ### Bumping snix
 1. Push the new commit to `mschwaig/snix` (branch `fanfic`).
-2. Update `rev` in `nix/laut.nix` to the new hash. `snix-hash` stays the
-   same (it's a content hash of the fetchgit output).
+2. Update `rev` in `nix/laut.nix` to the new hash.
 3. Run `cargo update -p laut-compat` to refresh the `source =` line in
    `Cargo.lock` to the new rev.
-4. `nix build .#laut .#laut-sign-only` will fail with a hash mismatch on
-   `laut-compat-0.1.0`; copy the `got:` hash into `outputHashes` in
-   `nix/laut.nix` and rebuild.
+4. `nix build .#laut .#laut-sign-only` will fail with a hash mismatch — first
+   on the snix `fetchgit` (`snix-hash`) since the tree changed, and then on
+   the cargo `laut-compat-0.1.0` `outputHashes` entry (which reuses
+   `snix-hash`). Copy the `got:` hash into `snix-hash` and rebuild; the
+   cargo entry inherits it.
 
 ## File structure
 
