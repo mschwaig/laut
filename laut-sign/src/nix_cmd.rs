@@ -91,3 +91,19 @@ pub fn output_hash_from_disk(out_path: &str) -> Result<String, Error> {
     )?;
     Ok(raw.trim().to_owned())
 }
+
+/// `nix-store --query --references <path>` — returns the direct runtime
+/// references of the given store path, one per line.
+///
+/// Used by the IA closure walker (`sign/ia_closure.rs`) to discover deps to
+/// recurse into. We trust Nix's reference scan here — see the design notes in
+/// the CLAUDE.md "scanning" discussion: the verifier independently re-scans on
+/// its side and a mismatch is treated as a verification failure.
+pub fn query_references(path: &str) -> Result<Vec<String>, Error> {
+    let raw = run_utf8(
+        "nix-store",
+        &["--query", "--references", path],
+        "nix-store --query --references",
+    )?;
+    Ok(raw.lines().filter(|s| !s.is_empty()).map(String::from).collect())
+}

@@ -33,6 +33,7 @@ pub fn create_trace_signature(
     builder_nix_version: Option<&str>,
     key_name: &str,
     signing_key: &SigningKey,
+    from_ia: bool,
 ) -> Result<String, Error> {
     let public = signing_key.verifying_key().to_bytes();
     let thumbprint = ed25519_thumbprint(&public)?;
@@ -41,7 +42,7 @@ pub fn create_trace_signature(
         "type": "laut",
         "alg": "EdDSA",
         "crv": "Ed25519",
-        "v": "2",
+        "v": "3",
         "kid": format!("{}:{}", key_name, &thumbprint[..16]),
         "detachHash": "nix-ca-path",
     });
@@ -53,6 +54,13 @@ pub fn create_trace_signature(
     // For now `rdrv_aterm_ca` is the best we have without defining a
     // competing format.
     in_obj.insert("rdrv_aterm_ca".into(), Value::String(input_hash.to_owned()));
+    // When set, the signer started from an input-addressed derivation and
+    // the rest of the payload describes the synthetic CA-equivalent form
+    // (pretend-it's-CA). Verifiers refuse to mix IA and CA evidence — same
+    // input_hash, different regimes are still distinct signatures.
+    if from_ia {
+        in_obj.insert("from_ia".into(), Value::Bool(true));
+    }
     if let Some(debug) = debug_data {
         in_obj.insert("debug".into(), debug.clone());
     }
@@ -136,6 +144,7 @@ mod tests {
             Some("2.91.1"),
             "builderA",
             &signing_key,
+            false,
         )
         .unwrap();
 
@@ -143,7 +152,10 @@ mod tests {
 
         // Header is the expected shape, kid carries the truncated thumbprint.
         assert_eq!(header["alg"], "EdDSA");
+        assert_eq!(header["v"], "3");
         assert_eq!(header["type"], "laut");
+        // from_ia omitted entirely when false to keep CA payloads stable.
+        assert!(payload["in"].get("from_ia").is_none());
         let kid = header["kid"].as_str().unwrap();
         let (name, head) = kid.split_once(':').unwrap();
         assert_eq!(name, "builderA");
@@ -186,11 +198,34 @@ mod tests {
             None,
             "k",
             &signing_key,
+            false,
         )
         .unwrap();
         let (_, payload, _) = split_jws(&jws);
         assert_eq!(payload["in"]["debug"], debug);
         assert!(payload["builder"].get("nix_flavor").is_none());
         assert!(payload["builder"].get("nix_version").is_none());
+    }
+
+    #[test]
+    fn from_ia_flag_marks_payload() {
+        let signing_key = SigningKey::from_bytes(&[5u8; 32]);
+        let jws = create_trace_signature(
+            "ia-input-hash",
+            None,
+            &json!({}),
+            &json!({}),
+            0,
+            None,
+            None,
+            "k",
+            &signing_key,
+            true,
+        )
+        .unwrap();
+        let (header, payload, _) = split_jws(&jws);
+        assert_eq!(header["v"], "3");
+        assert_eq!(payload["in"]["from_ia"], true);
+        assert_eq!(payload["in"]["rdrv_aterm_ca"], "ia-input-hash");
     }
 }
