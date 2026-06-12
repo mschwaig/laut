@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use laut_sign::drv_json::DrvJson;
+use laut_sign::drv_json::{self, DrvJson};
 use laut_sign::{store_path, thumbprint};
 
 use crate::backend::{self, Backend};
@@ -43,10 +43,18 @@ pub enum Error {
         "input referenced output {output_name:?} not declared on input derivation {drv_path:?}"
     )]
     UnknownReferencedOutput { drv_path: String, output_name: String },
-    #[error("cannot handle IA derivations yet")]
-    InputAddressedNotAllowed,
+    #[error(
+        "mixed-regime tree: root is {root_regime:?} but {drv_path:?} is {found_regime:?}"
+    )]
+    MixedRegime {
+        root_regime: Regime,
+        found_regime: Regime,
+        drv_path: String,
+    },
     #[error("FOD {drv_path:?} is missing 'out' output path")]
     FodMissingOut { drv_path: String },
+    #[error("ia closure: {0}")]
+    IaClosure(#[from] laut_sign::ia_closure::Error),
     #[error("constructive trace: {0}")]
     ConstructiveTrace(String),
     #[error("store path: {0}")]
@@ -59,13 +67,23 @@ pub enum Error {
     TrustModel(String),
 }
 
+/// Addressing regime of the verification target.
+///
+/// Inferred from the root drv at orchestrator construction. The whole tree is
+/// expected to share the regime; cross-regime mixing is rejected as a
+/// `MixedRegime` error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Regime {
+    Ca,
+    Ia,
+}
+
 /// Configuration knobs from the verify CLI surface.
 pub struct Config {
     pub root_drv_path: String,
     pub cache_urls: Vec<String>,
     /// `(key_name, raw_32_byte_public_key)` for each trusted key.
     pub trusted_keys: Vec<(String, Vec<u8>)>,
-    pub allow_ia: bool,
     /// Defaults to a `NullProbe`; the verify CLI swaps in a `DifftProbe` when
     /// `--debug-preimage-corpus` is set.
     pub debug_probe: Box<dyn DebugProbe>,
@@ -77,7 +95,6 @@ impl Default for Config {
             root_drv_path: String::new(),
             cache_urls: Vec::new(),
             trusted_keys: Vec::new(),
-            allow_ia: false,
             debug_probe: Box::new(NullProbe),
         }
     }
@@ -88,7 +105,7 @@ pub struct Orchestrator<B: Backend> {
     cache_urls: Vec<String>,
     /// `(kid, raw_key)` for verification + reasoner; `kid` is `name:thumbprint16`.
     trusted_keys: Vec<(String, Vec<u8>)>,
-    allow_ia: bool,
+    pub(crate) regime: Regime,
     debug_probe: Box<dyn DebugProbe>,
 
     derivations: HashMap<String, DrvJson>,
@@ -105,6 +122,11 @@ pub struct Orchestrator<B: Backend> {
     /// `input_hash -> fetched-and-verified (payload, kid)` pairs. Caches a
     /// network + crypto cost across resolution combinations.
     sig_memo: HashMap<String, Vec<(Value, String)>>,
+    /// IA closure walker shared across the whole verify run; pass-1 + pass-2
+    /// results memoize by IA store path so a path scanned for one udrv's
+    /// resolution does not get scanned again for another's. CA runs leave
+    /// this `None`.
+    pub(crate) walker: Option<laut_sign::ia_closure::Walker>,
 }
 
 impl<B: Backend> Orchestrator<B> {
@@ -128,6 +150,15 @@ impl<B: Backend> Orchestrator<B> {
         let recursive_json = backend.derivation_show_recursive(&cfg.root_drv_path)?;
         let derivations: HashMap<String, DrvJson> = serde_json::from_str(&recursive_json)?;
 
+        // Auto-detect the addressing regime from the root drv. Mixed-regime
+        // trees are rejected (caught later in tree.rs) — by design, IA and
+        // CA are kept separated for now (per the design notes).
+        let root_drv = derivations
+            .get(&cfg.root_drv_path)
+            .ok_or_else(|| Error::DerivationNotFound(cfg.root_drv_path.clone()))?;
+        let (_is_fod, is_ca) = drv_json::classify(&root_drv.outputs);
+        let regime = if is_ca { Regime::Ca } else { Regime::Ia };
+
         let mut interner = StringInterner::new();
         let key_ids: Vec<KeyId> = kid_keys.iter().map(|(k, _)| interner.key(k)).collect();
         let threshold = key_ids.len();
@@ -142,7 +173,7 @@ impl<B: Backend> Orchestrator<B> {
             backend,
             cache_urls: cfg.cache_urls,
             trusted_keys: kid_keys,
-            allow_ia: cfg.allow_ia,
+            regime,
             debug_probe: cfg.debug_probe,
             derivations,
             interner,
@@ -152,6 +183,11 @@ impl<B: Backend> Orchestrator<B> {
             tree_memo: HashMap::new(),
             resolutions_memo: HashMap::new(),
             sig_memo: HashMap::new(),
+            walker: if matches!(regime, Regime::Ia) {
+                Some(laut_sign::ia_closure::Walker::new())
+            } else {
+                None
+            },
         })
     }
 

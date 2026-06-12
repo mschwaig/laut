@@ -10,7 +10,7 @@ use crate::debug::LocalWitness;
 use crate::string_interner::{ContentHash, OutputName, UDrv};
 use crate::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation, UnresolvedOutput};
 
-use super::{Error, Orchestrator};
+use super::{Error, Orchestrator, Regime};
 
 impl<B: Backend> Orchestrator<B> {
     pub(super) fn collect_resolutions(
@@ -85,6 +85,23 @@ impl<B: Backend> Orchestrator<B> {
                 continue;
             }
             for (payload, kid) in signatures {
+                // Regime filter: IA verifier rejects CA-shaped traces (no
+                // `from_ia`); CA verifier rejects IA-shaped ones. Cross-regime
+                // mixing is deliberately not supported yet — see the design
+                // notes and the followup TODO around bit-equivalence testing.
+                let signed_from_ia = payload
+                    .get("in")
+                    .and_then(|v| v.get("from_ia"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let regime_match = match self.regime {
+                    Regime::Ca => !signed_from_ia,
+                    Regime::Ia => signed_from_ia,
+                };
+                if !regime_match {
+                    continue;
+                }
+
                 let nix_outputs = payload
                     .get("out")
                     .and_then(|v| v.get("nix"))
@@ -107,6 +124,26 @@ impl<B: Backend> Orchestrator<B> {
                         consistent = false;
                         break;
                     };
+                    // IA: the trace's `path` is a synthetic CA path. We
+                    // independently recomputed our own value during the
+                    // walker pass for compute_resolved above; reject the
+                    // claim if it disagrees with our local recomputation.
+                    if matches!(self.regime, Regime::Ia) {
+                        let walker = self
+                            .walker
+                            .as_ref()
+                            .expect("IA orchestrator runs with a walker");
+                        let local = walker.lookup(&udrv_output.unresolved_path).ok_or_else(
+                            || Error::ConstructiveTrace(format!(
+                                "walker has no entry for local output {}",
+                                udrv_output.unresolved_path
+                            )),
+                        )?;
+                        if local.to_absolute_path() != path {
+                            consistent = false;
+                            break;
+                        }
+                    }
                     outputs.insert(udrv_output.clone(), path.to_owned());
                 }
                 if !consistent {

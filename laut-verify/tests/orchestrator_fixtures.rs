@@ -91,7 +91,6 @@ fn trusted_keys() -> Vec<(String, Vec<u8>)> {
 fn make_orchestrator(
     backend: InMemoryBackend,
     root: &str,
-    allow_ia: bool,
 ) -> Result<Orchestrator<InMemoryBackend>, Error> {
     Orchestrator::new(
         backend,
@@ -99,7 +98,6 @@ fn make_orchestrator(
             root_drv_path: root.to_owned(),
             cache_urls: vec!["http://mock".to_owned()],
             trusted_keys: trusted_keys(),
-            allow_ia,
             ..Default::default()
         },
     )
@@ -108,33 +106,17 @@ fn make_orchestrator(
 // ---------------- build_unresolved_tree equivalents ----------------
 
 #[test]
-fn ia_drv_tree_rejected_when_allow_ia_false() {
-    let result = make_orchestrator(
-        ia_backend(),
-        "/nix/store/g32gjgcrxi4n753jkl9c3xwqpz4vjnvz-bootstrap-stage1-stdenv-linux.drv",
-        false,
-    )
-    .and_then(|mut o| o.verify());
-    assert!(
-        matches!(result, Err(Error::InputAddressedNotAllowed)),
-        "expected InputAddressedNotAllowed, got {:?}",
-        result
-    );
-}
-
-#[test]
-fn ia_drv_tree_accepted_when_allow_ia_true() {
-    // Just confirm tree-walking doesn't error; ATerm fixtures aren't present
-    // for the IA tree so we expect a backend error once `compute_resolved`
-    // tries to look one up. The Python test only checked that
-    // `build_unresolved_tree` returned without raising.
+fn ia_drv_tree_walks_in_ia_mode() {
+    // With auto-detected regime, the orchestrator handles an IA root drv
+    // directly. ATerm fixtures aren't present for the IA tree so we expect
+    // a backend error once `compute_resolved` tries to look one up; the
+    // tree walk itself shouldn't fail.
     let mut orch = make_orchestrator(
         ia_backend(),
         "/nix/store/g32gjgcrxi4n753jkl9c3xwqpz4vjnvz-bootstrap-stage1-stdenv-linux.drv",
-        true,
     )
     .expect("orchestrator construction");
-    let _ = orch.verify(); // tree walk itself shouldn't fail; downstream is OK to surface a backend error
+    let _ = orch.verify();
 }
 
 #[test]
@@ -142,7 +124,6 @@ fn ca_drv_tree_small_builds() {
     let mut orch = make_orchestrator(
         ca_backend(),
         "/nix/store/6a4wpppqvmf5dwr49gfm3hrxhd58hg0w-bootstrap-stage0-binutils-wrapper-.drv",
-        false,
     )
     .expect("orchestrator construction");
     // Verification may not succeed for every fixture; we only need the
@@ -155,7 +136,6 @@ fn ca_drv_tree_large_builds() {
     let mut orch = make_orchestrator(
         ca_backend(),
         "/nix/store/yvixdlqwq3l5ikd0b5c3f39pxmfynwhl-hello-2.12.1.drv",
-        false,
     )
     .expect("orchestrator construction");
     let _ = orch.verify();
@@ -168,7 +148,6 @@ fn verify_ca_drv_small_returns_one_resolution() {
     let mut orch = make_orchestrator(
         ca_backend(),
         "/nix/store/cjpxbf5h30808h53lckfyvzacsvfs08q-bootstrap-stage1-stdenv-linux.drv",
-        false,
     )
     .expect("orchestrator construction");
     let verified = orch.verify().expect("verify");
@@ -180,7 +159,6 @@ fn verify_ca_drv_large_returns_one_resolution() {
     let mut orch = make_orchestrator(
         ca_backend(),
         "/nix/store/yvixdlqwq3l5ikd0b5c3f39pxmfynwhl-hello-2.12.1.drv",
-        false,
     )
     .expect("orchestrator construction");
     let verified = orch.verify().expect("verify");
