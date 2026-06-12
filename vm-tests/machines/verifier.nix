@@ -1,10 +1,9 @@
 {
   system,
   laut,
-  nixpkgs,
-  nixpkgs-for-ca,
+  pkgs,
+  nixpkgs-under-test,
   lib,
-  pkgsIA,
   verifierExtraConfig,
   ...
 }:
@@ -22,19 +21,22 @@
       virtualisation.mountHostNixStore = false;
 
       nix = {
-        package = pkgsIA.lix;
+        package = pkgs.lix;
         checkConfig = false;
         nixPath = [
-          "nixpkgs=${nixpkgs}"
+          # Same shape as the builder's: both `<nixpkgs>` and `<nixpkgs-ca>`
+          # point at the pinned under-test source so the verifier instantiates
+          # the same drv tree the builder signed.
+          "nixpkgs=${nixpkgs-under-test}"
           "nixpkgs-ca=${
-            pkgsIA.writeTextFile {
+            pkgs.writeTextFile {
               name = "nixpkgs-ca";
               destination = "/default.nix";
               text =
               ''
                 { ... }@args:
                 let
-                  pkgs = import ${nixpkgs-for-ca} (args // {
+                  pkgs = import ${nixpkgs-under-test} (args // {
                     config = args.config or { } // {
                       contentAddressedByDefault = true;
                     };
@@ -54,9 +56,9 @@
         '';
       };
 
-      environment.systemPackages = with pkgsIA; [
-        lix
-        git
+      environment.systemPackages = [
+        pkgs.lix
+        pkgs.git
         laut
       ];
     };

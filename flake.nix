@@ -2,12 +2,18 @@
   description = "Verifiable SBOM VM Tests";
 
   inputs = {
+    # `nixpkgs` is the infra Nix evaluator: it builds laut, qemu, and the
+    # writers/wrappers the VM tests need. Rolling on purpose — the infra
+    # doesn't need to be pinned and we want it tracking upstream.
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixpkgs-for-ca.url = "github:nixos/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e";
+    # `nixpkgs-under-test` is the package set whose builds we sign and verify.
+    # Pinned so the same drv hashes show up across runs and across the
+    # IA/CA modes (which derive both from this same input).
+    nixpkgs-under-test.url = "github:nixos/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e";
     bombon.url = "github:nikstur/bombon";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-for-ca, bombon }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-under-test, bombon }@inputs:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -41,8 +47,7 @@
 
 
       checks.${system} = (import ./vm-tests {
-          pkgsIA = pkgs;
-          inherit nixpkgs nixpkgs-for-ca;
+          inherit pkgs nixpkgs-under-test;
           inherit (scope) laut;
         });
 

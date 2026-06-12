@@ -1,6 +1,6 @@
 {
   system,
-  nixpkgs,
+  pkgs,
   lib,
   pkgsIA,
   testName,
@@ -20,7 +20,11 @@ let
   fullArgs = {
     inherit cacheStoreUrl cachePort verifierExtraConfig;
   } // args;
-  testLib =  import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; };
+  # `pkgs` is the infra Nix evaluator (rolling). We use its nixpkgs path to
+  # locate the test-runner library, and its `nix` binary to drive the test
+  # itself from inside the VM (writers / wrappers also come from here in
+  # builder.nix and verifier.nix).
+  testLib = import (pkgs.path + "/nixos/lib/testing-python.nix") { inherit system; };
   packageToBuildStr = lib.concatStringsSep "." packageToBuild;
   test =  testLib.runTest ({
       name = "laut-${testName}";
@@ -28,16 +32,16 @@ let
       nodes = {
         cache = import ./machines/cache.nix (fullArgs);
 
-        builderA = import ./machines/builder.nix (fullArgs // { 
+        builderA = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderA_key.public;
           builderPrivateKey = ../testkeys/builderA_key.private;
-          nixPackage = pkgsIA.nix;
+          nixPackage = pkgs.nix;
         });
 
         builderB = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
-          nixPackage = pkgsIA.nix;
+          nixPackage = pkgs.nix;
         });
 
         verifier = import ./machines/verifier.nix (fullArgs);

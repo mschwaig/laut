@@ -1,8 +1,8 @@
 {
   system,
   laut-sign-only,
-  nixpkgs,
-  nixpkgs-for-ca,
+  pkgs,
+  nixpkgs-under-test,
   lib,
   pkgsIA,
   pkgsCA,
@@ -12,7 +12,7 @@
   builderPublicKey,
   builderPrivateKey,
   cacheStoreUrl,
-  nixPackage ? pkgsIA.nix,
+  nixPackage ? pkgs.nix,
   ...
 }:
 
@@ -20,13 +20,17 @@ let
   # Use infra built for collaboration with Software Heritage Foundation
   # to find fixed-output derivations via expression-level traversal.
   # This finds most FODs but misses some hidden behind passthru attributes.
-  nixpkgs-swh-patched = pkgsIA.applyPatches {
+  #
+  # Walk pkgsIA — pkgsIA and pkgsCA derive from the same pinned commit, so
+  # their FOD outputs agree (FODs are content-addressed by declared hash
+  # regardless of `contentAddressedByDefault`). Picking either is fine.
+  nixpkgs-swh-patched = pkgs.applyPatches {
     name = "patch-swh-find-tarballs";
     src = nixpkgs-swh;
     patches = [ ../../patches/nixpkgs-swh/0001-make-find-tarballs.nix-return-drvs-and-be-pure.patch ];
   };
   findTarballFods = import (nixpkgs-swh-patched + "/scripts/find-tarballs.nix");
-  autoDiscoveredFods = findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath fodScanPackage pkgsCA; };
+  autoDiscoveredFods = findTarballFods { pkgs = pkgsIA; expr = lib.getAttrFromPath fodScanPackage pkgsIA; };
 
   # FODs that find-tarballs never discovers (hidden in let-bindings
   # or behind inaccessible passthru paths).
@@ -67,16 +71,21 @@ in {
     # see https://jade.fyi/blog/pinning-nixos-with-npins/ for an explanation
     # and how to do something similar with flakes
     nixPath = [
-      "nixpkgs=${nixpkgs}"
+      # `<nixpkgs>` and `<nixpkgs-ca>` both resolve to the pinned
+      # nixpkgs-under-test source; the latter wraps it with
+      # `contentAddressedByDefault = true`. Same source = same FOD outputs,
+      # so find-tarballs.nix (walked over pkgsIA above) discovers the same
+      # things the in-VM build will request.
+      "nixpkgs=${nixpkgs-under-test}"
       "nixpkgs-ca=${
-        pkgsIA.writeTextFile {
+        pkgs.writeTextFile {
           name = "nixpkgs-ca";
           destination = "/default.nix";
           text =
           ''
             { ... }@args:
             let
-              pkgs = import ${nixpkgs-for-ca} (args // {
+              pkgs = import ${nixpkgs-under-test} (args // {
                 config = args.config or { } // {
                   contentAddressedByDefault = true;
                 };
@@ -96,7 +105,7 @@ in {
       '';
     settings = {
       trusted-substituters = [ ];
-      post-build-hook = pkgsIA.writeShellScript "copy-to-cache" ''
+      post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
         set -eux
         set -f # disable globbing
 
@@ -124,9 +133,9 @@ in {
       "nix/public-key".source = builderPublicKey;
       "nix/private-key".source = builderPrivateKey;
     };
-    systemPackages = with pkgsIA; [
+    systemPackages = [
       nixPackage
-      git
+      pkgs.git
       laut-sign-only
     ];
   };
