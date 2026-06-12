@@ -9,6 +9,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
+use laut_compat::content_hash::format_nar_hash;
+use nix_compat::nixhash::NixHash;
 use nix_compat::store_path::StorePath;
 use rand::RngCore;
 use serde_json::{Value, json};
@@ -18,11 +20,11 @@ use crate::content_hash;
 use crate::derivation;
 use crate::drv_json::{self, DrvJson};
 use crate::http_cache;
+use crate::ia_closure;
 use crate::keyfiles;
 use crate::nix_cmd;
 use crate::store_path;
 
-pub mod ia_closure;
 pub mod jws;
 pub mod nix_version;
 
@@ -194,9 +196,9 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
 /// CA-equivalent drv path via [`constructive_trace::compute_resolved_input_hash_ia`],
 /// and returns the trio the caller plugs into the JWS.
 ///
-/// `output_hashes_map[name].hash` is left as the on-disk IA NAR hash. TODO:
-/// when the verifier-side IA path lands (step 5), revisit whether `hash` should
-/// be recomputed over the rewritten content for symmetry with CA.
+/// `output_hashes_map[name].hash` is overwritten with the SHA256 NAR hash of
+/// the pass-2 rewritten content so the verifier can recompute and compare
+/// symmetrically — see `ia_closure::Walker::root_result`.
 fn sign_ia_outputs(
     cfg: &SignConfig,
     drv: &DrvJson,
@@ -208,10 +210,15 @@ fn sign_ia_outputs(
     let mut walker = ia_closure::Walker::new();
 
     // pass-1 + pass-2 for each requested output: synthetic CA path + castore
-    // Entry of the rewritten content. The walker memoizes closure nodes
-    // across roots.
-    let mut name_to_synthetic: HashMap<String, (String, StorePath<String>, String)> =
-        HashMap::new();
+    // Entry of the rewritten content + NAR hash. The walker memoizes closure
+    // nodes across roots.
+    struct Synthetic {
+        ia_path: String,
+        synthetic_ca: StorePath<String>,
+        castore_entry: String,
+        nar_hash: NixHash,
+    }
+    let mut name_to_synthetic: HashMap<String, Synthetic> = HashMap::new();
     for (name, entry) in output_hashes_map.iter() {
         let ia_path = entry
             .get("path")
@@ -222,7 +229,12 @@ fn sign_ia_outputs(
         let result = walker.root_result(ia_path)?;
         name_to_synthetic.insert(
             name.clone(),
-            (ia_path.to_owned(), result.synthetic_ca_path, result.castore_entry_base64),
+            Synthetic {
+                ia_path: ia_path.to_owned(),
+                synthetic_ca: result.synthetic_ca_path,
+                castore_entry: result.castore_entry_base64,
+                nar_hash: result.nar_hash,
+            },
         );
     }
 
@@ -238,20 +250,35 @@ fn sign_ia_outputs(
         let input_drv = input_drvs
             .get(input_drv_path)
             .ok_or_else(|| Error::DrvNotFound(input_drv_path.clone()))?;
+        let (input_is_fod, _) = drv_json::classify(&input_drv.outputs);
         for output_name in &input_drv_ref.outputs {
             let ia_path = input_drv
                 .outputs
                 .get(output_name)
                 .and_then(|o| o.path.clone())
                 .ok_or(Error::MissingField("input_drv outputs[name].path"))?;
-            let synthetic = walker.synthetic_ca_path(&ia_path)?;
-            substitutions.insert(ia_path, synthetic.to_absolute_path());
-            input_sources.push(synthetic);
+            // FOD outputs are already content-addressed by their declared
+            // hash — their `synthetic CA path` is just themselves. We must
+            // NOT walk them via pass-1 (which would derive a NAR-mode CA
+            // path that diverges from the FOD's actual flat/declared scheme).
+            // The verifier mirrors this in its FOD branch.
+            let synthetic_abs = if input_is_fod {
+                ia_path.clone()
+            } else {
+                walker.synthetic_ca_path(&ia_path)?.to_absolute_path()
+            };
+            let synthetic_sp = StorePath::<String>::from_absolute_path(synthetic_abs.as_bytes())
+                .map_err(|e| Error::StorePath(store_path::Error::Parse {
+                    path: synthetic_abs.clone(),
+                    source: e,
+                }))?;
+            substitutions.insert(ia_path, synthetic_abs);
+            input_sources.push(synthetic_sp);
         }
     }
 
-    for (_name, (ia_path, synthetic_ca, _)) in &name_to_synthetic {
-        substitutions.insert(ia_path.clone(), synthetic_ca.to_absolute_path());
+    for syn in name_to_synthetic.values() {
+        substitutions.insert(syn.ia_path.clone(), syn.synthetic_ca.to_absolute_path());
     }
 
     // Synthetic CA-equivalent drv path → cache key for this trace.
@@ -263,11 +290,13 @@ fn sign_ia_outputs(
     )?;
     let input_hash = store_path::extract_store_hash(&synthetic_drv_path)?;
 
-    // Swap `path` in payload.out.nix for the synthetic CA path so the verifier
-    // sees the pretend-CA shape. `hash` (IA NAR hash) stays for now — TODO.
+    // Swap `path` and `hash` in payload.out.nix for the synthetic CA path and
+    // the NAR hash of the rewritten content. The result has the "pretend-CA"
+    // shape end-to-end: the verifier reads these as the values it should
+    // independently recompute from its local store via the same closure walk.
     let mut castore_outputs = serde_json::Map::new();
     for (name, entry) in output_hashes_map.iter_mut() {
-        let (_, synthetic_ca, castore_entry) = name_to_synthetic
+        let syn = name_to_synthetic
             .get(name)
             .ok_or(Error::MissingField("ia synthetic for output"))?;
         let entry_obj = entry
@@ -275,9 +304,10 @@ fn sign_ia_outputs(
             .ok_or(Error::MissingField("outputs[name]"))?;
         entry_obj.insert(
             "path".into(),
-            Value::String(synthetic_ca.to_absolute_path()),
+            Value::String(syn.synthetic_ca.to_absolute_path()),
         );
-        castore_outputs.insert(name.clone(), Value::String(castore_entry.clone()));
+        entry_obj.insert("hash".into(), Value::String(format_nar_hash(&syn.nar_hash)));
+        castore_outputs.insert(name.clone(), Value::String(syn.castore_entry.clone()));
     }
 
     let debug_data = if cfg.include_preimage {

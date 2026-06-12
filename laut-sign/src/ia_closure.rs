@@ -14,8 +14,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use laut_compat::content_hash::{HashError, rewrite_to_ca_pass1, rewrite_to_ca_pass2};
+use laut_compat::content_hash::{
+    HashError, Pass2Result, rewrite_to_ca_pass1, rewrite_to_ca_pass2,
+};
 use nix_compat::nixbase32;
+use nix_compat::nixhash::NixHash;
 use nix_compat::store_path::StorePath;
 
 use crate::nix_cmd::{self, query_references};
@@ -38,11 +41,14 @@ impl From<HashError> for Error {
 }
 
 /// Output of [`Walker::root_result`] for one of the requested root output
-/// paths: the synthetic Nix CA store path and the rewritten-content castore
-/// Entry that goes into the JWS payload.
+/// paths: the synthetic Nix CA store path and pass-2 artifacts (castore
+/// Entry that goes into the JWS payload, NAR hash + size of the
+/// rewritten content for stamping `payload.out.nix[name].hash`).
 pub struct RootResult {
     pub synthetic_ca_path: StorePath<String>,
     pub castore_entry_base64: String,
+    pub nar_hash: NixHash,
+    pub nar_size: u64,
 }
 
 struct MemoEntry {
@@ -84,6 +90,10 @@ impl Walker {
     }
 
     fn compute_pass1(&mut self, path: &str) -> Result<StorePath<String>, Error> {
+        // TODO (sanity check): once `rewrite_to_ca_pass1`/`pass2` expose the
+        // matched-needles set, assert it equals `refs` exactly. A mismatch
+        // means our reference scanner disagrees with what Nix's path-info
+        // records — fatal at verify time (see step 5 design notes).
         let refs = query_references(path)?;
         let self_ia_hash = extract_store_hash(path)?;
 
@@ -134,10 +144,16 @@ impl Walker {
             rewrites.insert(ref_ia_hash, ref_ca_hash);
         }
 
-        let castore_entry_base64 = rewrite_to_ca_pass2(Path::new(out_path), &rewrites)?;
+        let Pass2Result {
+            castore_entry_base64,
+            nar_hash,
+            nar_size,
+        } = rewrite_to_ca_pass2(Path::new(out_path), &rewrites)?;
         Ok(RootResult {
             synthetic_ca_path,
             castore_entry_base64,
+            nar_hash,
+            nar_size,
         })
     }
 

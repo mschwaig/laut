@@ -1492,7 +1492,7 @@ dependencies = [
 [[package]]
 name = "laut-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#9e9813cd5b129cfcc698684f6299d9427649947a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1771,7 +1771,7 @@ dependencies = [
 [[package]]
 name = "nix-compat"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#9e9813cd5b129cfcc698684f6299d9427649947a"
 dependencies = [
  "bitflags 2.6.0",
  "blake3",
@@ -1803,7 +1803,7 @@ dependencies = [
 [[package]]
 name = "nix-compat-derive"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#9e9813cd5b129cfcc698684f6299d9427649947a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2915,7 +2915,7 @@ dependencies = [
 [[package]]
 name = "snix-castore"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#9e9813cd5b129cfcc698684f6299d9427649947a"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -2969,7 +2969,7 @@ dependencies = [
 [[package]]
 name = "snix-store"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#9e9813cd5b129cfcc698684f6299d9427649947a"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -3025,7 +3025,7 @@ dependencies = [
 [[package]]
 name = "snix-tracing"
 version = "0.1.0"
-source = "git+https://github.com/mschwaig/snix?branch=fanfic#d7fa93ac5d1d7b9ea15ea9af25a89a095c349fb9"
+source = "git+https://github.com/mschwaig/snix?branch=fanfic#9e9813cd5b129cfcc698684f6299d9427649947a"
 dependencies = [
  "http",
  "indicatif",
