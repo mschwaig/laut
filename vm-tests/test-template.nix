@@ -29,25 +29,29 @@ let
   test =  testLib.runTest ({
       name = "laut-${testName}";
 
+      # Sign runs build cache + builders only; verify runs build cache +
+      # verifier only. Discriminating on `binaryCacheData` (empty for sign,
+      # set for verify) keeps the two nodes sets disjoint so a change in
+      # verifier.nix doesn't invalidate the sign-test drv hash (and vice
+      # versa). Verify still transitively depends on sign through
+      # `${binaryCacheData}`, so builder-side changes still rebuild verify
+      # — just via the cache derivation, not via eager module evaluation.
       nodes = {
         cache = import ./machines/cache.nix (fullArgs);
-
+      } // (if binaryCacheData == "" then {
         builderA = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderA_key.public;
           builderPrivateKey = ../testkeys/builderA_key.private;
           nixPackage = pkgs.nix;
         });
-
         builderB = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
           nixPackage = pkgs.nix;
         });
-
+      } else {
         verifier = import ./machines/verifier.nix (fullArgs);
-
-        # TODO: add nixpkgs-mirror;
-    };
+      });
 
     testScript = ''
         cachePort = ${builtins.toString cachePort}

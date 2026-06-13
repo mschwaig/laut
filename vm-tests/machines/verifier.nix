@@ -21,7 +21,12 @@
       virtualisation.mountHostNixStore = false;
 
       nix = {
-        package = pkgs.lix;
+        # Match the builder: both sides instantiate the under-test drv tree
+        # via the same Nix implementation. Lix and CppNix can disagree on
+        # the resulting drv hashes deep in a large tree (different bytecode
+        # / hashing edge cases), which leaves the verifier asking the cache
+        # for paths the builder never produced.
+        package = pkgs.nix;
         checkConfig = false;
         nixPath = [
           # Same shape as the builder's: both `<nixpkgs>` and `<nixpkgs-ca>`
@@ -57,7 +62,7 @@
       };
 
       environment.systemPackages = [
-        pkgs.lix
+        pkgs.nix
         pkgs.git
         laut
       ];
