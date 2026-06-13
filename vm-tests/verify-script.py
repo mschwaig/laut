@@ -1,9 +1,6 @@
-import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 from functools import wraps
-
-# `json` is already in scope from the NixOS test driver's preamble.
 
 executor = ThreadPoolExecutor(max_workers=5)
 
@@ -40,40 +37,15 @@ drv_path = verifier.succeed(f"nix-instantiate '{nixpkgs_attr}' -A {packageToBuil
 
 # IA verification recomputes synthetic CA paths from local output bytes
 # (the closure walker scans content), so we need the runtime closure of
-# the outputs locally. Read the output paths off the LOCAL drv file
-# (never asking the cache for drv files) and copy only the outputs from
-# the cache — those carry Nix's narinfo signatures the substituter
-# verifies on its own. CA verification operates purely on signed claims
-# and needs no content.
+# the root output(s) locally. The walker recurses by following
+# `nix-store -q --references`, naturally covering every non-FOD store
+# path in the transitive runtime closure.
+#
+# Building the attr (not the bare drv path) makes Nix compute the full
+# build plan including transitive deps; building the bare drv path only
+# realises that drv's direct outputs, not the runtime closure.
 if addressing == "ia":
-    # The verifier walks every udrv in the drv tree (not just the root), and
-    # build_ia_substitution invokes the closure walker on each udrv's outputs.
-    # That means we need every non-FOD output's runtime closure locally, not
-    # just the root's. Pull the recursive drv show, harvest every output path
-    # whose drv has populated paths (i.e. IA outputs — FOD outputs we resolve
-    # by declared hash and don't need locally), and `nix copy` them. Runtime
-    # closure follows transitively per copied path.
-    drv_json = json.loads(
-        verifier.succeed(f"nix derivation show --recursive {drv_path}")
-    )
-    out_paths = []
-    for entry in drv_json.values():
-        for out in entry["outputs"].values():
-            path = out.get("path")
-            if path is None:
-                continue
-            # Skip FOD outputs (anything with a declared hash). The verifier's
-            # IA pipeline resolves FODs via their declared path/hash without
-            # calling the closure walker, so we don't need them locally — and
-            # the post-build cache doesn't carry them anyway.
-            if out.get("hash") is not None or out.get("hashAlgo") is not None:
-                continue
-            out_paths.append(path)
-    verifier.succeed(
-        "nix copy --no-check-sigs --from \"{}\" {}".format(
-            cacheStoreUrl, " ".join(out_paths)
-        )
-    )
+    verifier.succeed(f"nix build nixpkgs#{packageToBuild} --substitute --no-link")
 
 verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} {drv_path}"
 output = verifier.succeed(verify_cmd)

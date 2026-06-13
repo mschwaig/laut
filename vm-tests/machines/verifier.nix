@@ -5,6 +5,7 @@
   nixpkgs-under-test,
   lib,
   verifierExtraConfig,
+  cacheStoreUrl,
   ...
 }:
 # `imports` rather than `lib.recursiveUpdate` so list-typed options like
@@ -28,6 +29,15 @@
         # for paths the builder never produced.
         package = pkgs.nix;
         checkConfig = false;
+        settings = {
+          # The verifier only substitutes from the sign cache — it must
+          # never build anything locally. A local build would produce
+          # output paths the cache doesn't know about and with signatures
+          # the verifier can't match.
+          max-jobs = 0;
+          substituters = [ cacheStoreUrl ];
+          trusted-substituters = [ cacheStoreUrl ];
+        };
         nixPath = [
           # Same shape as the builder's: both `<nixpkgs>` and `<nixpkgs-ca>`
           # point at the pinned under-test source so the verifier instantiates
@@ -59,6 +69,7 @@
           experimental-features = nix-command flakes ca-derivations
           flake-registry = ${emptyRegistry}
         '';
+        registry.nixpkgs.flake = nixpkgs-under-test;
       };
 
       environment.systemPackages = [
