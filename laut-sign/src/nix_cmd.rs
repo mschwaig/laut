@@ -107,3 +107,23 @@ pub fn query_references(path: &str) -> Result<Vec<String>, Error> {
     )?;
     Ok(raw.lines().filter(|s| !s.is_empty()).map(String::from).collect())
 }
+
+/// `nix copy --no-check-sigs --from <url> <path>` — registers an unregistered
+/// store path by copying its narinfo/nar from a binary cache. Used by the IA
+/// closure walker to auto-register paths that exist on disk but not in the
+/// Nix DB (e.g. from a VM store image).
+pub fn copy_from_cache(cache_url: &str, path: &str) -> Result<(), Error> {
+    let _ = run(
+        "nix",
+        &[
+            "--extra-experimental-features",
+            "nix-command",
+            "copy",
+            "--no-check-sigs",
+            "--from",
+            cache_url,
+            path,
+        ],
+    )?;
+    Ok(())
+}

@@ -37,6 +37,11 @@
           max-jobs = 0;
           substituters = [ cacheStoreUrl ];
           trusted-substituters = [ cacheStoreUrl ];
+          # The sign cache's narinfos are signed with the builders'
+          # private keys, which we don't have here (and don't need —
+          # laut's trust model is the authority, not Nix's narinfo
+          # signatures).
+          require-sigs = false;
         };
         nixPath = [
           # Same shape as the builder's: both `<nixpkgs>` and `<nixpkgs-ca>`

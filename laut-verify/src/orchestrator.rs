@@ -169,6 +169,24 @@ impl<B: Backend> Orchestrator<B> {
         trust_model.validate().map_err(Error::TrustModel)?;
         let expected_root = interner.udrv(&cfg.root_drv_path);
 
+        let walker = if matches!(regime, Regime::Ia) {
+            let mut w = laut_sign::ia_closure::Walker::new();
+            for drv in derivations.values() {
+                let (is_fod, _) = drv_json::classify(&drv.outputs);
+                if is_fod {
+                    for output in drv.outputs.values() {
+                        if let Some(ref path) = output.path {
+                            w.register_fod(path.clone());
+                        }
+                    }
+                }
+            }
+            w.set_cache_urls(cfg.cache_urls.clone());
+            Some(w)
+        } else {
+            None
+        };
+
         Ok(Self {
             backend,
             cache_urls: cfg.cache_urls,
@@ -183,11 +201,7 @@ impl<B: Backend> Orchestrator<B> {
             tree_memo: HashMap::new(),
             resolutions_memo: HashMap::new(),
             sig_memo: HashMap::new(),
-            walker: if matches!(regime, Regime::Ia) {
-                Some(laut_sign::ia_closure::Walker::new())
-            } else {
-                None
-            },
+            walker,
         })
     }
 

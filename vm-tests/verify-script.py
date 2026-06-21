@@ -41,11 +41,13 @@ drv_path = verifier.succeed(f"nix-instantiate '{nixpkgs_attr}' -A {packageToBuil
 # `nix-store -q --references`, naturally covering every non-FOD store
 # path in the transitive runtime closure.
 #
-# Building the attr (not the bare drv path) makes Nix compute the full
-# build plan including transitive deps; building the bare drv path only
-# realises that drv's direct outputs, not the runtime closure.
+# Build from the same nixpkgs the signer uses (`-f '<nixpkgs>'`).  This
+# gives Nix the same derivation tree so it can substitute root outputs
+# from the cache.  Intermediate paths from the VM store image may exist
+# on disk without being registered in the Nix DB — the walker's
+# auto-registration path handles those on-demand via `nix copy`.
 if addressing == "ia":
-    verifier.succeed(f"nix build nixpkgs#{packageToBuild} --substitute --no-link")
+    verifier.succeed(f"nix build -f '{nixpkgs_attr}' {packageToBuild} --substitute --no-link")
 
 verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} {drv_path}"
 output = verifier.succeed(verify_cmd)
