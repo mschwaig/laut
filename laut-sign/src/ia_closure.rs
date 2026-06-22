@@ -82,12 +82,18 @@ impl Walker {
         }
     }
 
-    /// Set the cache URLs to use for auto-registration of paths that exist
-    /// on disk but aren't registered in the Nix DB. When `nix-store -q
-    /// --references` fails for such a path, the walker will try `nix copy
-    /// --no-check-sigs --from <url> <path>` to register it before retrying.
     pub fn set_cache_urls(&mut self, urls: Vec<String>) {
         self.cache_urls = urls;
+    }
+
+    /// Pre-populate the memo with a synthetic CA path for `ia_path`. Used
+    /// to register build-time-only dependency outputs from already-verified
+    /// trace data, so the walker doesn't try to scan paths that don't exist
+    /// on disk. The caller must have already verified the trace through the
+    /// trust model.
+    pub fn register_synthetic(&mut self, ia_path: &str, ca_path: StorePath<String>) {
+        self.memo
+            .insert(ia_path.to_owned(), MemoEntry { synthetic_ca_path: ca_path });
     }
 
     /// Register a FOD output path. FOD outputs are already content-addressed
@@ -138,12 +144,7 @@ impl Walker {
                     return Err(e.into());
                 }
                 for url in &self.cache_urls {
-                    if let Err(e2) = crate::nix_cmd::copy_from_cache(url, path) {
-                        eprintln!(
-                            "[laut] auto-register: nix copy {} from {} failed: {}",
-                            path, url, e2
-                        );
-                    }
+                    let _ = crate::nix_cmd::copy_from_cache(url, path);
                 }
                 query_references(path)?
             }

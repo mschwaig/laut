@@ -176,7 +176,12 @@ impl<B: Backend> Orchestrator<B> {
                 if is_fod {
                     for output in drv.outputs.values() {
                         if let Some(ref path) = output.path {
-                            w.register_fod(path.clone());
+                            let full = if path.starts_with("/nix/store/") {
+                                path.clone()
+                            } else {
+                                format!("/nix/store/{}", path)
+                            };
+                            w.register_fod(full);
                         }
                     }
                 }

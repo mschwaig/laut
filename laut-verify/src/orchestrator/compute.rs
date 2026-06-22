@@ -123,6 +123,16 @@ impl<B: Backend> Orchestrator<B> {
         let mut substitutions: HashMap<String, String> = HashMap::new();
         let mut input_sources: Vec<StorePath<String>> = Vec::new();
 
+        // Pre-populate the walker's memo with dependency IA→CA mappings from
+        // already-verified traces.  When the walker later processes this drv's
+        // own outputs and recurses into build-time-only deps (not in the
+        // runtime closure), those deps are already in the memo and won't need
+        // local scanning.
+        let walker = self
+            .walker
+            .as_mut()
+            .expect("IA branch requires the walker to be initialized");
+
         for (dep_drv_path, resolved_dep) in combo {
             let dep_drv = self.derivations.get(dep_drv_path).ok_or_else(|| {
                 Error::DerivationNotFound(dep_drv_path.clone())
@@ -136,13 +146,19 @@ impl<B: Backend> Orchestrator<B> {
                         drv_path: dep_drv_path.clone(),
                         output_name: unresolved_output.output_name.clone(),
                     })?;
-                substitutions.insert(ia_path, synthetic_ca_path.clone());
+                substitutions.insert(ia_path.clone(), synthetic_ca_path.clone());
                 let sp = StorePath::<String>::from_absolute_path(synthetic_ca_path.as_bytes())
                     .map_err(|e| Error::ConstructiveTrace(format!(
                         "synthetic CA path {} parse: {:?}",
                         synthetic_ca_path, e
                     )))?;
-                input_sources.push(sp);
+                input_sources.push(sp.clone());
+                let full_path = if ia_path.starts_with("/nix/store/") {
+                    ia_path.to_owned()
+                } else {
+                    format!("/nix/store/{}", ia_path)
+                };
+                walker.register_synthetic(&full_path, sp);
             }
         }
 
