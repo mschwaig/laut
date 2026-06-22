@@ -227,6 +227,25 @@ impl<B: Backend> Orchestrator<B> {
             .map(str::to_owned)
             .expect("expected_root interned at construction");
         let root_udrv = self.build_unresolved(&root_drv_path)?;
+
+        // In IA mode, walk the root's runtime closure before the resolution
+        // pipeline. The walker independently computes synthetic CA paths from
+        // on-disk content for all outputs in the runtime closure. These are
+        // compared against the signed paths during resolution as a consistency
+        // check.
+        if matches!(self.regime, Regime::Ia) && !root_udrv.is_fixed_output {
+            let walker = self
+                .walker
+                .as_mut()
+                .expect("IA regime requires a walker");
+            for udrv_output in root_udrv.outputs.values() {
+                let ia_path = &udrv_output.unresolved_path;
+                if std::path::Path::new(ia_path).exists() {
+                    walker.synthetic_ca_path(ia_path)?;
+                }
+            }
+        }
+
         let _ = self.collect_resolutions(&root_udrv)?;
 
         let candidates = collect_candidate_output_maps(&self.facts, self.expected_root);

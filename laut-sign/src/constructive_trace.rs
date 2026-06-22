@@ -9,7 +9,8 @@
 
 use std::collections::HashMap;
 
-use nix_compat::derivation::{calculate_derivation_path_from_aterm, Derivation};
+use nix_compat::derivation::{calculate_derivation_path_from_aterm, CAFloatingAlgo, Derivation};
+use nix_compat::nixhash::HashAlgo;
 use nix_compat::store_path::{self, StorePath};
 
 /// Map of unresolved input drv path -> output name -> resolved content-hash path.
@@ -113,20 +114,21 @@ pub fn compute_resolved_input_hash(
 }
 
 /// IA variant of [`compute_resolved_input_hash`]: take an input-addressed drv
-/// ATerm, replace its input-addressed store paths (input drvs' outputs and the
-/// drv's own outputs) with the supplied synthetic CA equivalents, clear
-/// `inputDrvs`, fold the input drv outputs into `inputSrcs`, and recompute the
-/// drv path.
+/// ATerm and transform it into the structural equivalent of an unresolved
+/// floating-CA derivation, so that the resulting drv path matches what a
+/// natively-CA analogue would produce.
 ///
-/// The CA pipeline (above) substitutes upstream hash-placeholders; IA inputs
-/// reference concrete IA paths instead, so callers pre-compute the
-/// IA→synthetic-CA mapping for every store path that appears in the ATerm
-/// (input drvs' outputs + this drv's own outputs) and pass it in
-/// `substitutions`.
-///
-/// `input_drv_outputs_synthetic_ca` is the set of synthetic CA paths that
-/// previously sat in `inputDrvs`; they get folded into `inputSrcs` so the
-/// resulting ATerm looks structurally identical to a CA-resolved drv.
+/// Concretely:
+///   - Each output's `path` is cleared and `ca_floating` is set to
+///     `r:sha256` (recursive SHA256), matching the NAR-mode CA that
+///     [`rewrite_to_ca_pass1`] derives.
+///   - `inputDrvs` is cleared; dep synthetic-CA paths are folded into
+///     `inputSrcs`.
+///   - After serialization, byte-level substitution replaces:
+///       * dep output IA paths → their synthetic CA paths (from `substitutions`)
+///       * own output IA paths → downstream placeholders (`hash_placeholder`)
+///     The caller must put own-output placeholder mappings into
+///     `substitutions` keyed by the IA path.
 pub fn compute_resolved_input_hash_ia(
     drv_name: &str,
     drv_aterm: &[u8],
@@ -136,14 +138,26 @@ pub fn compute_resolved_input_hash_ia(
     let mut drv = Derivation::from_aterm_bytes_unchecked(drv_aterm)
         .map_err(|e| Error::Parse(format!("{:?}", e)))?;
 
+    // Convert each output to a floating-CA shape: clear the concrete IA path
+    // and declare `r:sha256` so the serialized ATerm tuple becomes
+    // `("out","","r:sha256","")` — identical to a natively floating CA drv.
+    for output in drv.outputs.values_mut() {
+        output.path = None;
+        output.ca_hash = None;
+        output.ca_floating = Some(CAFloatingAlgo {
+            algo: HashAlgo::Sha256,
+            recursive: true,
+        });
+    }
+
     drv.input_derivations.clear();
     for sp in input_drv_outputs_synthetic_ca {
         drv.input_sources.insert(sp);
     }
 
     let mut aterm = drv.to_aterm_bytes();
-    for (ia_path, synthetic_ca_path) in substitutions {
-        aterm = replace_bytes(&aterm, ia_path.as_bytes(), synthetic_ca_path.as_bytes());
+    for (ia_path, replacement) in substitutions {
+        aterm = replace_bytes(&aterm, ia_path.as_bytes(), replacement.as_bytes());
     }
 
     let resolved_path = calculate_derivation_path_from_aterm(drv_name, &aterm)
@@ -176,9 +190,10 @@ fn replace_bytes(haystack: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> 
 mod tests {
     use super::*;
 
+    use nix_compat::store_path::hash_placeholder;
+
     // 32-char nixbase32-valid (alphabet excludes e, o, t, u).
     const SELF_IA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const SELF_CA: &str = "dddddddddddddddddddddddddddddddd";
     const INPUT_DRV: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     const INPUT_OUT_IA: &str = "cccccccccccccccccccccccccccccccc";
     const INPUT_OUT_CA: &str = "ffffffffffffffffffffffffffffffff";
@@ -202,14 +217,14 @@ mod tests {
     }
 
     #[test]
-    fn ia_substitutes_self_and_input_drv_output_paths() {
+    fn ia_converts_to_floating_ca_with_placeholders() {
         let aterm = synthetic_ia_aterm();
 
+        let self_placeholder = hash_placeholder("out");
         let mut subs: HashMap<String, String> = HashMap::new();
-        subs.insert(
-            format!("/nix/store/{}-self", SELF_IA),
-            format!("/nix/store/{}-self", SELF_CA),
-        );
+        // Own output → downstream placeholder (as CA nix does).
+        subs.insert(format!("/nix/store/{}-self", SELF_IA), self_placeholder.clone());
+        // Dep output → synthetic CA path.
         subs.insert(
             format!("/nix/store/{}-input-out", INPUT_OUT_IA),
             format!("/nix/store/{}-input-out", INPUT_OUT_CA),
@@ -227,29 +242,26 @@ mod tests {
                 .expect("substitution succeeds");
 
         assert!(drv_path.ends_with("-self.drv"));
-        // IA hashes are gone, synthetic CA hashes are in.
+        // IA hashes are gone.
         assert!(!new_aterm.contains(SELF_IA));
         assert!(!new_aterm.contains(INPUT_OUT_IA));
-        assert!(new_aterm.contains(SELF_CA));
+        // Own output path replaced by downstream placeholder.
+        assert!(new_aterm.contains(&self_placeholder));
+        // Dep output replaced by synthetic CA path.
         assert!(new_aterm.contains(INPUT_OUT_CA));
-        // inputDrvs cleared, the synthetic CA input source folded into inputSrcs.
-        // The serialized form for an empty inputDrvs is "[]".
-        assert!(new_aterm.contains(&format!(
-            "/nix/store/{}-input-out",
-            INPUT_OUT_CA
-        )));
+        // Output tuple has floating-CA shape: empty path, r:sha256.
+        assert!(new_aterm.contains(r#"("out","","r:sha256","")"#));
+        // inputDrvs cleared, synthetic CA folded into inputSrcs.
         assert!(!new_aterm.contains(&format!("/nix/store/{}-inp.drv", INPUT_DRV)));
     }
 
     #[test]
     fn ia_path_changes_when_input_synthetic_ca_changes() {
         let aterm = synthetic_ia_aterm();
+        let self_placeholder = hash_placeholder("out");
 
         let mut subs_a: HashMap<String, String> = HashMap::new();
-        subs_a.insert(
-            format!("/nix/store/{}-self", SELF_IA),
-            format!("/nix/store/{}-self", SELF_CA),
-        );
+        subs_a.insert(format!("/nix/store/{}-self", SELF_IA), self_placeholder.clone());
         subs_a.insert(
             format!("/nix/store/{}-input-out", INPUT_OUT_IA),
             format!("/nix/store/{}-input-out", INPUT_OUT_CA),
@@ -257,10 +269,7 @@ mod tests {
 
         let alt_input_ca = "11111111111111111111111111111111";
         let mut subs_b: HashMap<String, String> = HashMap::new();
-        subs_b.insert(
-            format!("/nix/store/{}-self", SELF_IA),
-            format!("/nix/store/{}-self", SELF_CA),
-        );
+        subs_b.insert(format!("/nix/store/{}-self", SELF_IA), self_placeholder.clone());
         subs_b.insert(
             format!("/nix/store/{}-input-out", INPUT_OUT_IA),
             format!("/nix/store/{}-input-out", alt_input_ca),
@@ -284,5 +293,43 @@ mod tests {
         let (drv_b, _) =
             compute_resolved_input_hash_ia("self", aterm.as_bytes(), input_b, &subs_b).unwrap();
         assert_ne!(drv_a, drv_b);
+    }
+
+    #[test]
+    fn ia_path_stable_when_only_self_changes() {
+        // The downstream placeholder is derived from the output name, not the
+        // IA hash. So two IA drvs with different IA hashes but the same name
+        // and same dep resolutions should produce the same ct_input_hash.
+        let self_ia_alt = "22222222222222222222222222222222";
+        let aterm_a = synthetic_ia_aterm();
+        let aterm_b = synthetic_ia_aterm().replace(SELF_IA, self_ia_alt);
+
+        let self_placeholder = hash_placeholder("out");
+        let mut subs_a: HashMap<String, String> = HashMap::new();
+        subs_a.insert(format!("/nix/store/{}-self", SELF_IA), self_placeholder.clone());
+        subs_a.insert(
+            format!("/nix/store/{}-input-out", INPUT_OUT_IA),
+            format!("/nix/store/{}-input-out", INPUT_OUT_CA),
+        );
+
+        let mut subs_b: HashMap<String, String> = HashMap::new();
+        subs_b.insert(format!("/nix/store/{}-self", self_ia_alt), self_placeholder.clone());
+        subs_b.insert(
+            format!("/nix/store/{}-input-out", INPUT_OUT_IA),
+            format!("/nix/store/{}-input-out", INPUT_OUT_CA),
+        );
+
+        let input_sources = vec![
+            StorePath::<String>::from_absolute_path(
+                format!("/nix/store/{}-input-out", INPUT_OUT_CA).as_bytes(),
+            )
+            .expect("valid"),
+        ];
+
+        let (drv_a, _) =
+            compute_resolved_input_hash_ia("self", aterm_a.as_bytes(), input_sources.clone(), &subs_a).unwrap();
+        let (drv_b, _) =
+            compute_resolved_input_hash_ia("self", aterm_b.as_bytes(), input_sources, &subs_b).unwrap();
+        assert_eq!(drv_a, drv_b);
     }
 }

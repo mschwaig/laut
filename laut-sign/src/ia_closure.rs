@@ -83,15 +83,6 @@ impl Walker {
         self.hash_to_path = map;
     }
 
-    /// Pre-populate the memo with a synthetic CA path for `ia_path`. Used
-    /// to register build-time dependency output paths from already-verified
-    /// trace data, so the walker doesn't try to scan paths that don't exist
-    /// on disk.
-    pub fn register_synthetic(&mut self, ia_path: &str, ca_path: StorePath<String>) {
-        self.memo
-            .insert(ia_path.to_owned(), MemoEntry { synthetic_ca_path: ca_path });
-    }
-
     /// Register a FOD output path. FOD outputs are already content-addressed
     /// — their IA path is their synthetic CA path. The walker skips scanning
     /// them entirely.
@@ -130,7 +121,6 @@ impl Walker {
     }
 
     fn compute_pass1(&mut self, path: &str) -> Result<StorePath<String>, Error> {
-        eprintln!("[walker] compute_pass1 scanning: {}", path);
         let self_ia_hash = extract_store_hash(path)?;
 
         let scanned = scan_for_references(Path::new(path), &self.global_hashes)?;

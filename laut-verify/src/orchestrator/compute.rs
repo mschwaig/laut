@@ -105,16 +105,15 @@ impl<B: Backend> Orchestrator<B> {
         }
     }
 
-    /// Build the IA constructive-trace inputs: a flat IA→synthetic-CA path
-    /// substitution map (covering input drv outputs from the combo + this
-    /// drv's own outputs computed via the shared walker), and the list of
-    /// synthetic CA paths to fold into inputSrcs.
+    /// Build the IA constructive-trace inputs: a flat IA→replacement path
+    /// substitution map (covering input drv outputs from the combo + this drv's
+    /// own outputs via downstream placeholders), and the list of synthetic CA
+    /// paths to fold into inputSrcs.
     ///
     /// The combo carries dep resolutions as `(udrv_output, content_hash)` where
-    /// the content_hash is the dep's synthetic CA path (a TrustlesslyResolvedDerivation
-    /// in IA mode resolves outputs to synthetic CA paths, not IA paths). We
-    /// look up the dep's original IA path via the recursive DrvJson so the
-    /// substitution is keyed correctly on bytes that appear in the ATerm.
+    /// the content_hash is the dep's synthetic CA path. We look up the dep's
+    /// original IA path via the recursive DrvJson so the substitution is keyed
+    /// correctly on bytes that appear in the ATerm.
     pub(super) fn build_ia_substitution(
         &mut self,
         udrv: &UnresolvedDerivation,
@@ -122,16 +121,6 @@ impl<B: Backend> Orchestrator<B> {
     ) -> Result<(HashMap<String, String>, Vec<StorePath<String>>), Error> {
         let mut substitutions: HashMap<String, String> = HashMap::new();
         let mut input_sources: Vec<StorePath<String>> = Vec::new();
-
-        // Pre-populate the walker's memo with dependency IA→CA mappings from
-        // already-verified traces.  When the walker later processes this drv's
-        // own outputs and recurses into build-time-only deps (not in the
-        // runtime closure), those deps are already in the memo and won't need
-        // local scanning.
-        let walker = self
-            .walker
-            .as_mut()
-            .expect("IA branch requires the walker to be initialized");
 
         for (dep_drv_path, resolved_dep) in combo {
             let dep_drv = self.derivations.get(dep_drv_path).ok_or_else(|| {
@@ -152,38 +141,29 @@ impl<B: Backend> Orchestrator<B> {
                         "synthetic CA path {} parse: {:?}",
                         synthetic_ca_path, e
                     )))?;
-                input_sources.push(sp.clone());
-                let full_path = if ia_path.starts_with("/nix/store/") {
-                    ia_path.to_owned()
-                } else {
-                    format!("/nix/store/{}", ia_path)
-                };
-                walker.register_synthetic(&full_path, sp);
+                input_sources.push(sp);
             }
         }
 
         // FOD udrvs are already content-addressed by declared hash — they
-        // don't have IA-flavored output paths to rewrite, and we don't need
-        // (or want) the closure walker to scan their outputs (which aren't
-        // present in the verifier's local store, by design). Their ATerm has
-        // no input-drv references to substitute either, so passing through
-        // identity is correct.
+        // don't have IA-flavored output paths to rewrite. Their ATerm has no
+        // input-drv references to substitute either, so passing through is
+        // correct.
         if udrv.is_fixed_output {
             return Ok((substitutions, input_sources));
         }
 
-        // Local walker pass-1 over each output gives us the synthetic CA path
-        // we'd need to substitute for this drv's own outputs. The walker
-        // memoizes across calls so the closure is scanned once across the
-        // whole verify run.
-        let walker = self
-            .walker
-            .as_mut()
-            .expect("IA branch requires the walker to be initialized");
-        for udrv_output in udrv.outputs.values() {
-            let ia_path = &udrv_output.unresolved_path;
-            let synthetic = walker.synthetic_ca_path(ia_path)?;
-            substitutions.insert(ia_path.clone(), synthetic.to_absolute_path());
+        // Own outputs: substitute IA paths with downstream placeholders,
+        // matching how CA nix represents unresolved own outputs in the ATerm.
+        for output_name in udrv.outputs.keys() {
+            let placeholder = nix_compat::store_path::hash_placeholder(output_name);
+            let ia_outputs: Vec<_> = udrv.outputs.values()
+                .filter(|o| &o.output_name == output_name)
+                .map(|o| o.unresolved_path.clone())
+                .collect();
+            for ia_path in ia_outputs {
+                substitutions.insert(ia_path, placeholder.clone());
+            }
         }
 
         Ok((substitutions, input_sources))

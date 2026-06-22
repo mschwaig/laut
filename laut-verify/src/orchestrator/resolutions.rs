@@ -124,24 +124,22 @@ impl<B: Backend> Orchestrator<B> {
                         consistent = false;
                         break;
                     };
-                    // IA: the trace's `path` is a synthetic CA path. We
-                    // independently recomputed our own value during the
-                    // walker pass for compute_resolved above; reject the
-                    // claim if it disagrees with our local recomputation.
+                    // IA consistency check: if the walker has independently
+                    // computed a synthetic CA path for this output (i.e. it's
+                    // in the root's runtime closure and on disk), reject the
+                    // claim if it disagrees. For build-time-only outputs not
+                    // on disk, trust the signed path — the ct_input_hash
+                    // matching provides the verification.
                     if matches!(self.regime, Regime::Ia) {
                         let walker = self
                             .walker
                             .as_ref()
                             .expect("IA orchestrator runs with a walker");
-                        let local = walker.lookup(&udrv_output.unresolved_path).ok_or_else(
-                            || Error::ConstructiveTrace(format!(
-                                "walker has no entry for local output {}",
-                                udrv_output.unresolved_path
-                            )),
-                        )?;
-                        if local.to_absolute_path() != path {
-                            consistent = false;
-                            break;
+                        if let Some(local) = walker.lookup(&udrv_output.unresolved_path) {
+                            if local.to_absolute_path() != path {
+                                consistent = false;
+                                break;
+                            }
                         }
                     }
                     outputs.insert(udrv_output.clone(), path.to_owned());

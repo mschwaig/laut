@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use laut_compat::content_hash::format_nar_hash;
 use nix_compat::nixhash::NixHash;
-use nix_compat::store_path::StorePath;
+use nix_compat::store_path::{StorePath, hash_placeholder};
 use rand::RngCore;
 use serde_json::{Value, json};
 
@@ -306,8 +306,12 @@ fn sign_ia_outputs(
         }
     }
 
-    for syn in name_to_synthetic.values() {
-        substitutions.insert(syn.ia_path.clone(), syn.synthetic_ca.to_absolute_path());
+    // Own outputs: substitute IA paths with downstream placeholders (matching
+    // how CA nix represents unresolved own outputs). The synthetic CA paths
+    // still go into the signed payload — they don't enter the ct_input_hash.
+    for (name, syn) in &name_to_synthetic {
+        let placeholder = hash_placeholder(name);
+        substitutions.insert(syn.ia_path.clone(), placeholder);
     }
 
     // Synthetic CA-equivalent drv path → cache key for this trace.
