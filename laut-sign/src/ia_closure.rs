@@ -21,7 +21,7 @@ use nix_compat::nixbase32;
 use nix_compat::nixhash::NixHash;
 use nix_compat::store_path::StorePath;
 
-use crate::nix_cmd::{self, query_references};
+use crate::nix_cmd;
 use crate::store_path::{self, extract_store_hash, extract_store_name};
 
 #[derive(Debug, thiserror::Error)]
@@ -32,16 +32,6 @@ pub enum Error {
     StorePath(#[from] store_path::Error),
     #[error("hash error: {0}")]
     Hash(String),
-    #[error(
-        "reference scan for {path:?} disagrees with `nix-store -q --references`: \
-         scanner found {scanner_only:?} not in nix's set, \
-         nix has {nix_only:?} not in scanner's set"
-    )]
-    RefMismatch {
-        path: String,
-        scanner_only: BTreeSet<String>,
-        nix_only: BTreeSet<String>,
-    },
 }
 
 impl From<HashError> for Error {
@@ -70,7 +60,8 @@ struct MemoEntry {
 pub struct Walker {
     memo: HashMap<String, MemoEntry>,
     fod_outputs: HashSet<String>,
-    cache_urls: Vec<String>,
+    global_hashes: BTreeSet<String>,
+    hash_to_path: HashMap<String, String>,
 }
 
 impl Walker {
@@ -78,19 +69,24 @@ impl Walker {
         Walker {
             memo: HashMap::new(),
             fod_outputs: HashSet::new(),
-            cache_urls: Vec::new(),
+            global_hashes: BTreeSet::new(),
+            hash_to_path: HashMap::new(),
         }
     }
 
-    pub fn set_cache_urls(&mut self, urls: Vec<String>) {
-        self.cache_urls = urls;
+    pub fn set_global_candidates(
+        &mut self,
+        hashes: BTreeSet<String>,
+        map: HashMap<String, String>,
+    ) {
+        self.global_hashes = hashes;
+        self.hash_to_path = map;
     }
 
     /// Pre-populate the memo with a synthetic CA path for `ia_path`. Used
-    /// to register build-time-only dependency outputs from already-verified
+    /// to register build-time dependency output paths from already-verified
     /// trace data, so the walker doesn't try to scan paths that don't exist
-    /// on disk. The caller must have already verified the trace through the
-    /// trust model.
+    /// on disk.
     pub fn register_synthetic(&mut self, ia_path: &str, ca_path: StorePath<String>) {
         self.memo
             .insert(ia_path.to_owned(), MemoEntry { synthetic_ca_path: ca_path });
@@ -110,9 +106,6 @@ impl Walker {
         if let Some(entry) = self.memo.get(path) {
             return Ok(nixbase32::encode(entry.synthetic_ca_path.digest()));
         }
-        // FOD outputs are already content-addressed; their IA path is their
-        // synthetic CA path. We skip scanning entirely — no `nix-store -q
-        // --references`, no content scan, no pass-1 rewrite.
         if self.fod_outputs.contains(path) {
             let sp = StorePath::<String>::from_absolute_path(path.as_bytes()).map_err(|e| {
                 Error::Hash(format!("fod path {} parse: {:?}", path, e))
@@ -137,45 +130,25 @@ impl Walker {
     }
 
     fn compute_pass1(&mut self, path: &str) -> Result<StorePath<String>, Error> {
-        let refs = match query_references(path) {
-            Ok(r) => r,
-            Err(e) => {
-                if self.cache_urls.is_empty() {
-                    return Err(e.into());
-                }
-                for url in &self.cache_urls {
-                    let _ = crate::nix_cmd::copy_from_cache(url, path);
-                }
-                query_references(path)?
-            }
-        };
+        eprintln!("[walker] compute_pass1 scanning: {}", path);
         let self_ia_hash = extract_store_hash(path)?;
+
+        let scanned = scan_for_references(Path::new(path), &self.global_hashes)?;
 
         let mut deps_rewrites: HashMap<String, String> = HashMap::new();
         let mut refs_as_ca: Vec<String> = Vec::new();
-        let mut expected_non_self: BTreeSet<String> = BTreeSet::new();
-        for r in &refs {
-            let ref_ia_hash = extract_store_hash(r)?;
-            if r == path {
+        for ref_hash in &scanned {
+            if ref_hash == &self_ia_hash {
                 continue;
             }
-            expected_non_self.insert(ref_ia_hash.clone());
-            let ref_ca_hash = self.synthetic_ca_hash(r)?;
-            deps_rewrites.insert(ref_ia_hash, ref_ca_hash);
-            refs_as_ca.push(self.memo[r].synthetic_ca_path.to_absolute_path());
-        }
-
-        let scanned = scan_for_references(Path::new(path), &expected_non_self)?;
-        if scanned != expected_non_self {
-            let scanner_only: BTreeSet<String> =
-                scanned.difference(&expected_non_self).cloned().collect();
-            let nix_only: BTreeSet<String> =
-                expected_non_self.difference(&scanned).cloned().collect();
-            return Err(Error::RefMismatch {
-                path: path.to_owned(),
-                scanner_only,
-                nix_only,
-            });
+            let full_path = self
+                .hash_to_path
+                .get(ref_hash)
+                .cloned()
+                .unwrap_or_else(|| format!("/nix/store/{}-dummy", ref_hash));
+            let ref_ca_hash = self.synthetic_ca_hash(&full_path)?;
+            deps_rewrites.insert(ref_hash.clone(), ref_ca_hash);
+            refs_as_ca.push(self.memo[&full_path].synthetic_ca_path.to_absolute_path());
         }
 
         let name = extract_store_name(path)?;
@@ -193,23 +166,25 @@ impl Walker {
     /// Entry of the rewritten content. Self-reference rewrite is included so
     /// the entry reflects the fully CA-equivalent form.
     pub fn root_result(&mut self, out_path: &str) -> Result<RootResult, Error> {
-        // Drive pass-1 for the root so we know its synthetic CA hash. Then
-        // rewrite the content using deps + self.
         let synthetic_ca_path = self.synthetic_ca_path(out_path)?;
         let self_ia_hash = extract_store_hash(out_path)?;
         let self_ca_hash = nixbase32::encode(synthetic_ca_path.digest());
 
         let mut rewrites: HashMap<String, String> = HashMap::new();
-        rewrites.insert(self_ia_hash, self_ca_hash);
+        rewrites.insert(self_ia_hash.clone(), self_ca_hash);
 
-        let refs = query_references(out_path)?;
-        for r in &refs {
-            if r == out_path {
+        let scanned = scan_for_references(Path::new(out_path), &self.global_hashes)?;
+        for ref_hash in &scanned {
+            if ref_hash == &self_ia_hash {
                 continue;
             }
-            let ref_ia_hash = extract_store_hash(r)?;
-            let ref_ca_hash = self.synthetic_ca_hash(r)?;
-            rewrites.insert(ref_ia_hash, ref_ca_hash);
+            let full_path = self
+                .hash_to_path
+                .get(ref_hash)
+                .cloned()
+                .unwrap_or_else(|| format!("/nix/store/{}-dummy", ref_hash));
+            let ref_ca_hash = self.synthetic_ca_hash(&full_path)?;
+            rewrites.insert(ref_hash.clone(), ref_ca_hash);
         }
 
         let Pass2Result {

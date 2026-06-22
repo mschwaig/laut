@@ -171,22 +171,29 @@ impl<B: Backend> Orchestrator<B> {
 
         let walker = if matches!(regime, Regime::Ia) {
             let mut w = laut_sign::ia_closure::Walker::new();
+            let mut global_hashes = std::collections::BTreeSet::new();
+            let mut hash_to_path: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
             for drv in derivations.values() {
                 let (is_fod, _) = drv_json::classify(&drv.outputs);
-                if is_fod {
-                    for output in drv.outputs.values() {
-                        if let Some(ref path) = output.path {
-                            let full = if path.starts_with("/nix/store/") {
-                                path.clone()
-                            } else {
-                                format!("/nix/store/{}", path)
-                            };
+                for output in drv.outputs.values() {
+                    if let Some(ref path) = output.path {
+                        let full = if path.starts_with("/nix/store/") {
+                            path.clone()
+                        } else {
+                            format!("/nix/store/{}", path)
+                        };
+                        if let Ok(hash) = store_path::extract_store_hash(&full) {
+                            global_hashes.insert(hash.clone());
+                            hash_to_path.entry(hash).or_insert(full.clone());
+                        }
+                        if is_fod {
                             w.register_fod(full);
                         }
                     }
                 }
             }
-            w.set_cache_urls(cfg.cache_urls.clone());
+            w.set_global_candidates(global_hashes, hash_to_path);
             Some(w)
         } else {
             None
