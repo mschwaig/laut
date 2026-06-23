@@ -133,6 +133,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
     };
 
     let mut castore_outputs = serde_json::Map::new();
+    let mut self_references = serde_json::Map::new();
     for (name, entry) in output_hashes_map.iter() {
         let path = entry
             .get("path")
@@ -142,6 +143,10 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
             })?;
         let encoded = content_hash::create_castore_entry(Path::new(path))?;
         castore_outputs.insert(name.clone(), Value::String(encoded));
+        self_references.insert(
+            name.clone(),
+            Value::Bool(nix_cmd::output_has_self_reference(path)?),
+        );
     }
 
     let mut buf = [0u8; 4];
@@ -161,6 +166,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
         debug_data.as_ref(),
         &Value::Object(output_hashes_map),
         &Value::Object(castore_outputs),
+        &Value::Object(self_references),
         rebuild_id,
         flavor.as_deref(),
         version.as_deref(),

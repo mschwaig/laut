@@ -91,3 +91,62 @@ pub fn output_hash_from_disk(out_path: &str) -> Result<String, Error> {
     )?;
     Ok(raw.trim().to_owned())
 }
+
+/// `nix-store --query --references <path>` — returns immediate references.
+pub fn output_references(out_path: &str) -> Result<Vec<String>, Error> {
+    let raw = run_utf8(
+        "nix-store",
+        &["--query", "--references", out_path],
+        "nix-store --query --references",
+    )?;
+    Ok(parse_references(&raw))
+}
+
+pub fn output_has_self_reference(out_path: &str) -> Result<bool, Error> {
+    Ok(references_contain_path(
+        &output_references(out_path)?,
+        out_path,
+    ))
+}
+
+fn parse_references(raw: &str) -> Vec<String> {
+    raw.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn references_contain_path(references: &[String], path: &str) -> bool {
+    references.iter().any(|reference| reference == path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_references_ignores_blank_lines() {
+        let refs = parse_references(
+            "\n/nix/store/abc-one\n  /nix/store/def-two  \n\n/nix/store/ghi-three\n",
+        );
+
+        assert_eq!(
+            refs,
+            vec![
+                "/nix/store/abc-one",
+                "/nix/store/def-two",
+                "/nix/store/ghi-three",
+            ]
+        );
+    }
+
+    #[test]
+    fn references_contain_path_matches_exact_store_path() {
+        let refs =
+            parse_references("/nix/store/abc-one\n/nix/store/abc-one-extra\n/nix/store/def-two\n");
+
+        assert!(references_contain_path(&refs, "/nix/store/abc-one"));
+        assert!(!references_contain_path(&refs, "/nix/store/abc"));
+    }
+}
