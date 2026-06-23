@@ -66,6 +66,16 @@ impl<B: Backend> Orchestrator<B> {
             )
             .map_err(|e| Error::ConstructiveTrace(format!("{}", e)))?;
         let ct_input_hash = store_path::extract_store_hash(&resolved_drv_path)?;
+
+        eprintln!(
+            "[verify] drv_name={} ia_drv_path={} ct_input_hash={}",
+            udrv.name, udrv.drv_path, ct_input_hash
+        );
+        eprintln!("[verify] substitutions:");
+        for (k, v) in &substitutions {
+            eprintln!("  {} -> {}", k, v);
+        }
+
         Ok((ct_input_hash, aterm_bytes))
     }
 

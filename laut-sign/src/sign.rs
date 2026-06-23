@@ -314,6 +314,14 @@ fn sign_ia_outputs(
         substitutions.insert(syn.ia_path.clone(), placeholder);
     }
 
+    eprintln!(
+        "[sign] drv_name={} ia_drv_path={} substitutions:",
+        drv_name, cfg.drv_path
+    );
+    for (k, v) in &substitutions {
+        eprintln!("  {} -> {}", k, v);
+    }
+
     // Synthetic CA-equivalent drv path → cache key for this trace.
     let (synthetic_drv_path, rewritten_aterm) = constructive_trace::compute_resolved_input_hash_ia(
         drv_name,
@@ -322,6 +330,7 @@ fn sign_ia_outputs(
         &substitutions,
     )?;
     let input_hash = store_path::extract_store_hash(&synthetic_drv_path)?;
+    eprintln!("[sign] {} ct_input_hash={}", drv_name, input_hash);
 
     // Swap `path` and `hash` in payload.out.nix for the synthetic CA path and
     // the NAR hash of the rewritten content. The result has the "pretend-CA"
