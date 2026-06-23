@@ -136,7 +136,22 @@ impl<B: Backend> Orchestrator<B> {
             let dep_drv = self.derivations.get(dep_drv_path).ok_or_else(|| {
                 Error::DerivationNotFound(dep_drv_path.clone())
             })?;
+            // Only substitute dep outputs that are actually referenced by
+            // this drv (listed in its inputDrvs). Substituting unreferenced
+            // outputs would change the ATerm bytes and produce a different
+            // ct_input_hash than the signer, who only iterates referenced
+            // outputs.
+            let referenced_output_names: std::collections::HashSet<&str> = udrv
+                .inputs
+                .iter()
+                .filter(|ri| ri.derivation.drv_path == *dep_drv_path)
+                .flat_map(|ri| ri.inputs.keys())
+                .map(String::as_str)
+                .collect();
             for (unresolved_output, synthetic_ca_path) in &resolved_dep.outputs {
+                if !referenced_output_names.contains(unresolved_output.output_name.as_str()) {
+                    continue;
+                }
                 let ia_path = dep_drv
                     .outputs
                     .get(&unresolved_output.output_name)
