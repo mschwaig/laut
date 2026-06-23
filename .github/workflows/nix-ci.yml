@@ -14,10 +14,9 @@ on:
 
 jobs:
   nix-build:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-laut
     steps:
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@main
+    - uses: actions/checkout@v4
     - name: Install Nix
       uses: cachix/install-nix-action@v31
       with:
@@ -38,7 +37,7 @@ jobs:
 
   vm-test:
     needs: nix-build
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-laut
     strategy:
       fail-fast: false
       matrix:
@@ -51,8 +50,7 @@ jobs:
           - test: large-ia-verify
     name: VM Test ${{ matrix.test }}
     steps:
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@main
+    - uses: actions/checkout@v4
     - name: Install Nix
       uses: cachix/install-nix-action@v31
       with:
