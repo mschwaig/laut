@@ -21,13 +21,14 @@ pub enum Error {
 /// Build the laut trace JWS for one resolved derivation and sign it.
 ///
 /// `castore_outputs` and `output_hashes` are passed as already-built JSON
-/// values so the caller (Python orchestrator, tests with mock castore output,
-/// or a future Rust orchestrator) can shape them without touching this code.
+/// values. `self_references` is keyed by the same output names and stores a
+/// boolean flag for each output path.
 pub fn create_trace_signature(
     input_hash: &str,
     debug_data: Option<&Value>,
     output_hashes: &Value,
     castore_outputs: &Value,
+    self_references: &Value,
     rebuild_id: u32,
     builder_nix_flavor: Option<&str>,
     builder_nix_version: Option<&str>,
@@ -80,8 +81,8 @@ pub fn create_trace_signature(
         "out": {
             "castore-entry": castore_outputs,
             "nix": output_hashes,
+            "self-references": self_references,
             // TODO: add info about
-            //   * self-references, and
             //   * whether the output contains any references at all
             //     — if not, rewriting is a no-op and therefore harmless,
             //     which is especially relevant for bit-level reasoning.
@@ -125,12 +126,14 @@ mod tests {
             "out": { "path": "/nix/store/x-foo", "hash": "sha256:0000" }
         });
         let castore_outputs = json!({ "out": "abc123base64url" });
+        let self_references = json!({ "out": false });
 
         let jws = create_trace_signature(
             "input-hash-here",
             None,
             &output_hashes,
             &castore_outputs,
+            &self_references,
             42,
             Some("lix"),
             Some("2.91.1"),
@@ -159,6 +162,7 @@ mod tests {
         assert_eq!(payload["builder"]["nix_version"], "2.91.1");
         assert_eq!(payload["out"]["castore-entry"], castore_outputs);
         assert_eq!(payload["out"]["nix"], output_hashes);
+        assert_eq!(payload["out"]["self-references"], self_references);
 
         // Signature verifies against the recomputed signing input.
         let header_b64 = jws.split('.').next().unwrap();
@@ -179,6 +183,7 @@ mod tests {
         let jws = create_trace_signature(
             "h",
             Some(&debug),
+            &json!({}),
             &json!({}),
             &json!({}),
             0,
