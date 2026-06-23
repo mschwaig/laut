@@ -47,6 +47,8 @@ jobs:
           - test: small-ia-verify
           - test: medium-ca-verify
           - test: medium-ia-verify
+          - test: large-ca-verify
+          - test: large-ia-verify
     name: VM Test ${{ matrix.test }}
     steps:
     - name: Free Disk Space (Ubuntu)
