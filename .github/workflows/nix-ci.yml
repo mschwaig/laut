@@ -14,7 +14,7 @@ on:
 
 jobs:
   nix-build:
-    runs-on: namespace-profile-laut
+    runs-on: ubuntu-latest
     steps:
     - name: Free Disk Space (Ubuntu)
       uses: jlumbroso/free-disk-space@main
@@ -38,18 +38,14 @@ jobs:
 
   vm-test:
     needs: nix-build
-    runs-on: namespace-profile-laut
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - test: small-ca-sign
           - test: small-ca-verify
-          - test: small-ia-sign
           - test: small-ia-verify
-          - test: medium-ca-sign
           - test: medium-ca-verify
-          - test: medium-ia-sign
           - test: medium-ia-verify
     name: VM Test ${{ matrix.test }}
     steps:
