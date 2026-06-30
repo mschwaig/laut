@@ -10,7 +10,7 @@ use laut_sign::store_path;
 use crate::backend::Backend;
 use crate::types::{UnresolvedDerivation, UnresolvedOutput, UnresolvedReferencedInputs};
 
-use super::{Error, Orchestrator};
+use super::{Error, Orchestrator, Regime};
 
 impl<B: Backend> Orchestrator<B> {
     pub(super) fn build_unresolved(
@@ -28,6 +28,19 @@ impl<B: Backend> Orchestrator<B> {
             .clone();
         let (is_fixed_output, is_content_addressed) = drv_json::classify(&drv.outputs);
 
+        // Cross-regime mixing is rejected — IA roots can only have IA deps;
+        // CA roots can only have CA deps (FODs are allowed in both regimes).
+        if !is_fixed_output {
+            let drv_regime = if is_content_addressed { Regime::Ca } else { Regime::Ia };
+            if drv_regime != self.regime {
+                return Err(Error::MixedRegime {
+                    root_regime: self.regime,
+                    found_regime: drv_regime,
+                    drv_path: drv_path.to_owned(),
+                });
+            }
+        }
+
         let outputs = build_outputs(drv_path, &drv, is_content_addressed)?;
         let fod_out_path = if is_fixed_output {
             Some(
@@ -44,7 +57,7 @@ impl<B: Backend> Orchestrator<B> {
 
         let inputs = if is_fixed_output {
             Vec::new()
-        } else if is_content_addressed || self.allow_ia {
+        } else {
             let mut acc = Vec::with_capacity(drv.input_drvs.len());
             for (input_drv_path, input_ref) in &drv.input_drvs {
                 let child = self.build_unresolved(input_drv_path)?;
@@ -64,8 +77,6 @@ impl<B: Backend> Orchestrator<B> {
                 });
             }
             acc
-        } else {
-            return Err(Error::InputAddressedNotAllowed);
         };
 
         let unresolved = Arc::new(UnresolvedDerivation {

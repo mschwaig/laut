@@ -65,7 +65,6 @@ pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
         root_drv_path: drv_path.clone(),
         cache_urls: args.cache,
         trusted_keys,
-        allow_ia: false,
         debug_probe: probe,
     };
     let mut orch = Orchestrator::new(RealBackend, cfg)?;
