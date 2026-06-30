@@ -8,10 +8,10 @@
   sign-only ? false,
 }:
 let
-  snix-hash = "sha256-UcHOQmNKzhzw+8IbO86fGbiQFfwityudeV8K9E23dT4=";
+  snix-hash = "sha256-JQtnslAFO3dpqzROmCBjpKY+w9CoKDHqJeZSaWR5zgw=";
   snix = fetchgit {
     url = "https://github.com/mschwaig/snix";
-    rev = "21e90c2dae1827bb98963279d020b3009e032a21";
+    rev = "95cd1ba7515d409edaf0dfb249f6cdf327f4c209";
     hash = snix-hash;
   };
 
