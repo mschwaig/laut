@@ -1,13 +1,19 @@
 {
   system ? "x86_64-linux",
-  scope ? pkgsIA.callPackage ../default.nix { },
+  # Infra Nix evaluator (rolling): builds laut, qemu, writers, the test
+  # wrappers. Used wherever the VM tests need a Nix package to run *the test
+  # infrastructure* — never the package-under-test.
+  pkgs,
+  # Pinned source of the package-under-test. Both `pkgsIA` and `pkgsCA` derive
+  # from this so their FOD outputs agree, regardless of which the VM ends up
+  # building from inside.
+  nixpkgs-under-test,
+  scope ? pkgs.callPackage ../default.nix { },
   laut ? scope.laut,
   laut-sign-only ? scope.laut-sign-only,
-  nixpkgs,
-  nixpkgs-for-ca,
-  lib ? pkgsIA.lib,
-  pkgsIA ? import nixpkgs { inherit system; },
-  pkgsCA ? import nixpkgs-for-ca {
+  lib ? pkgs.lib,
+  pkgsIA ? import nixpkgs-under-test { inherit system; },
+  pkgsCA ? import nixpkgs-under-test {
     config.contentAddressedByDefault = true;
     inherit system;
   },
@@ -21,7 +27,7 @@ let
   flattenList = builtins.concatLists;
 
   fullArgs = {
-    inherit system scope laut laut-sign-only nixpkgs nixpkgs-for-ca lib pkgsIA pkgsCA nixpkgs-swh;
+    inherit system scope laut laut-sign-only pkgs nixpkgs-under-test lib pkgsIA pkgsCA nixpkgs-swh;
     verifierExtraConfig = {};
   } // args;
   makeTestSet = {
@@ -116,8 +122,8 @@ in
       needsExtraTime = false;
       verifierExtraConfig = {
         environment.systemPackages = [
-          pkgsIA.difftastic
-          (pkgsIA.writers.writePython3Bin "tamper-preimage" { } (
+          pkgs.difftastic
+          (pkgs.writers.writePython3Bin "tamper-preimage" { } (
             builtins.readFile ./tamper-preimage.py
           ))
         ];

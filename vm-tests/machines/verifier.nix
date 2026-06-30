@@ -1,11 +1,11 @@
 {
   system,
   laut,
-  nixpkgs,
-  nixpkgs-for-ca,
+  pkgs,
+  nixpkgs-under-test,
   lib,
-  pkgsIA,
   verifierExtraConfig,
+  cacheStoreUrl,
   ...
 }:
 # `imports` rather than `lib.recursiveUpdate` so list-typed options like
@@ -22,19 +22,41 @@
       virtualisation.mountHostNixStore = false;
 
       nix = {
-        package = pkgsIA.lix;
+        # Match the builder: both sides instantiate the under-test drv tree
+        # via the same Nix implementation. Lix and CppNix can disagree on
+        # the resulting drv hashes deep in a large tree (different bytecode
+        # / hashing edge cases), which leaves the verifier asking the cache
+        # for paths the builder never produced.
+        package = pkgs.nix;
         checkConfig = false;
+        settings = {
+          # The verifier only substitutes from the sign cache — it must
+          # never build anything locally. A local build would produce
+          # output paths the cache doesn't know about and with signatures
+          # the verifier can't match.
+          max-jobs = 0;
+          substituters = [ cacheStoreUrl ];
+          trusted-substituters = [ cacheStoreUrl ];
+          # The sign cache's narinfos are signed with the builders'
+          # private keys, which we don't have here (and don't need —
+          # laut's trust model is the authority, not Nix's narinfo
+          # signatures).
+          require-sigs = false;
+        };
         nixPath = [
-          "nixpkgs=${nixpkgs}"
+          # Same shape as the builder's: both `<nixpkgs>` and `<nixpkgs-ca>`
+          # point at the pinned under-test source so the verifier instantiates
+          # the same drv tree the builder signed.
+          "nixpkgs=${nixpkgs-under-test}"
           "nixpkgs-ca=${
-            pkgsIA.writeTextFile {
+            pkgs.writeTextFile {
               name = "nixpkgs-ca";
               destination = "/default.nix";
               text =
               ''
                 { ... }@args:
                 let
-                  pkgs = import ${nixpkgs-for-ca} (args // {
+                  pkgs = import ${nixpkgs-under-test} (args // {
                     config = args.config or { } // {
                       contentAddressedByDefault = true;
                     };
@@ -52,11 +74,12 @@
           experimental-features = nix-command flakes ca-derivations
           flake-registry = ${emptyRegistry}
         '';
+        registry.nixpkgs.flake = nixpkgs-under-test;
       };
 
-      environment.systemPackages = with pkgsIA; [
-        lix
-        git
+      environment.systemPackages = [
+        pkgs.nix
+        pkgs.git
         laut
       ];
     };

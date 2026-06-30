@@ -96,7 +96,7 @@
         "type": "github"
       }
     },
-    "nixpkgs-for-ca": {
+    "nixpkgs-under-test": {
       "locked": {
         "lastModified": 1746328495,
         "narHash": "sha256-uKCfuDs7ZM3QpCE/jnfubTg459CnKnJG/LwqEVEdEiw=",
@@ -155,7 +155,7 @@
       "inputs": {
         "bombon": "bombon",
         "nixpkgs": "nixpkgs_2",
-        "nixpkgs-for-ca": "nixpkgs-for-ca"
+        "nixpkgs-under-test": "nixpkgs-under-test"
       }
     },
     "systems": {

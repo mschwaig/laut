@@ -29,7 +29,24 @@ verifier.start()
 verifier.wait_for_unit("default.target")
 
 nixpkgs_attr = "<nixpkgs-ca>" if addressing == "ca" else "<nixpkgs>"
-verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} $(nix-instantiate '{nixpkgs_attr}' -A {packageToBuild})"
+
+# Instantiate locally — this writes the full drv graph (root + transitive
+# input drvs) into the verifier's own store. Trust comes from our nix
+# binary evaluating local nixpkgs source, not from a remote cache.
+drv_path = verifier.succeed(f"nix-instantiate '{nixpkgs_attr}' -A {packageToBuild}").strip()
+
+# IA verification recomputes synthetic CA paths from local output bytes
+# (the closure walker scans content), so we need the runtime closure of
+# the root output(s) locally. The walker recurses by following
+# `nix-store -q --references`. Build-time-only deps (not in the runtime
+# closure) are resolved from already-verified trace data — their IA→CA
+# mappings are pre-populated in the walker's memo.
+#
+# Build from the same nixpkgs the signer uses (`-f '<nixpkgs>'`).
+if addressing == "ia":
+    verifier.succeed(f"nix build -f '{nixpkgs_attr}' {packageToBuild} --substitute --no-link")
+
+verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} {drv_path}"
 output = verifier.succeed(verify_cmd)
 print(f"laut verify output:\n{output}")
 

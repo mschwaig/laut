@@ -1,16 +1,17 @@
 {
   system,
-  nixpkgs,
+  pkgs,
   lib,
-  pkgsIA,
   cachePort,
   cacheStoreUrl,
   ...
 }:
 
 let
-  httpCacheServer = pkgsIA.writeShellScriptBin "http-cache-server" ''
-    exec ${pkgsIA.python3}/bin/python3 ${../http-cache-server.py}
+  # Cache server is purely infra: the HTTP cache server doesn't depend on the
+  # package-under-test, so it lives on the rolling infra pkgs.
+  httpCacheServer = pkgs.writeShellScriptBin "http-cache-server" ''
+    exec ${pkgs.python3}/bin/python3 ${../http-cache-server.py}
   '';
 in
 
