@@ -14,10 +14,9 @@ on:
 
 jobs:
   nix-build:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-laut
     steps:
-    - name: Free Disk Space (Ubuntu)
-      uses: jlumbroso/free-disk-space@main
+    - uses: actions/checkout@v4
     - name: Install Nix
       uses: cachix/install-nix-action@v31
       with:
@@ -30,30 +29,42 @@ jobs:
         authToken: '${{ secrets.CACHIX_TOKEN }}'
         name: laut
     - name: Build Packages
-      id: build_packages
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
           --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#packages.x86_64-linux"
-    - name: Run small VM Test
-      id: vm_test_small
+
+  vm-test:
+    needs: nix-build
+    runs-on: namespace-profile-laut
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - test: small-ca-verify
+          - test: small-ia-verify
+          - test: medium-ca-verify
+          - test: medium-ia-verify
+          - test: large-ca-verify
+          - test: large-ia-verify
+    name: VM Test ${{ matrix.test }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+      with:
+        extra_nix_config: |
+          experimental-features = flakes nix-command ca-derivations impure-derivations
+        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Set-up cachix to push the results to
+      uses: cachix/cachix-action@v13
+      with:
+        authToken: '${{ secrets.CACHIX_TOKEN }}'
+        name: laut
+    - name: Run VM Test
       run: |
           nix run github:Mic92/nix-fast-build -- \
           --no-nom \
           --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.small-sign"
-          nix run github:Mic92/nix-fast-build -- \
-          --no-nom \
-          --skip-cached \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.small-verify"
-    - name: Run medium VM Test
-      id: vm_test_medium
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/update_flake_lock_action' || github.event.inputs.run_large_test == 'true'
-      run: |
-          nix run github:Mic92/nix-fast-build -- \
-          --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.medium-sign"
-          nix run github:Mic92/nix-fast-build -- \
-          --no-nom \
-          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.medium-verify"
+          --flake "github:${GITHUB_REPOSITORY}/${GITHUB_SHA}#checks.x86_64-linux.${{ matrix.test }}"
