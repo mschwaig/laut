@@ -26,6 +26,16 @@ pub fn extract_store_hash(store_path: &str) -> Result<String, Error> {
     Ok(nixbase32::encode(parsed.digest()))
 }
 
+/// Return the name suffix (everything after the `<hash>-`) of a Nix store path.
+pub fn extract_store_name(store_path: &str) -> Result<String, Error> {
+    let parsed: StorePath<String> =
+        StorePath::from_absolute_path(store_path.as_bytes()).map_err(|source| Error::Parse {
+            path: store_path.to_owned(),
+            source,
+        })?;
+    Ok(parsed.name().to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

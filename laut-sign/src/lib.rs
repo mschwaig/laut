@@ -13,6 +13,7 @@ pub mod content_hash;
 pub mod derivation;
 pub mod drv_json;
 pub mod http_cache;
+pub mod ia_closure;
 pub mod keyfiles;
 pub mod nix_cmd;
 pub mod sign;

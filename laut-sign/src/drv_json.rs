@@ -27,6 +27,8 @@ pub struct OutputRef {
     pub path: Option<String>,
     #[serde(default)]
     pub hash: Option<String>,
+    #[serde(default)]
+    pub method: Option<String>,
 }
 
 /// Classify a derivation as fixed-output and/or content-addressed by looking at
@@ -35,7 +37,11 @@ pub fn classify(outputs: &BTreeMap<String, OutputRef>) -> (bool, bool) {
     let first = outputs.values().next();
     let has_path = first.and_then(|o| o.path.as_ref()).is_some();
     let has_hash = first.and_then(|o| o.hash.as_ref()).is_some();
-    let is_fixed_output = has_hash;
+    // Lix's nix derivation show omits the `hash` field on some FOD outputs
+    // while still emitting `method` (e.g. "nar", "flat"). A non-CA
+    // derivation with a declared output hash method is a FOD.
+    let has_method = first.and_then(|o| o.method.as_ref()).is_some();
+    let is_fixed_output = has_hash || (has_path && has_method);
     let is_content_addressed = !has_path && !has_hash;
     (is_fixed_output, is_content_addressed)
 }
