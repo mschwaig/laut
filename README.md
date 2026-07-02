@@ -1,4 +1,4 @@
-## laut /laʊt/ - verifiable provenance data and SBOMs with Nix
+## laut /laʊt/ - distributed trust and verifiable provenance data for Nix
 
 The name is german for[^1]
 * loud, noisy, blatant 📢
@@ -8,80 +8,119 @@ The name is german for[^1]
 
 ---
 
-🚧 This is a still incomplete implementation of https://dl.acm.org/doi/10.1145/3689944.3696169. 🚧
+🚧 This is an in-progress implementation of https://dl.acm.org/doi/10.1145/3689944.3696169. 🚧
 
 ---
 
 </div>
 
-The fundamentals are in place, but some of the cool things about it still neeed some work (marked ❎):
-* configurable trust model[^2] ✅, implemented correctly ❎ ...
+Build results in Nix today can travel from builder to cache to user, "trusted"
+along the way but not attributed to whoever actually produced them — like a
+game of telephone. `laut` is a standalone tool that ships as a secondary
+binary alongside Nix and is more pedantic about where things come from. Each
+claim about a build is signed by whoever made it and is designed to be precise
+enough that `laut` can aggregate signatures from original sources rather than
+from whichever cache a result happened to pass through. This lets you pick who
+you trust independently from everyone else and change your mind about it over
+time.
+
+The fundamentals are in place, with a few things still needing work (marked ❎):
+* configurable trust model[^2] ✅, ...
 * which can be re-configured over time, ✅ based on ...
 * verifiable provenance data for builders ❎
-* like realizations for CA derivations, ✅ but also works for IA derivations ❎
-* based on a new proposed signature format on top of JWS, ✅ with
+* like realizations for CA derivations ✅, and also for IA derivations ✅
+* based on a new proposed signature format on top of JWS ✅, with
 * arbitrary additional ✅ but detachable ❎ metadata
-* integrates with/extends https://github.com/nikstur/bombon to create verifiable SBOMs ❎
 
-Right now this can resovle the dependencies for and verify a fully content-addressed `hello` binary, testing Nix against Lix using different keys, in our VM tests.
+Right now `laut` can resolve the dependencies for and verify a fully
+content-addressing or input-addressing `hello` binary, end to end, in our VM
+tests. The implementation is approaching a state where it is ready for its
+first users; until then expect breakage and short iteration times. As a
+project we are also not yet committed to supporting the current shape of the
+signatures long term — the envelope format and a few payload fields may still
+change. More paranoid features (provenance transparency log entries, remote
+attestation, sigstore-style integration) are on the horizon, and the dream is
+to get the signatures (or log entries) widely available, e.g. via the NixOS
+Hydra instance.
 
-At the same time, it's not quite ready for users yet, but it's getting there.
-As a project we are also not yet commited to supporting the current format of the signatures long term, we might for example still want to change things like the envelope format.
-
-I want to get a scientific paper, and later my PhD thesis published based on this work, so if you do something that's inspired by this project, please give me a shoutout in your README.md, your docs or the relevant issue in your issue tracker. This really helps me demonstrate the relevance of my work.
+If you do something that's inspired by this project, please give me a
+shoutout — it helps me demonstrate the relevance of this work in an academic
+context.
 
 ### How can I use it
 
-This is a standalone command line tool called `laut`,  which has two subcommands:
+This is a standalone command line tool called `laut`, which has two subcommands.
 
 The first one is
 ```
-laut sign-and-upload --to [S3 store url]
+laut sign-and-upload --to [HTTP cache URL] --secret-key-file [KEY] [DRV_PATH]
 ```
 
-which will sign your derivations with the new signature format, and upload them to the newly introduced `traces` folder in the provided S3 store. This will then happen automatically after each build, in the same way that signatures are normally uploaded from nix-based builders.
+which signs a derivation with the new signature format and uploads it to the
+`traces/` namespace of the provided HTTP cache. This is meant to run from a
+Nix post-build hook, in the same slot where legacy signatures are normally
+uploaded from nix-based builders. Exit codes: `0` = signed and uploaded,
+`117` = no-op (the hook fired on the unresolved drv, or on a FOD), `1` =
+error. The `$OUT_PATHS` environment variable set by `nix` in the post-build
+hook supplies the output paths.
 
 The second one is
 ```
-laut verify --cache [S3 store url] --trusted-key [path to public key file] [derivation path or flake output path]
+laut verify --cache [HTTP cache URL] --trusted-key [path to public key file] [derivation path or flake reference]
 ```
 
-Which is run manually by the user after building or obtaining an output from the cache.
-This command tries to verify that an output can be derived from a given derivation according to the stricter validation criteria of the tool. Later on the tool will check this against a produced result link on disk, there will be more options to configure a specific trust model to verify against, and you will be able to additionally pass an SBOM which then also has to match the other elements. The goal of the SBOM integration is to connect this with established standards that people outside of the Nix community understand as well.
+which is run manually by the user after building or obtaining an output from a
+cache. It tries to verify that an output can be derived from a given
+derivation according to the stricter validation criteria of the tool: it
+resolves the dependency tree itself, gathers signatures from the configured
+caches, and feeds the resulting facts into a trust-model evaluator that
+decides whether the configured trust model is satisfied.
 
 ### How does it work
 
-It's a python program, with some internals written in Rust, and a dependency on Snix for the hashing schemes. The signing itself is very straightforward python code.
+It's a Rust workspace (`laut-cli` for argument parsing and dispatch,
+`laut-sign` for sign-side orchestration and the shared core, and
+`laut-verify` for verification). The hashing schemes and ATerm / castore
+encoding come from `nix-compat` / `laut-compat` on the
+`mschwaig/snix#fanfic` branch, and the signature envelope is JWS-based.
 
-The verification is more complicated, as it instantiates an actual dependency tree in memory, then walks through that tree to gather information.
-As part of this verification phase, the tool also gathers signatures from a set of caches, taking into account possible combinations of inputs by content hash, which could satisfy the dependency on those same inputs by input hash.
-This data then feeds into a verifier written in Rust that decides whether the configured trust model is satisfied. The verification semantics are defined in [docs/semantics.md](docs/semantics.md).
+The signing side is straightforward: it walks the derivation, computes the
+resolved input hash, gathers output content hashes, and assembles a signed
+JWS token. Both content-addressed and input-addressed derivations are
+supported — for IA derivations the signer walks the runtime closure to
+substitute synthetic CA paths and computes the CA-equivalent resolved input
+hash.
+
+The verification is more complicated, as it instantiates an actual dependency
+tree in memory, then walks through that tree to gather information. As part of
+this verification phase, the tool also gathers signatures from a set of
+caches, taking into account possible combinations of inputs by content hash,
+which could satisfy the dependency on those same inputs by input hash. This
+data then feeds into a verifier that decides whether the configured trust
+model is satisfied. The verification semantics are defined in
+[docs/semantics.md](docs/semantics.md).
 
 ### How can I test it
 
-As of now, there are two kinds of tests in this project
-
-The python tests, which can be run with
-
+There are Rust unit tests (next to the code) and integration tests, runnable
+inside a `nix develop` shell with
 ```
-pytest -s tests/
+cargo test --workspace
 ```
 
-inside a nix develop shell, and the NixOS VM tests, which you can run by first building the test driver for one of the tests
+plus NixOS VM tests that exercise the end-to-end signer + verifier flow.
+Build a test driver with, for example,
 ```
-nix build .#checks.x86_64-linux.small-verify.driverInteractive
+nix build .#checks.x86_64-linux.small-ca-sign.driverInteractive
 ```
+then run the resulting binary and call `test_script()` inside the driver
+shell. The VM tests come in `{small,medium,large} × {ca,ia}` flavors (the IA
+flavors currently exist as red baselines until IA support is wired up
+end-to-end).
 
-Available VM tests include:
-- `small-sign` and `small-verify` - Quick tests
-- `medium-sign` and `medium-verify` - Medium-sized tests
-- `large-sign` and `large-verify` - Large tests (time out in CI)
-
-Then run the resulting binary to get into this emacs shell.
-
-In that shell you can then run the test using the "test_script()" function.
-
-**In the future** different VM tests should exercise different trust models, but right now they all uniformly only trust `builderA` and `builderB` in combination.
+**In the future** different VM tests should exercise different trust models,
+but right now they all uniformly only trust `builderA` and `builderB` in
+combination.
 
 ### FAQ
 
@@ -102,7 +141,7 @@ In that shell you can then run the test using the "test_script()" function.
 **A:** Eventually that is definitely the way you would want to do this kind of thing, but for now it is meant to prove the concept (also across implementations) and introduce it to an expert audience, with a lot of breakage much shorter iteration times.
 
 **Q:** Can I use this now?  
-**A:** No, it does not do anything useful yet, but you can help work on it.
+**A:** The implementation is approaching a point where it is ready for its first users, and the VM tests already verify a full CA or IA `hello` end to end. Until it lands there, expect breakage and short iteration times, and treat the current signature shape as not yet final. If you want to help shape it, now is a good time to get involved.
 
 ### Glossary
 
