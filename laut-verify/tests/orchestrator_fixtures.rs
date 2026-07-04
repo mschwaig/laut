@@ -8,10 +8,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-use ed25519_dalek::SigningKey;
 use laut_verify::backend::InMemoryBackend;
-use laut_verify::keyfiles;
 use laut_verify::orchestrator::{cartesian_product, Config, Error, Orchestrator};
+use laut_verify::trust_model::TrustModelSpec;
 use laut_verify::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};
 
 use std::collections::BTreeMap;
@@ -52,14 +51,15 @@ fn read_all_signatures() -> HashMap<String, Vec<u8>> {
     out
 }
 
-fn read_public_key(name: &str) -> (String, Vec<u8>) {
+fn read_key_spec(name: &str) -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("testkeys")
         .join(name);
-    keyfiles::parse_public_key_file(&path)
-        .map(|(name, key)| (name, key.to_vec()))
-        .expect("public key fixture invalid")
+    fs::read_to_string(&path)
+        .expect("key file missing")
+        .trim()
+        .to_owned()
 }
 
 fn ca_backend() -> InMemoryBackend {
@@ -78,14 +78,14 @@ fn ia_backend() -> InMemoryBackend {
     }
 }
 
-/// `read_public_key` returns the bare `(name, key_bytes)`. For trust-model use
-/// we need them in `(name, key_bytes)` form too — the kid format is computed
-/// inside `Orchestrator::new`.
-fn trusted_keys() -> Vec<(String, Vec<u8>)> {
-    vec![
-        read_public_key("builderA_key.public"),
-        read_public_key("builderB_key.public"),
-    ]
+fn trust_model_spec() -> TrustModelSpec {
+    TrustModelSpec::Threshold {
+        threshold: 2,
+        of: vec![
+            TrustModelSpec::Key { key: read_key_spec("builderA_key.public") },
+            TrustModelSpec::Key { key: read_key_spec("builderB_key.public") },
+        ],
+    }
 }
 
 fn make_orchestrator(
@@ -97,8 +97,8 @@ fn make_orchestrator(
         Config {
             root_drv_path: root.to_owned(),
             cache_urls: vec!["http://mock".to_owned()],
-            trusted_keys: trusted_keys(),
-            ..Default::default()
+            trust_model: trust_model_spec(),
+            debug_probe: Box::new(laut_verify::debug::NullProbe),
         },
     )
 }
@@ -230,10 +230,10 @@ fn cartesian_three_keys_three_values_each() {
 }
 
 #[test]
-fn parse_public_key_smoke() {
-    let (name, key_bytes) = read_public_key("builderA_key.public");
+fn key_spec_smoke() {
+    let spec = read_key_spec("builderA_key.public");
+    assert!(spec.contains(':'), "key spec should be 'name:base64'");
+    let (name, b64) = spec.split_once(':').unwrap();
     assert!(!name.is_empty());
-    assert_eq!(key_bytes.len(), 32);
-    // Sanity-check that the key is a valid ed25519 point by reconstructing it.
-    let _ = SigningKey::from_bytes(&[0u8; 32]);
+    assert!(!b64.is_empty());
 }

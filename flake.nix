@@ -51,6 +51,10 @@
           inherit (scope) laut;
         });
 
+      nixosModules.laut = import ./nixos;
+      nixosModules.laut-sign = import ./nixos/sign.nix;
+      nixosModules.laut-verify = import ./nixos/verify.nix;
+
       devShell.${system} = pkgs.mkShell {
         shellHook = ''
           export PATH=${lib.makeBinPath [ pkgs.difftastic ]}:$PATH

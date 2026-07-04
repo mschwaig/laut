@@ -6,9 +6,9 @@
 
 pub mod backend;
 pub mod debug;
-pub mod keyfiles;
 pub mod orchestrator;
 pub mod signature_verify;
 pub mod string_interner;
+pub mod trust_model;
 pub mod types;
 pub mod verifier;

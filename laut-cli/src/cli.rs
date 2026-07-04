@@ -81,9 +81,13 @@ pub struct VerifyArgs {
     #[arg(long = "cache")]
     pub cache: Vec<String>,
 
-    /// Path to a trusted public key file. Repeatable.
-    #[arg(long = "trusted-key")]
-    pub trusted_key: Vec<PathBuf>,
+    /// Path to a Nix file describing the trust model. The Nix file must
+    /// evaluate to a trust-model attrset, e.g.:
+    ///   { threshold = 2; of = [ { key = "name:base64"; } ... ]; }
+    /// Keys referenced in the spec are used for both trust-model evaluation
+    /// and signature verification.
+    #[arg(long = "trust-model-config", env = "LAUT_TRUST_MODEL_CONFIG")]
+    pub trust_model_config: PathBuf,
 
     /// Cache URL to scan for signer-side debug preimages. When a
     /// resolved-input-hash lookup misses, runs difft against any preimage

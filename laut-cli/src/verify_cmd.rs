@@ -11,8 +11,8 @@ use std::process::{Command, ExitCode};
 
 use laut_verify::backend::RealBackend;
 use laut_verify::debug::{build_corpus_from_cache, DebugProbe, DifftProbe, NullProbe};
-use laut_verify::keyfiles;
 use laut_verify::orchestrator::{Config, Orchestrator};
+use laut_verify::trust_model;
 
 use crate::cli::VerifyArgs;
 
@@ -20,10 +20,10 @@ use crate::cli::VerifyArgs;
 pub enum Error {
     #[error("verifier: {0}")]
     Orchestrator(#[from] laut_verify::orchestrator::Error),
-    #[error("keyfile: {0}")]
-    Keyfile(#[from] keyfiles::Error),
     #[error("debug corpus: {0}")]
     DebugCorpus(#[from] laut_verify::debug::CorpusError),
+    #[error("trust model config: {0}")]
+    TrustModelConfig(#[from] laut_verify::trust_model::Error),
     #[error("temp dir: {0}")]
     Io(#[from] std::io::Error),
     #[error("invalid target {target:?}: must be a /nix/store/*.drv path or a flake reference (pkg#attr)")]
@@ -41,12 +41,6 @@ pub enum Error {
 }
 
 pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
-    let mut trusted_keys: Vec<(String, Vec<u8>)> = Vec::with_capacity(args.trusted_key.len());
-    for key_path in &args.trusted_key {
-        let (name, key) = keyfiles::parse_public_key_file(key_path)?;
-        trusted_keys.push((name, key.to_vec()));
-    }
-
     let drv_path = resolve_target(&args.target)?;
 
     let probe: Box<dyn DebugProbe> = match &args.debug_preimage_corpus {
@@ -61,10 +55,12 @@ pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
         None => Box::new(NullProbe),
     };
 
+    let trust_model = trust_model::load_spec_from_nix_file(&args.trust_model_config)?;
+
     let cfg = Config {
         root_drv_path: drv_path.clone(),
         cache_urls: args.cache,
-        trusted_keys,
+        trust_model,
         debug_probe: probe,
     };
     let mut orch = Orchestrator::new(RealBackend, cfg)?;
