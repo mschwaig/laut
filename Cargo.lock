@@ -1535,6 +1535,7 @@ dependencies = [
  "ed25519-dalek",
  "laut-sign",
  "nix-compat",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",

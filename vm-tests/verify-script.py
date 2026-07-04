@@ -46,7 +46,7 @@ drv_path = verifier.succeed(f"nix-instantiate '{nixpkgs_attr}' -A {packageToBuil
 if addressing == "ia":
     verifier.succeed(f"nix build -f '{nixpkgs_attr}' {packageToBuild} --substitute --no-link")
 
-verify_cmd = f"laut verify --cache \"{cacheStoreUrl}\" --trusted-key {builderA_pub} --trusted-key {builderB_pub} {drv_path}"
+verify_cmd = f"laut-verify {drv_path}"
 output = verifier.succeed(verify_cmd)
 print(f"laut verify output:\n{output}")
 

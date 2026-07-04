@@ -30,7 +30,7 @@ print(f"tamper output:\n{tamper_output}")
 debug_cmd = (
     f"laut verify "
     f"--cache 'file:///var/lib/cache' "
-    f"--trusted-key {builderA_pub} --trusted-key {builderB_pub} "
+    f"--trust-model-config /etc/laut/trust-model.nix "
     f"--debug-preimage-corpus 'file:///var/lib/cache' "
     f"--debug-out-dir /tmp/laut-debug "
     f"$(nix-instantiate '<nixpkgs-ca>' -A {packageToBuild}) 2>&1"

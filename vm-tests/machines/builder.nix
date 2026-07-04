@@ -52,6 +52,8 @@ let
     map (drv: drv.out.outPath) autoDiscoveredFods
     ++ map (drv: drv.out.outPath) supplementaryFods;
 in {
+  imports = [ ../../nixos/sign.nix ];
+
   virtualisation.memorySize = 1024 * 6;
   virtualisation.cores = 4;  # Reduced from 6 to lower peak memory usage during parallel GCC builds
   virtualisation.diskSize = 1024 * 4;
@@ -61,6 +63,15 @@ in {
   virtualisation.mountHostNixStore = false;
 
   virtualisation.additionalPaths = prefetchedSources;
+
+  services.laut.sign = {
+    enable = true;
+    package = laut-sign-only;
+    cacheUrl = cacheStoreUrl;
+    secretKeyFile = builderPrivateKey;
+    publicKeyFile = builderPublicKey;
+    includePreimage = true;
+  };
 
   nix = {
     package = nixPackage;
@@ -105,38 +116,13 @@ in {
       '';
     settings = {
       trusted-substituters = [ ];
-      post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
-        set -eux
-        set -f # disable globbing
-
-        # Create a sanitized filename from the derivation path
-        SAFE_DRV_NAME=$(basename "$DRV_PATH" | tr -dc '[:alnum:].-')
-        LOG_FILE="$HOME/hooklog-$SAFE_DRV_NAME"
-
-        # Redirect all output to both the console and the derivation-specific log file
-        exec > >(tee -a "$LOG_FILE") 2>&1
-
-        [ -n "$OUT_PATHS" ]
-        [ -n "$DRV_PATH" ]
-
-        echo Pushing "$OUT_PATHS" to ${cacheStoreUrl}
-        printf "%s" "$OUT_PATHS" | xargs nix copy --to "${cacheStoreUrl}" --no-require-sigs
-        printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${cacheStoreUrl}" --secret-key-files /etc/nix/private-key
-
-        laut sign-and-upload --include-preimage "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${cacheStoreUrl}"
-      '';
     };
   };
 
   environment = {
-    etc = {
-      "nix/public-key".source = builderPublicKey;
-      "nix/private-key".source = builderPrivateKey;
-    };
     systemPackages = [
       nixPackage
       pkgs.git
-      laut-sign-only
     ];
   };
 }
