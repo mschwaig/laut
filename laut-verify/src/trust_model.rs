@@ -327,8 +327,11 @@ mod tests {
         assert!(matches!(err, Error::Validation(_)));
     }
 
+    /// The same key referenced in two positions resolves to the same KeyId,
+    /// and validation then rejects the model: a key may appear in at most one
+    /// leaf (otherwise one signature could light several leaves at once).
     #[test]
-    fn same_key_deduplicated() {
+    fn same_key_in_two_positions_rejected() {
         let ks = key_spec("a", &[1u8; 32]);
         let spec = TrustModelSpec::Threshold {
             threshold: 2,
@@ -343,27 +346,8 @@ mod tests {
                 },
             ],
         };
-        let interner = fresh_interner();
-        let (tm, interner) = resolve_spec(&spec, interner).unwrap();
-        // Count distinct KeyIds in the resolved model.
-        let mut ids = std::collections::HashSet::new();
-        collect_key_ids(&tm, &mut ids);
-        assert_eq!(ids.len(), 2, "builderA + builderB, builderA deduplicated");
-        // The interner should have exactly 2 keys interned.
-        let _ = interner; // just ensure it's moved out
-    }
-
-    fn collect_key_ids(tm: &TrustModel, ids: &mut std::collections::HashSet<KeyId>) {
-        match tm {
-            TrustModel::Key(k) | TrustModel::KeyLegacy(k) => {
-                ids.insert(*k);
-            }
-            TrustModel::Threshold(_, children) => {
-                for c in children {
-                    collect_key_ids(c, ids);
-                }
-            }
-        }
+        let err = resolve_spec(&spec, fresh_interner()).unwrap_err();
+        assert!(matches!(err, Error::Validation(_)));
     }
 
     #[test]
