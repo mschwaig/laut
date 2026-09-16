@@ -24,8 +24,8 @@ pub fn run_sign(args: SignArgs) -> Result<ExitCode, Error> {
         include_preimage: args.include_preimage,
     };
     match sign::sign(&cfg)? {
-        Some((_input_hash, jws_token)) => {
-            println!("{}", jws_token);
+        Some((_input_hash, bundle)) => {
+            println!("{}", bundle);
             Ok(ExitCode::SUCCESS)
         }
         None => Ok(ExitCode::from(117)),

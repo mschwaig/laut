@@ -59,6 +59,7 @@
         buildInputs = [
           pkgs.cargo
           pkgs.rustc
+          pkgs.rustfmt
         ];
 
         nativeBuildInputs = [

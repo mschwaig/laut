@@ -17,9 +17,9 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Sign a derivation and write the JWS to stdout.
+    /// Sign a derivation and write a Sigstore Bundle to stdout.
     Sign(SignArgs),
-    /// Sign a derivation and POST the JWS to an HTTP cache.
+    /// Sign a derivation and merge its bundle into an HTTP cache.
     #[command(name = "sign-and-upload")]
     SignAndUpload(SignAndUploadArgs),
     /// Verify signatures for a derivation or flake reference.
@@ -41,7 +41,7 @@ pub struct SignArgs {
     #[arg(long, env = "OUT_PATHS")]
     pub out_paths: String,
 
-    /// Embed the resolved ATerm preimage in the signed JWS debug block.
+    /// Embed the resolved ATerm preimage as a signed debugging byproduct.
     /// Test/dev only — production signers should keep this off so preimages
     /// never leak into shared caches.
     #[arg(long)]
@@ -65,7 +65,7 @@ pub struct SignAndUploadArgs {
     #[arg(long, env = "OUT_PATHS")]
     pub out_paths: String,
 
-    /// Embed the resolved ATerm preimage in the signed JWS debug block.
+    /// Embed the resolved ATerm preimage as a signed debugging byproduct.
     #[arg(long)]
     pub include_preimage: bool,
 }

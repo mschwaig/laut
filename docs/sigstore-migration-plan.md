@@ -38,6 +38,8 @@ and upstream references so that subsequent changes can be reviewed against them.
   submit entries to, or otherwise depend on, public Sigstore infrastructure.
 - Do not clone research repositories as part of this work. Record relevant
   sources and selected dependency revisions here or in the resulting profile.
+- Run only small VM tests locally, including the focused private-log checks.
+  Medium and large VM tests are explicitly excluded from local execution.
 
 ## Deferred Work
 

@@ -42,10 +42,11 @@ pub enum Error {
     #[error(
         "input referenced output {output_name:?} not declared on input derivation {drv_path:?}"
     )]
-    UnknownReferencedOutput { drv_path: String, output_name: String },
-    #[error(
-        "mixed-regime tree: root is {root_regime:?} but {drv_path:?} is {found_regime:?}"
-    )]
+    UnknownReferencedOutput {
+        drv_path: String,
+        output_name: String,
+    },
+    #[error("mixed-regime tree: root is {root_regime:?} but {drv_path:?} is {found_regime:?}")]
     MixedRegime {
         root_regime: Regime,
         found_regime: Regime,
@@ -137,14 +138,14 @@ impl<B: Backend> Orchestrator<B> {
             ));
         }
 
-        // Resolve names → `kid` so both verification and the trust model use
-        // the same string representation. The kid head is the first 16 chars
-        // of the JWK thumbprint, matching what the signer puts in the JWS.
+        // Derive authority IDs from configured keys, never envelope hints.
+        // Aliases of the same key must not create additional consensus votes.
         let mut kid_keys: Vec<(String, Vec<u8>)> = Vec::with_capacity(cfg.trusted_keys.len());
-        for (name, key_bytes) in &cfg.trusted_keys {
+        for (_name, key_bytes) in &cfg.trusted_keys {
             let tp = thumbprint::ed25519_thumbprint(key_bytes)?;
-            let kid = format!("{}:{}", name, &tp[..16]);
-            kid_keys.push((kid, key_bytes.clone()));
+            if !kid_keys.iter().any(|(id, _)| id == &tp) {
+                kid_keys.push((tp, key_bytes.clone()));
+            }
         }
 
         let recursive_json = backend.derivation_show_recursive(&cfg.root_drv_path)?;
@@ -234,10 +235,7 @@ impl<B: Backend> Orchestrator<B> {
         // compared against the signed paths during resolution as a consistency
         // check.
         if matches!(self.regime, Regime::Ia) && !root_udrv.is_fixed_output {
-            let walker = self
-                .walker
-                .as_mut()
-                .expect("IA regime requires a walker");
+            let walker = self.walker.as_mut().expect("IA regime requires a walker");
             for udrv_output in root_udrv.outputs.values() {
                 let ia_path = &udrv_output.unresolved_path;
                 if std::path::Path::new(ia_path).exists() {

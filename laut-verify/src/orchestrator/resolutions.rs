@@ -22,19 +22,22 @@ impl<B: Backend> Orchestrator<B> {
         }
 
         if udrv.is_fixed_output {
-            let fod_out_path = udrv.fod_out_path.as_deref().ok_or_else(|| {
-                Error::FodMissingOut {
-                    drv_path: udrv.drv_path.clone(),
-                }
-            })?;
+            let fod_out_path =
+                udrv.fod_out_path
+                    .as_deref()
+                    .ok_or_else(|| Error::FodMissingOut {
+                        drv_path: udrv.drv_path.clone(),
+                    })?;
             let (ct_input_hash, _aterm_bytes) = self.compute_resolved(udrv, &BTreeMap::new())?;
             self.add_fod_to_facts(udrv, fod_out_path);
-            let out_output = udrv.outputs.get("out").cloned().ok_or_else(|| {
-                Error::UnknownReferencedOutput {
-                    drv_path: udrv.drv_path.clone(),
-                    output_name: "out".to_owned(),
-                }
-            })?;
+            let out_output =
+                udrv.outputs
+                    .get("out")
+                    .cloned()
+                    .ok_or_else(|| Error::UnknownReferencedOutput {
+                        drv_path: udrv.drv_path.clone(),
+                        output_name: "out".to_owned(),
+                    })?;
             let mut outs = BTreeMap::new();
             outs.insert(out_output, fod_out_path.to_owned());
             let resolved = TrustlesslyResolvedDerivation {
@@ -50,8 +53,10 @@ impl<B: Backend> Orchestrator<B> {
         }
 
         // Recurse first; if any dep can't be resolved, this udrv is unresolvable.
-        let mut dep_resolutions: Vec<(Arc<UnresolvedDerivation>, Vec<TrustlesslyResolvedDerivation>)> =
-            Vec::with_capacity(udrv.inputs.len());
+        let mut dep_resolutions: Vec<(
+            Arc<UnresolvedDerivation>,
+            Vec<TrustlesslyResolvedDerivation>,
+        )> = Vec::with_capacity(udrv.inputs.len());
         for input in &udrv.inputs {
             let child = self.collect_resolutions(&input.derivation)?;
             if child.is_empty() {
@@ -89,11 +94,7 @@ impl<B: Backend> Orchestrator<B> {
                 // `from_ia`); CA verifier rejects IA-shaped ones. Cross-regime
                 // mixing is deliberately not supported yet — see the design
                 // notes and the followup TODO around bit-equivalence testing.
-                let signed_from_ia = payload
-                    .get("in")
-                    .and_then(|v| v.get("from_ia"))
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
+                let signed_from_ia = laut_sign::attestation::from_ia(&payload);
                 let regime_match = match self.regime {
                     Regime::Ca => !signed_from_ia,
                     Regime::Ia => signed_from_ia,
@@ -102,23 +103,17 @@ impl<B: Backend> Orchestrator<B> {
                     continue;
                 }
 
-                let nix_outputs = payload
-                    .get("out")
-                    .and_then(|v| v.get("nix"))
-                    .and_then(|v| v.as_object());
-                let Some(nix_outputs) = nix_outputs else {
-                    continue;
-                };
+                let subjects = payload["subject"].as_array().expect("validated subjects");
                 // Single content-keyed map: `UnresolvedOutput` lookups give us
                 // both the value the verifier wants and a stable iteration
                 // order for the dedup key. No parallel structure.
                 let mut outputs: BTreeMap<UnresolvedOutput, String> = BTreeMap::new();
                 let mut consistent = true;
-                for (output_name, claim) in nix_outputs {
-                    let Some(path) = claim.get("path").and_then(|v| v.as_str()) else {
-                        consistent = false;
-                        break;
-                    };
+                for subject in subjects {
+                    let output_name = subject["name"].as_str().expect("validated output name");
+                    let path = subject["annotations"]["laut_storePath"]
+                        .as_str()
+                        .expect("validated store path");
                     let Some(udrv_output) = udrv.outputs.get(output_name) else {
                         // Signer claimed an output we don't have — skip claim.
                         consistent = false;
@@ -234,7 +229,10 @@ impl<B: Backend> Orchestrator<B> {
 /// Returns assignments keyed by the dep's drv_path so the caller can look up
 /// the chosen resolution without holding on to dep `UnresolvedDerivation`s.
 pub fn cartesian_product(
-    dep_resolutions: &[(Arc<UnresolvedDerivation>, Vec<TrustlesslyResolvedDerivation>)],
+    dep_resolutions: &[(
+        Arc<UnresolvedDerivation>,
+        Vec<TrustlesslyResolvedDerivation>,
+    )],
 ) -> Vec<BTreeMap<String, TrustlesslyResolvedDerivation>> {
     if dep_resolutions.is_empty() {
         return vec![BTreeMap::new()];
@@ -312,8 +310,14 @@ mod tests {
         let a = mk("a");
         let b = mk("b");
         let result = cartesian_product(&[
-            (a.clone(), vec![mk_resolved(a.clone(), "a1"), mk_resolved(a.clone(), "a2")]),
-            (b.clone(), vec![mk_resolved(b.clone(), "b1"), mk_resolved(b.clone(), "b2")]),
+            (
+                a.clone(),
+                vec![mk_resolved(a.clone(), "a1"), mk_resolved(a.clone(), "a2")],
+            ),
+            (
+                b.clone(),
+                vec![mk_resolved(b.clone(), "b1"), mk_resolved(b.clone(), "b2")],
+            ),
         ]);
         assert_eq!(result.len(), 4);
     }

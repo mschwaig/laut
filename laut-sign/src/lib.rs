@@ -8,6 +8,7 @@
 //!
 //! Verification-specific logic lives in `laut-verify`.
 
+pub mod attestation;
 pub mod constructive_trace;
 pub mod content_hash;
 pub mod derivation;
