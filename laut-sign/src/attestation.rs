@@ -500,6 +500,35 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_subjects_dependencies_and_ambiguous_containers() {
+        let (key, bundle) = fixture();
+        let statement = bundle.verify(&key.verifying_key()).unwrap();
+        let mut duplicate = statement.clone();
+        duplicate["subject"]
+            .as_array_mut()
+            .unwrap()
+            .push(statement["subject"][0].clone());
+        assert!(Bundle::sign(&duplicate, &key).is_err());
+        let mut extra = statement.clone();
+        extra["predicate"]["buildDefinition"]["externalParameters"]["unresolvedDrv"] =
+            "not-allowed".into();
+        assert!(Bundle::sign(&extra, &key).is_err());
+        extra = statement;
+        extra["predicate"]["buildDefinition"]["resolvedDependencies"] =
+            json!([{"uri":"unwanted-dependency"}]);
+        assert!(Bundle::sign(&extra, &key).is_err());
+        let mut container = serde_json::to_value(&bundle).unwrap();
+        container["messageSignature"] = json!({});
+        assert!(parse_bundle(&serde_json::to_vec(&container).unwrap()).is_err());
+        let mut multi = bundle;
+        multi
+            .dsse_envelope
+            .signatures
+            .push(multi.dsse_envelope.signatures[0].clone());
+        assert!(multi.verify(&key.verifying_key()).is_err());
+    }
+
+    #[test]
     fn pae_vector_and_base64_variants() {
         assert_eq!(
             pae("http://example.com/HelloWorld", b"hello world"),

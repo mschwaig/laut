@@ -107,7 +107,7 @@ impl Default for Config {
 pub struct Orchestrator<B: Backend> {
     backend: B,
     cache_urls: Vec<String>,
-    /// `(kid, raw_key)` for verification + reasoner; `kid` is `name:thumbprint16`.
+    /// `(SPKI fingerprint, raw_key)` for verification and the reasoner.
     trusted_keys: Vec<(String, Vec<u8>)>,
     pub(crate) regime: Regime,
     debug_probe: Box<dyn DebugProbe>,

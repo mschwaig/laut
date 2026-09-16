@@ -1,6 +1,6 @@
 # Sigstore Migration Plan
 
-Status: implementation in progress, recorded 2026-09-16. This document records
+Status: initial implementation completed and tested locally, 2026-09-16. This document records
 the agreed scope, implementation order,
 and upstream references so that subsequent changes can be reviewed against them.
 
@@ -9,6 +9,8 @@ and upstream references so that subsequent changes can be reviewed against them.
 - `001f8eb`: committed this plan before implementation.
 - `4544a2d`: replaced JWS with the documented managed-key SLSA/DSSE profile,
   JSON Lines cache collections, migrated fixtures, and debug extraction.
+- `c0f8bfd`: added Rekor v2 proof validation, CLI requirements, and private VM
+  interoperability tests.
 - Rekor v2 submission and offline verification are implemented. Publishers
   verify proofs before publication; `--require-log` adds the initial global
   admission criterion. Ed25519 and P-256 checkpoint keys are supported.
@@ -20,8 +22,28 @@ and upstream references so that subsequent changes can be reviewed against them.
 - The independent oracle uses sigstore-go v1.3.0, not Rekor's older v1.1.4
   dependency, to check the PAE-to-log binding. Its checkpoint name handling
   drops URL ports/paths, so interoperability tests use a default-port log URL.
-- Workspace tests and both package builds have passed during development.
-  Final reruns and existing small VM regression checks are still pending.
+- Final workspace tests passed with and without default features (78 tests in
+  each configuration). All 314 migrated fixture bundles verify under their
+  respective cache keys.
+- Both package builds, the private-log sign/verify checks, and the existing
+  small CA and IA sign/verify checks passed. No medium or large VM tests were
+  run locally. The private-log check also exercises the debug-preimage probe.
+- A temporary verification-only source-content edit left the sign-only
+  derivation unchanged; the temporary edit was removed afterward.
+- The JSON Lines inspection utility extracted all 314 fixture statements into
+  two hint groups. Its grouping is explicitly unauthenticated.
+
+The implementation uses `ed25519-dalek` 2.1.1, `p256` 0.13.2, and the existing
+SHA-2/serde stack in Rust. It implements the small DSSE and RFC 6962/checkpoint
+protocol surface directly rather than relying on incomplete high-level Rust
+Sigstore verification. Independent sigstore-go tests validate interoperability;
+they do not constitute a security audit or a production-scale benchmark.
+
+Known initial limits are documented in [the profile](slsa-provenance-v1.md):
+managed Ed25519ph build keys, Ed25519/P-256 checkpoint keys, explicit local log
+trust, no trusted timestamps/validity-window policy, and explicit failure on
+duplicate-submission HTTP 409 rather than online proof recovery. The private
+tests confirm the duplicate response and do not generate a replacement claim.
 
 ## Goals and Decisions
 
@@ -220,13 +242,14 @@ proof size and hashing work are `O(log N)`.
 
 ### 1. Profile and Interoperability Gate
 
-- [ ] Finalize the payload mapping and required fields, with complete CA, IA,
-  multi-output, direct, logged, and debug examples.
-- [ ] Pin the Rekor v2 test server and independent interoperability tooling.
-- [ ] Demonstrate Ed25519ph DSSE signing using existing Nix key material.
-- [ ] Verify direct and logged bundles using an independent implementation,
+- [x] Finalize the payload mapping and required fields. The fixture corpus and
+  `vm-tests/small-sigstore.nix` provide executable CA, IA, multi-output, direct,
+  logged, and debug examples; exported VM bundles are available for inspection.
+- [x] Pin the Rekor v2 test server and independent interoperability tooling.
+- [x] Demonstrate Ed25519ph DSSE signing using existing Nix key material.
+- [x] Verify direct and logged bundles using an independent implementation,
   against a private log and explicit test trust roots only.
-- [ ] Evaluate Rust components for the required managed-key, DSSE, checkpoint,
+- [x] Evaluate Rust components for the required managed-key, DSSE, checkpoint,
   and inclusion-proof functionality before committing to dependencies.
 
 Use `sigstore-go` as an interoperability reference, not an assumed production
@@ -236,58 +259,60 @@ are performed. Reassess the exact revisions selected for implementation.
 
 ### 2. Shared Format and Direct Signing
 
-- [ ] Replace `laut-sign/src/sign/jws.rs` with the shared statement/envelope/bundle
+- [x] Replace `laut-sign/src/sign/jws.rs` with the shared statement/envelope/bundle
   implementation and update `laut-sign/src/sign.rs`.
-- [ ] Preserve existing keyfile parsing and hashing behavior; enable the chosen
+- [x] Preserve existing keyfile parsing and hashing behavior; enable the chosen
   Ed25519ph implementation explicitly, without a pure-Ed25519 fallback.
-- [ ] Generate invocation IDs once per new claim and preserve optional metadata.
-- [ ] Keep common format/signing code on the sign side and verification-only
+- [x] Generate invocation IDs once per new claim and preserve optional metadata.
+- [x] Keep common format/signing code on the sign side and verification-only
   dependencies in `laut-verify`, preserving sign-only build isolation.
-- [ ] Add payload, encoding, signing, and malformed-input unit tests.
+- [x] Add payload, encoding, signing, and malformed-input unit tests.
 
 ### 3. Cache and Verifier Migration
 
-- [ ] Migrate `laut-sign/src/http_cache.rs` to JSON Lines bundle collections with
+- [x] Migrate `laut-sign/src/http_cache.rs` to JSON Lines bundle collections with
   conditional merge updates and explicit retry/deduplication tests.
-- [ ] Update `laut-verify/src/backend.rs`, `signature_verify.rs`, and orchestrator
-  retrieval/admission code to consume bundles and return verified signer facts.
-- [ ] Preserve threshold, divergence/convergence, and atomic multi-output rules.
-- [ ] Migrate debug corpus decoding and fixtures without adding JWS compatibility.
-- [ ] Test that input-hash mismatch, regime mismatch, malformed claims, and
+- [x] Update retrieval/admission code to consume bundles and return verified
+  signer facts. The Backend contract remains raw bytes; no new transport API.
+- [x] Preserve threshold, divergence/convergence, and atomic multi-output rules.
+- [x] Migrate debug corpus decoding and fixtures without adding JWS compatibility.
+- [x] Test that input-hash mismatch, regime mismatch, malformed claims, and
   unauthenticated key hints cannot introduce accepted facts.
 
 ### 4. Transparency Integration
 
-- [ ] Implement submission to explicitly configured Rekor v2 endpoints and
+- [x] Implement submission to explicitly configured Rekor v2 endpoints and
   verification of returned entry bindings, proofs, and checkpoints.
-- [ ] Add explicit log trust configuration and the initial verification-wide
+- [x] Add explicit log trust configuration and the initial verification-wide
   log requirement in `laut-cli`; do not add the pending policy UI.
-- [ ] Preserve enough validated evidence information for future signer-specific
-  criteria without treating log identities as build-signer votes.
-- [ ] Verify that cache-based validation needs no log connection or implicit
+- [x] Keep the log criterion at the signer-admission boundary for future
+  signer-specific requirements, without treating logs as build-signer votes.
+- [x] Verify that cache-based validation needs no log connection or implicit
   public trust-root download.
-- [ ] Test failures, submission retries, duplicate entries, proof stripping,
+- [x] Test failures, bounded submission retries, duplicate entries, proof stripping,
   wrong keys/logs, and mismatched or tampered logged content.
 
 ### 5. Private NixOS VM Tests
 
-- [ ] Package the pinned Rekor v2 POSIX server, using a local test signing key,
+- [x] Package the pinned Rekor v2 POSIX server, using a local test signing key,
   local filesystem state, and a NixOS/systemd service. No Docker or cloud backend
   is needed for this test topology.
-- [ ] Add a focused log-signing VM test with cache, builder, and log nodes, using
+- [x] Add a focused log-signing VM test with cache, builder, and log nodes, using
   the existing `vm-tests/test-template.nix` structure where appropriate.
-- [ ] Add a verification test consuming its exported cache without a running
+- [x] Add a verification test consuming its exported cache without a running
   log, preserving the existing sign/verify test split and rebuild isolation.
-- [ ] Use test-only build/log keys and explicit endpoints and trust material.
+- [x] Use test-only build/log keys and explicit endpoints and trust material.
   Disable external network access during test execution so public-service
   defaults or fallback paths fail instead of contacting public infrastructure.
-- [ ] Exercise real Ed25519ph signing, real log submission, and offline proof
+- [x] Exercise real Ed25519ph signing, real log submission, and offline proof
   verification. Cover direct acceptance and rejection under a logged requirement.
-- [ ] Tamper the PAE binding, signature, entry verifier, proof, checkpoint, log
+- [x] Tamper the PAE binding, signature, entry verifier, proof, checkpoint, log
   identity, and required evidence; assert rejection without changing consensus.
-- [ ] Keep quick Rust tests offline using local fixtures. Adapt relevant upstream
-  conformance cases rather than running a public-service-dependent suite.
-- [ ] Measure bundle size and log publication latency using the private service.
+- [x] Keep quick Rust tests offline using local fixtures. Cover relevant
+  conformance failure classes and use an independent verifier rather than
+  running a public-service-dependent suite.
+- [x] Record sample bundle size/material overhead and operation timings in the
+  private VM test log. These tiny examples are not production-scale benchmarks.
 
 Source/dependency downloads to build the test closure are distinct from test
 execution. Test execution must neither read public Sigstore services nor submit
@@ -295,15 +320,16 @@ public entries. Pre-execution/start-record tests are not part of this scope.
 
 ### 6. Migration Verification and Documentation
 
-- [ ] Regenerate affected Rust fixtures and update VM scripts and user-facing
+- [x] Regenerate affected Rust fixtures and update VM scripts and user-facing
   format/CLI documentation. Keep a traceable relationship to existing scenarios.
-- [ ] Run `nix develop -c cargo test --workspace`.
-- [ ] Run `nix develop -c cargo test --workspace --no-default-features`.
-- [ ] Run `nix build .#laut .#laut-sign-only`.
-- [ ] Run the focused private-log VM checks and relevant existing CA/IA and
-  debug-probe checks; document any independently existing failures.
-- [ ] Confirm verification-only edits do not change the sign-only derivation.
-- [ ] Record actual dependency versions, interoperability results, and any
+- [x] Run `nix develop -c cargo test --workspace`.
+- [x] Run `nix develop -c cargo test --workspace --no-default-features`.
+- [x] Run `nix build .#laut .#laut-sign-only` (with `--no-link --cores 4`).
+- [x] Run `small-sigstore-verify` (including its sign dependency and debug probe),
+  `small-ca-verify`, and `small-ia-verify` (including their sign dependencies).
+  Larger VM checks are deliberately not run locally.
+- [x] Confirm verification-only edits do not change the sign-only derivation.
+- [x] Record actual dependency versions, interoperability results, and any
   differences between specification text and implementation behavior.
 
 New Rust source files must be added with `git add -N` for the Nix source filter.

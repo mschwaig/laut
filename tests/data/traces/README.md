@@ -16,3 +16,8 @@ statements. These are test claims, not evidence from newly executed builds.
 
 The profile is documented in `docs/slsa-provenance-v1.md`. Integration tests use
 these local fixtures and never query public infrastructure.
+
+`consolidate.py` inspects bundle collections without signature verification.
+Its groups are based on unauthenticated hints, not trusted signer identities.
+The historical MinIO-internals extractor is only for old archived test data;
+export new bundle objects through the storage service's normal object API.

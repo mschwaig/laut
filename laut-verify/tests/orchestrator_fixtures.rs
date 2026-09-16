@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use ed25519_dalek::SigningKey;
 use laut_verify::backend::InMemoryBackend;
 use laut_verify::keyfiles;
-use laut_verify::orchestrator::{cartesian_product, Config, Error, Orchestrator};
+use laut_verify::orchestrator::{Config, Error, Orchestrator, cartesian_product};
 use laut_verify::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};
 
 use std::collections::BTreeMap;
@@ -86,6 +86,27 @@ fn trusted_keys() -> Vec<(String, Vec<u8>)> {
         read_public_key("builderA_key.public"),
         read_public_key("builderB_key.public"),
     ]
+}
+
+#[test]
+fn every_migrated_bundle_verifies_under_its_cache_key() {
+    let trusted = trusted_keys();
+    let mut total = 0;
+    for (hash, bytes) in read_all_signatures() {
+        let text = std::str::from_utf8(&bytes).unwrap();
+        let bundles: Vec<_> = text
+            .lines()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let verified = laut_verify::signature_verify::verify_resolved_trace_signatures(
+            &hash, &bundles, &trusted, None,
+        )
+        .unwrap();
+        assert_eq!(verified.len(), bundles.len(), "fixture {hash}");
+        total += verified.len();
+    }
+    assert_eq!(total, 314);
 }
 
 fn make_orchestrator(
@@ -204,8 +225,14 @@ fn cartesian_multiple_keys_multiply() {
     let a = mk_dep("a");
     let x = mk_dep("x");
     let combos = cartesian_product(&[
-        (a.clone(), vec![mk_resolved(a.clone(), "b"), mk_resolved(a.clone(), "c")]),
-        (x.clone(), vec![mk_resolved(x.clone(), "y"), mk_resolved(x.clone(), "z")]),
+        (
+            a.clone(),
+            vec![mk_resolved(a.clone(), "b"), mk_resolved(a.clone(), "c")],
+        ),
+        (
+            x.clone(),
+            vec![mk_resolved(x.clone(), "y"), mk_resolved(x.clone(), "z")],
+        ),
     ]);
     assert_eq!(combos.len(), 4);
 }
@@ -222,7 +249,9 @@ fn cartesian_three_keys_three_values_each() {
     // 3^3 = 27 combos
     let mk_set = |name: &str| {
         let dep = mk_dep(name);
-        let opts: Vec<_> = (0..3).map(|i| mk_resolved(dep.clone(), &format!("{}_{}", name, i))).collect();
+        let opts: Vec<_> = (0..3)
+            .map(|i| mk_resolved(dep.clone(), &format!("{}_{}", name, i)))
+            .collect();
         (dep, opts)
     };
     let combos = cartesian_product(&[mk_set("k0"), mk_set("k1"), mk_set("k2")]);

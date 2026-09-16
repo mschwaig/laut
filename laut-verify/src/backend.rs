@@ -114,7 +114,7 @@ impl Backend for RealBackend {
 pub struct InMemoryBackend {
     pub recursive_json: String,
     pub aterms: HashMap<String, String>,
-    /// `input_hash -> raw signatures-file bytes` (typically `{"signatures": [...]}`)`.
+    /// `input_hash -> JSON Lines bundle collection bytes`.
     pub signatures: HashMap<String, Vec<u8>>,
 }
 

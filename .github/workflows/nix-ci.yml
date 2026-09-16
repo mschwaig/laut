@@ -44,6 +44,7 @@ jobs:
         include:
           - test: small-ca-verify
           - test: small-ia-verify
+          - test: small-sigstore-verify
           - test: medium-ca-verify
           - test: medium-ia-verify
           - test: large-ca-verify

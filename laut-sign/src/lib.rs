@@ -3,8 +3,7 @@
 //! This crate holds the pieces that are needed regardless of which side of the
 //! signing/verification boundary the caller is on: derivation-path computation,
 //! content hashing, the constructive-trace resolved-input-hash routine, and the
-//! ed25519 JWK thumbprint that signers use to produce a `kid` and verifiers
-//! use to match a signature against a trusted key.
+//! Ed25519 SPKI fingerprint that identifies configured signer authorities.
 //!
 //! Verification-specific logic lives in `laut-verify`.
 

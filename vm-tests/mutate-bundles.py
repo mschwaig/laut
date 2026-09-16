@@ -29,9 +29,13 @@ for path in directory.iterdir():
                     entry["inclusionProof"]["hashes"].append(base64.b64encode(bytes(32)).decode())
                 elif mode == "index":
                     entry["logIndex"] = "9223372036854775807"
-                elif mode == "binding":
+                elif mode in ("binding", "verifier"):
                     body = json.loads(base64.b64decode(entry["canonicalizedBody"]))
-                    body["spec"]["hashedRekordV002"]["data"]["digest"] = base64.b64encode(bytes(64)).decode()
+                    metadata = body["spec"]["hashedRekordV002"]
+                    if mode == "binding":
+                        metadata["data"]["digest"] = base64.b64encode(bytes(64)).decode()
+                    else:
+                        metadata["signature"]["verifier"]["publicKey"]["rawBytes"] = base64.b64encode(bytes(44)).decode()
                     entry["canonicalizedBody"] = base64.b64encode(json.dumps(body).encode()).decode()
                 else:
                     raise ValueError(mode)

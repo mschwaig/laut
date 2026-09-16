@@ -81,6 +81,10 @@ let
       };
     };
     testScript = ''
+      import base64
+      import json
+      import shlex
+
       start_all()
       rekor.wait_for_unit("rekor.service")
       rekor.wait_for_open_port(80)
@@ -98,6 +102,17 @@ let
       builder.succeed(f"laut sign {drv} --out-paths '{outputs}' --secret-key-file /etc/nix/test-key > /tmp/direct.json")
       builder.succeed("laut-interop /etc/sigstore/log-root.json /tmp/direct.json ${../testkeys/builderA_key.public} direct")
       builder.fail("laut-interop /etc/sigstore/log-root.json /tmp/direct.json ${../testkeys/builderA_key.public} logged")
+      recorded = json.loads(cache.succeed("cat /var/lib/cache/traces/*").splitlines()[0])
+      direct = dict(recorded)
+      direct["verificationMaterial"] = {"publicKey": recorded["verificationMaterial"]["publicKey"]}
+      wire_bytes = lambda value: len(json.dumps(value, separators=(",", ":")).encode())
+      print("sample bundle bytes (with debug preimage):", wire_bytes(recorded))
+      print("sample transparency material overhead bytes:", wire_bytes(recorded) - wire_bytes(direct))
+      entry = recorded["verificationMaterial"]["tlogEntries"][0]
+      metadata = json.loads(base64.b64decode(entry["canonicalizedBody"]))["spec"]["hashedRekordV002"]
+      request = json.dumps({"hashedRekordRequestV002": {"digest": metadata["data"]["digest"], "signature": metadata["signature"]}})
+      status = cache.succeed("curl -sS -o /tmp/duplicate-response -w '%{http_code}' -H 'Content-Type: application/json' --data " + shlex.quote(request) + " http://rekor/api/v2/log/entries")
+      assert status == "409", status
       # Stopping the log must not silently turn logged publication into direct.
       before = cache.succeed("sha256sum /var/lib/cache/traces/*")
       rekor.succeed("systemctl stop rekor.service")
@@ -112,6 +127,7 @@ let
     nodes = {
       cache = cache // {
         environment.etc."mutate-bundles.py".source = ./mutate-bundles.py;
+        environment.etc."tamper-preimage.py".source = ./tamper-preimage.py;
       };
       verifier.environment.systemPackages = [ laut tools ];
     };
@@ -136,7 +152,7 @@ let
           verifier.succeed(f"curl -fsS http://cache:9000/traces/{h} -o /tmp/bundle.jsonl")
           verifier.succeed("laut-interop /etc/sigstore/log-root.json /tmp/bundle.jsonl ${../testkeys/builderA_key.public} logged")
       verifier.fail(f"{base} --require-log --trusted-root /etc/sigstore/wrong-log-root.json {targets[0]}")
-      for mutation in ["strip", "payload", "signature", "checkpoint", "proof", "index", "binding"]:
+      for mutation in ["strip", "payload", "signature", "checkpoint", "proof", "index", "binding", "verifier"]:
           cache.succeed("cp /var/lib/original-traces/* /var/lib/cache/traces/")
           cache.succeed(f"python3 /etc/mutate-bundles.py /var/lib/cache/traces {mutation}")
           for drv in targets:
@@ -145,6 +161,18 @@ let
           if mutation == "strip":
               for drv in targets:
                   verifier.succeed(f"{base} {drv}")
+      cache.succeed("cp /var/lib/original-traces/* /var/lib/cache/traces/")
+      marker = "LAUT_SIGSTORE_PREIMAGE_TAMPER"
+      cache.succeed(f"python3 /etc/tamper-preimage.py /var/lib/cache/traces {marker}")
+      failures = 0
+      for drv in targets:
+          status, output = verifier.execute(f"{logged} --debug-preimage-corpus http://cache:9000 --debug-out-dir /tmp/probe {drv} 2>&1")
+          if status == 118:
+              failures += 1
+              assert marker in output, output
+          else:
+              assert status == 0, output
+      assert failures == 1
       cache.succeed("cp /var/lib/original-traces/* /var/lib/cache/traces/")
       verifier.succeed(f"{logged} {targets[0]}")
     '';
