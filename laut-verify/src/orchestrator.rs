@@ -88,6 +88,8 @@ pub struct Config {
     /// Defaults to a `NullProbe`; the verify CLI swaps in a `DifftProbe` when
     /// `--debug-preimage-corpus` is set.
     pub debug_probe: Box<dyn DebugProbe>,
+    /// None permits direct signatures; Some requires a proof under this log trust.
+    pub log_requirement: Option<laut_sign::transparency::LogTrust>,
 }
 
 impl Default for Config {
@@ -97,6 +99,7 @@ impl Default for Config {
             cache_urls: Vec::new(),
             trusted_keys: Vec::new(),
             debug_probe: Box::new(NullProbe),
+            log_requirement: None,
         }
     }
 }
@@ -108,6 +111,7 @@ pub struct Orchestrator<B: Backend> {
     trusted_keys: Vec<(String, Vec<u8>)>,
     pub(crate) regime: Regime,
     debug_probe: Box<dyn DebugProbe>,
+    log_requirement: Option<laut_sign::transparency::LogTrust>,
 
     derivations: HashMap<String, DrvJson>,
 
@@ -206,6 +210,7 @@ impl<B: Backend> Orchestrator<B> {
             trusted_keys: kid_keys,
             regime,
             debug_probe: cfg.debug_probe,
+            log_requirement: cfg.log_requirement,
             derivations,
             interner,
             facts: Facts::new(),

@@ -1,8 +1,27 @@
 # Sigstore Migration Plan
 
-Status: implementation plan, recorded 2026-09-16. The format migration has not
-been implemented. This document records the agreed scope, implementation order,
+Status: implementation in progress, recorded 2026-09-16. This document records
+the agreed scope, implementation order,
 and upstream references so that subsequent changes can be reviewed against them.
+
+## Progress
+
+- `001f8eb`: committed this plan before implementation.
+- `4544a2d`: replaced JWS with the documented managed-key SLSA/DSSE profile,
+  JSON Lines cache collections, migrated fixtures, and debug extraction.
+- Rekor v2 submission and offline verification are implemented. Publishers
+  verify proofs before publication; `--require-log` adds the initial global
+  admission criterion. Ed25519 and P-256 checkpoint keys are supported.
+- `small-sigstore-sign` and `small-sigstore-verify` passed privately for CA and
+  IA multi-output builds, including independent sigstore-go verification and
+  adversarial cases. The verifier VM has no log VM or public network access.
+- Interoperability required SSH-style DSSE key hints. Authority and builder
+  identity remain derived from the actual key's full SPKI fingerprint.
+- The independent oracle uses sigstore-go v1.3.0, not Rekor's older v1.1.4
+  dependency, to check the PAE-to-log binding. Its checkpoint name handling
+  drops URL ports/paths, so interoperability tests use a default-port log URL.
+- Workspace tests and both package builds have passed during development.
+  Final reruns and existing small VM regression checks are still pending.
 
 ## Goals and Decisions
 

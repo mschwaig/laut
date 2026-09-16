@@ -20,3 +20,4 @@ pub mod nix_cmd;
 pub mod sign;
 pub mod store_path;
 pub mod thumbprint;
+pub mod transparency;

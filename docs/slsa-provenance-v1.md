@@ -14,8 +14,10 @@ those exact bytes, not canonicalized JSON. Reject duplicate JSON object keys.
 
 The initial profile supports managed Ed25519 keys only. Existing Nix keyfiles
 and key material are reused; signatures are newly generated. Public-key hints
-are the lowercase SHA-256 of DER SubjectPublicKeyInfo, and producers use the
-same hint in the envelope and verification material. Hints are not authorities:
+use the SSH `SHA256:<base64-without-padding>` fingerprint convention used by
+go-securesystemslib's DSSE adapter: hash the SSH Ed25519 public-key encoding,
+not DER SubjectPublicKeyInfo. Producers use the same hint in the envelope and
+verification material. Hints are not authorities:
 verification derives identity from the configured key that verifies the claim.
 Key aliases and repeated evidence must not multiply consensus votes.
 
@@ -123,3 +125,38 @@ statement payloads. Inclusion proves membership in a signed tree, not complete
 cache results or global non-equivocation. No trusted signing time is asserted
 in this managed-key profile. Start events, certificate identities, monitoring,
 and witnessing policy are outside this version's implementation scope.
+
+## Log Configuration
+
+`--trusted-root` reads a local Sigstore TrustedRoot v0.1 JSON file. The `tlogs`
+entries provide `baseUrl`, `hashAlgorithm: "SHA2_256"`, and `publicKey` with
+base64 DER `rawBytes` and `keyDetails`. Supported checkpoint key details are
+`PKIX_ED25519` (pure Ed25519 checkpoints) and `PKIX_ECDSA_P256_SHA_256`
+(ASN.1 DER ECDSA signatures). They are independent of the Ed25519ph build key.
+
+Configure the log's checkpoint origin as its scheme-less `baseUrl`, without a
+trailing slash. For Ed25519 logs, the full checkpoint key ID is SHA-256 of
+`origin || LF || 0x01 || raw_public_key`. For P-256 it is SHA-256 of DER SPKI,
+following Rekor's convention. Any supplied `logId` or `checkpointKeyId` must
+match. Checkpoint signatures use the first four bytes of that ID as their hint.
+The log's signing keys must be trusted out of band, never learned from the
+returned bundle or fetched from the submission endpoint.
+
+This implementation uses the configured log keys as accepted authorities; it
+does not enforce time-based key validity windows without a trusted timestamp.
+Only the `tlogs` part of TrustedRoot is used. Certificate authorities, identity
+providers, timestamp authorities, and automatic updates are not enabled.
+
+Submission retries transient errors with the same signature and statement.
+An HTTP 409 duplicate-submission conflict is surfaced as an error rather than
+silently re-signing or attempting online proof recovery. The returned proof
+must be validated before a logged bundle is published. Cache publication
+retries preserve the same complete bundle and use conditional writes.
+
+The private interoperability tests pin Rekor v2.3.0 and sigstore-go v1.3.0.
+The latter independently reconstructs the logged entry from the bundle,
+while laut verifies bindings against the persisted entry bytes. Tests use a
+default-port log URL: sigstore-go v1.3.0 derives note names using `Hostname()`
+and does not preserve non-default ports or path components. Laut retains them
+in its explicitly configured origin. This is a tooling interoperability limit,
+not a reason to accept a checkpoint from an unexpected origin.

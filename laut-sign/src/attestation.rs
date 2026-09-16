@@ -10,7 +10,7 @@ use base64::{
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha512};
+use sha2::{Digest, Sha256, Sha512};
 
 use crate::thumbprint::ed25519_thumbprint;
 
@@ -107,13 +107,27 @@ pub fn builder_id(key: &VerifyingKey) -> Result<String, Error> {
     ))
 }
 
+/// Match go-securesystemslib's default DSSE key hint. This is only a hint;
+/// consensus and builder IDs still use the full SPKI fingerprint.
+pub fn key_hint(key: &VerifyingKey) -> String {
+    let ssh = [
+        b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20".as_slice(),
+        key.as_bytes(),
+    ]
+    .concat();
+    format!(
+        "SHA256:{}",
+        base64::engine::general_purpose::STANDARD_NO_PAD.encode(Sha256::digest(ssh))
+    )
+}
+
 impl Bundle {
     pub fn sign(statement: &Value, key: &SigningKey) -> Result<Self, Error> {
         validate_statement(statement, &key.verifying_key())?;
         let payload = serde_json::to_vec(statement)?;
         let signature =
             key.sign_prehashed(Sha512::new_with_prefix(pae(PAYLOAD_TYPE, &payload)), None)?;
-        let hint = ed25519_thumbprint(key.verifying_key().as_bytes())?;
+        let hint = key_hint(&key.verifying_key());
         Ok(Self {
             media_type: BUNDLE_TYPE.into(),
             verification_material: VerificationMaterial {

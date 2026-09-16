@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::{Command, ExitCode};
 
 use laut_verify::backend::RealBackend;
-use laut_verify::debug::{build_corpus_from_cache, DebugProbe, DifftProbe, NullProbe};
+use laut_verify::debug::{DebugProbe, DifftProbe, NullProbe, build_corpus_from_cache};
 use laut_verify::keyfiles;
 use laut_verify::orchestrator::{Config, Orchestrator};
 
@@ -26,7 +26,11 @@ pub enum Error {
     DebugCorpus(#[from] laut_verify::debug::CorpusError),
     #[error("temp dir: {0}")]
     Io(#[from] std::io::Error),
-    #[error("invalid target {target:?}: must be a /nix/store/*.drv path or a flake reference (pkg#attr)")]
+    #[error("{0}")]
+    Transparency(#[from] laut_sign::transparency::Error),
+    #[error(
+        "invalid target {target:?}: must be a /nix/store/*.drv path or a flake reference (pkg#attr)"
+    )]
     InvalidTarget { target: String },
     #[error("derivation file {0:?} does not exist")]
     DerivationMissing(String),
@@ -66,6 +70,11 @@ pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
         cache_urls: args.cache,
         trusted_keys,
         debug_probe: probe,
+        log_requirement: args
+            .trusted_root
+            .as_deref()
+            .map(laut_sign::transparency::LogTrust::from_file)
+            .transpose()?,
     };
     let mut orch = Orchestrator::new(RealBackend, cfg)?;
     let verified = orch.verify()?;

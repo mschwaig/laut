@@ -234,6 +234,7 @@ impl<B: Backend> Orchestrator<B> {
             input_hash,
             signatures,
             &self.trusted_keys,
+            self.log_requirement.as_ref(),
         )?)
     }
 }

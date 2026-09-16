@@ -42,6 +42,7 @@
       packages.${system} = {
         inherit nix nix-vsbom test-drv-json;
         inherit (scope) laut laut-sign-only;
+        rekor-test-tools = pkgs.callPackage ./nix/rekor-test-tools.nix { };
         default = scope.laut;
       };
 

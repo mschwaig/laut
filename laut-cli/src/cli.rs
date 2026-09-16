@@ -29,6 +29,8 @@ pub enum Command {
 
 #[derive(Debug, Args)]
 pub struct SignArgs {
+    #[command(flatten)]
+    pub log: LogArgs,
     /// Path to the derivation (.drv) being signed.
     pub drv_path: PathBuf,
 
@@ -50,6 +52,8 @@ pub struct SignArgs {
 
 #[derive(Debug, Args)]
 pub struct SignAndUploadArgs {
+    #[command(flatten)]
+    pub log: LogArgs,
     /// Path to the derivation (.drv) being signed.
     pub drv_path: PathBuf,
 
@@ -70,9 +74,27 @@ pub struct SignAndUploadArgs {
     pub include_preimage: bool,
 }
 
+#[derive(Debug, Args)]
+pub struct LogArgs {
+    /// Submit to this Rekor v2 URL and verify its inclusion response.
+    #[arg(long, requires = "trusted_root")]
+    pub rekor: Option<String>,
+
+    /// Local Sigstore TrustedRoot JSON containing accepted log keys.
+    #[arg(long, requires = "rekor")]
+    pub trusted_root: Option<PathBuf>,
+}
+
 #[cfg(feature = "verify")]
 #[derive(Debug, Args)]
 pub struct VerifyArgs {
+    /// Require inclusion in at least one explicitly trusted Rekor v2 log.
+    #[arg(long, requires = "trusted_root")]
+    pub require_log: bool,
+
+    /// Local Sigstore TrustedRoot JSON; no public roots are fetched implicitly.
+    #[arg(long, requires = "require_log")]
+    pub trusted_root: Option<PathBuf>,
     /// Either a derivation path (`/nix/store/....drv`) or a flake reference
     /// (`nixpkgs#hello`); the type is inferred from the format.
     pub target: String,

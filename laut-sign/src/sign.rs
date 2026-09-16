@@ -45,6 +45,8 @@ pub enum Error {
     Derivation(#[from] derivation::Error),
     #[error("upload: {0}")]
     Upload(#[from] http_cache::Error),
+    #[error("{0}")]
+    Transparency(#[from] crate::transparency::Error),
     #[error("derivation {0:?} not found in `nix derivation show` output")]
     DrvNotFound(String),
     #[error("derivation JSON missing field {0:?}")]
@@ -65,6 +67,7 @@ pub struct SignConfig {
     /// preimage in a signed debugging byproduct. Test/dev only — production signers
     /// should leave this off so preimages never enter shared caches.
     pub include_preimage: bool,
+    pub log: Option<crate::transparency::LogConfig>,
 }
 
 /// Build and sign a trace bundle. Returns `None` on an unresolved CA
@@ -170,7 +173,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
 
     let (_key_name, signing_key) = keyfiles::parse_private_key_file(&cfg.secret_key_file)?;
 
-    let bundle = crate::attestation::create_trace_bundle(
+    let mut bundle = crate::attestation::create_trace_bundle(
         &input_hash,
         debug_data.as_ref(),
         &Value::Object(output_hashes_map),
@@ -181,6 +184,10 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
         &signing_key,
         from_ia,
     )?;
+
+    if let Some(log) = &cfg.log {
+        crate::transparency::submit(&mut bundle, &signing_key.verifying_key(), log)?;
+    }
 
     Ok(Some((input_hash, serde_json::to_string(&bundle)?)))
 }

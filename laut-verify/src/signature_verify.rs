@@ -40,6 +40,7 @@ pub fn verify_resolved_trace_signatures(
     input_hash: &str,
     signatures: &[String],
     trusted_keys: &[(String, Vec<u8>)],
+    log_requirement: Option<&laut_sign::transparency::LogTrust>,
 ) -> Result<Vec<(serde_json::Value, String)>, Error> {
     let mut out = Vec::new();
     for serialized in signatures {
@@ -57,6 +58,9 @@ pub fn verify_resolved_trace_signatures(
                 continue;
             };
             if attestation::input_hash(&statement) != Some(input_hash) {
+                continue;
+            }
+            if log_requirement.is_some_and(|trust| trust.verify(&bundle, &key).is_err()) {
                 continue;
             }
             out.push((statement, identity.clone()));
@@ -82,11 +86,11 @@ mod tests {
         let trusted = vec![("configured".into(), key.verifying_key().to_bytes().to_vec())];
         let serialized = serde_json::to_string(&bundle).unwrap();
         let claims =
-            verify_resolved_trace_signatures(&hash, &[serialized.clone()], &trusted).unwrap();
+            verify_resolved_trace_signatures(&hash, &[serialized.clone()], &trusted, None).unwrap();
         assert_eq!(claims.len(), 1);
         assert_eq!(claims[0].1, "configured");
         assert!(
-            verify_resolved_trace_signatures(&"1".repeat(32), &[serialized], &trusted)
+            verify_resolved_trace_signatures(&"1".repeat(32), &[serialized], &trusted, None)
                 .unwrap()
                 .is_empty()
         );
@@ -95,7 +99,8 @@ mod tests {
             verify_resolved_trace_signatures(
                 &hash,
                 &[serde_json::to_string(&bundle).unwrap()],
-                &trusted
+                &trusted,
+                None,
             )
             .unwrap()
             .is_empty()
