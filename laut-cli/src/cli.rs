@@ -17,9 +17,9 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Sign a derivation and write the JWS to stdout.
+    /// Sign a derivation and write a Sigstore Bundle to stdout.
     Sign(SignArgs),
-    /// Sign a derivation and POST the JWS to an HTTP cache.
+    /// Sign a derivation and merge its bundle into an HTTP cache.
     #[command(name = "sign-and-upload")]
     SignAndUpload(SignAndUploadArgs),
     /// Verify signatures for a derivation or flake reference.
@@ -29,6 +29,8 @@ pub enum Command {
 
 #[derive(Debug, Args)]
 pub struct SignArgs {
+    #[command(flatten)]
+    pub log: LogArgs,
     /// Path to the derivation (.drv) being signed.
     pub drv_path: PathBuf,
 
@@ -41,7 +43,7 @@ pub struct SignArgs {
     #[arg(long, env = "OUT_PATHS")]
     pub out_paths: String,
 
-    /// Embed the resolved ATerm preimage in the signed JWS debug block.
+    /// Embed the resolved ATerm preimage as a signed debugging byproduct.
     /// Test/dev only — production signers should keep this off so preimages
     /// never leak into shared caches.
     #[arg(long)]
@@ -50,6 +52,8 @@ pub struct SignArgs {
 
 #[derive(Debug, Args)]
 pub struct SignAndUploadArgs {
+    #[command(flatten)]
+    pub log: LogArgs,
     /// Path to the derivation (.drv) being signed.
     pub drv_path: PathBuf,
 
@@ -65,14 +69,32 @@ pub struct SignAndUploadArgs {
     #[arg(long, env = "OUT_PATHS")]
     pub out_paths: String,
 
-    /// Embed the resolved ATerm preimage in the signed JWS debug block.
+    /// Embed the resolved ATerm preimage as a signed debugging byproduct.
     #[arg(long)]
     pub include_preimage: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LogArgs {
+    /// Submit to this Rekor v2 URL and verify its inclusion response.
+    #[arg(long, requires = "trusted_root")]
+    pub rekor: Option<String>,
+
+    /// Local Sigstore TrustedRoot JSON containing accepted log keys.
+    #[arg(long, requires = "rekor")]
+    pub trusted_root: Option<PathBuf>,
 }
 
 #[cfg(feature = "verify")]
 #[derive(Debug, Args)]
 pub struct VerifyArgs {
+    /// Require inclusion in at least one explicitly trusted Rekor v2 log.
+    #[arg(long, requires = "trusted_root")]
+    pub require_log: bool,
+
+    /// Local Sigstore TrustedRoot JSON; no public roots are fetched implicitly.
+    #[arg(long, requires = "require_log")]
+    pub trusted_root: Option<PathBuf>,
     /// Either a derivation path (`/nix/store/....drv`) or a flake reference
     /// (`nixpkgs#hello`); the type is inferred from the format.
     pub target: String,

@@ -100,8 +100,11 @@ let
     isLarge = true; isMemoryConstrained = false;
   };
   smallCaSign = smallCaSet."small-ca-sign";
+  sigstore = import ./small-sigstore.nix { inherit pkgs system laut laut-sign-only; };
 in
   smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // {
+    small-sigstore-sign = sigstore.sign;
+    small-sigstore-verify = sigstore.verify;
     # Exercises the hash-divergence debug probe end-to-end: reuses the
     # small-ca-sign cache (preimages on), tampers one trace's preimage with a
     # known marker on the verifier, then runs `laut verify

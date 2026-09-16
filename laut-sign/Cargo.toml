@@ -16,3 +16,4 @@ serde_json = { workspace = true }
 ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }

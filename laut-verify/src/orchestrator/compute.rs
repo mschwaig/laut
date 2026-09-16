@@ -57,14 +57,13 @@ impl<B: Backend> Orchestrator<B> {
         let (substitutions, input_sources) = self.build_ia_substitution(udrv, combo)?;
 
         let aterm = self.backend.derivation_aterm(&udrv.drv_path)?;
-        let (resolved_drv_path, aterm_bytes) =
-            constructive_trace::compute_resolved_input_hash_ia(
-                &udrv.name,
-                aterm.as_bytes(),
-                input_sources,
-                &substitutions,
-            )
-            .map_err(|e| Error::ConstructiveTrace(format!("{}", e)))?;
+        let (resolved_drv_path, aterm_bytes) = constructive_trace::compute_resolved_input_hash_ia(
+            &udrv.name,
+            aterm.as_bytes(),
+            input_sources,
+            &substitutions,
+        )
+        .map_err(|e| Error::ConstructiveTrace(format!("{}", e)))?;
         let ct_input_hash = store_path::extract_store_hash(&resolved_drv_path)?;
 
         Ok((ct_input_hash, aterm_bytes))
@@ -124,9 +123,10 @@ impl<B: Backend> Orchestrator<B> {
         let mut input_sources: Vec<StorePath<String>> = Vec::new();
 
         for (dep_drv_path, resolved_dep) in combo {
-            let dep_drv = self.derivations.get(dep_drv_path).ok_or_else(|| {
-                Error::DerivationNotFound(dep_drv_path.clone())
-            })?;
+            let dep_drv = self
+                .derivations
+                .get(dep_drv_path)
+                .ok_or_else(|| Error::DerivationNotFound(dep_drv_path.clone()))?;
             // Only substitute dep outputs that are actually referenced by
             // this drv (listed in its inputDrvs). Substituting unreferenced
             // outputs would change the ATerm bytes and produce a different
@@ -153,10 +153,12 @@ impl<B: Backend> Orchestrator<B> {
                     })?;
                 substitutions.insert(ia_path.clone(), synthetic_ca_path.clone());
                 let sp = StorePath::<String>::from_absolute_path(synthetic_ca_path.as_bytes())
-                    .map_err(|e| Error::ConstructiveTrace(format!(
-                        "synthetic CA path {} parse: {:?}",
-                        synthetic_ca_path, e
-                    )))?;
+                    .map_err(|e| {
+                        Error::ConstructiveTrace(format!(
+                            "synthetic CA path {} parse: {:?}",
+                            synthetic_ca_path, e
+                        ))
+                    })?;
                 input_sources.push(sp);
             }
         }
@@ -173,7 +175,9 @@ impl<B: Backend> Orchestrator<B> {
         // matching how CA nix represents unresolved own outputs in the ATerm.
         for output_name in udrv.outputs.keys() {
             let placeholder = nix_compat::store_path::hash_placeholder(output_name);
-            let ia_outputs: Vec<_> = udrv.outputs.values()
+            let ia_outputs: Vec<_> = udrv
+                .outputs
+                .values()
                 .filter(|o| &o.output_name == output_name)
                 .map(|o| o.unresolved_path.clone())
                 .collect();
@@ -206,17 +210,17 @@ impl<B: Backend> Orchestrator<B> {
                 Ok(None) => continue,
                 Err(_) => continue,
             };
-            let parsed: Value = match serde_json::from_slice(&body) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            if let Some(sigs) = parsed.get("signatures").and_then(|v| v.as_array()) {
-                for s in sigs {
-                    if let Some(s) = s.as_str() {
-                        all.push(s.to_owned());
-                    }
-                }
+            if body.len() as u64 > laut_sign::attestation::MAX_OBJECT_BYTES {
+                continue;
             }
+            let Ok(text) = std::str::from_utf8(&body) else {
+                continue;
+            };
+            all.extend(
+                text.lines()
+                    .filter(|line| !line.trim().is_empty())
+                    .map(str::to_owned),
+            );
         }
         Ok(all)
     }
@@ -226,20 +230,12 @@ impl<B: Backend> Orchestrator<B> {
         input_hash: &str,
         signatures: &[String],
     ) -> Result<Vec<(Value, String)>, Error> {
-        let results = signature_verify::verify_resolved_trace_signatures(
+        Ok(signature_verify::verify_resolved_trace_signatures(
             input_hash,
             signatures,
             &self.trusted_keys,
-        )?;
-        let mut out = Vec::new();
-        for (payload_str, kid) in results {
-            let payload: Value = match serde_json::from_str(&payload_str) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            out.push((payload, kid));
-        }
-        Ok(out)
+            self.log_requirement.as_ref(),
+        )?)
     }
 }
 

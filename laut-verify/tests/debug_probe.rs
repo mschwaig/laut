@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use laut_verify::debug::{
-    build_corpus_from_cache, extract_debug_from_jws, DebugProbe, DifftProbe, Identity,
-    InMemoryCorpusIndex, LocalWitness, NullProbe, PreimageCandidate,
+    DebugProbe, DifftProbe, Identity, InMemoryCorpusIndex, LocalWitness, NullProbe,
+    PreimageCandidate, build_corpus_from_cache, extract_debug_from_bundle,
 };
 
 fn data_dir() -> PathBuf {
@@ -55,7 +55,7 @@ fn corpus_built_from_file_url_is_non_empty() {
     let index = build_corpus_from_cache(&fixture_cache_url(&root)).expect("corpus build");
     assert!(
         !index.is_empty(),
-        "fixture corpus produced no entries; either fixtures lack debug blocks or extract_debug_from_jws regressed"
+        "fixture corpus produced no entries; either fixtures lack debug data or bundle extraction regressed"
     );
 }
 
@@ -79,9 +79,11 @@ fn corpus_contains_known_fixture_drv_names() {
 fn corpus_lookup_misses_for_unknown_name() {
     let root = fixture_cache_root();
     let index = build_corpus_from_cache(&fixture_cache_url(&root)).expect("corpus build");
-    assert!(index
-        .lookup(Identity::DrvName, "not-a-real-drv-name-anywhere")
-        .is_empty());
+    assert!(
+        index
+            .lookup(Identity::DrvName, "not-a-real-drv-name-anywhere")
+            .is_empty()
+    );
 }
 
 #[test]
@@ -230,20 +232,19 @@ fn difft_probe_runs_difft_on_bytewise_differs() {
     );
 }
 
-// ---------------- extract_debug_from_jws ----------------
+// ---------------- extract_debug_from_bundle ----------------
 
 #[test]
-fn extract_debug_from_fixture_jws() {
-    // Read one real fixture JWS and confirm we can pull the debug block.
+fn extract_debug_from_fixture_bundle() {
+    // Read one real fixture bundle and extract its debugging byproduct.
     let any = fs::read_dir(signatures_dir())
         .unwrap()
         .next()
         .unwrap()
         .unwrap();
     let body = fs::read_to_string(any.path()).unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
-    let jws = parsed["signatures"][0].as_str().unwrap();
-    let (name, drv_path, aterm) = extract_debug_from_jws(jws).expect("debug present");
+    let (name, drv_path, aterm) =
+        extract_debug_from_bundle(body.lines().next().unwrap()).expect("debug present");
     assert!(!name.is_empty());
     assert!(drv_path.starts_with("/nix/store/"));
     assert!(aterm.starts_with("Derive("));
