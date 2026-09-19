@@ -22,6 +22,10 @@ pub const CA_BUILD_TYPE: &str =
     "https://github.com/mschwaig/laut/blob/main/docs/slsa-provenance-v1.md#ca";
 pub const IA_BUILD_TYPE: &str =
     "https://github.com/mschwaig/laut/blob/main/docs/slsa-provenance-v1.md#synthetic-ia";
+pub const NIX_RESOLVED_INPUT: &str = "aterm";
+pub const NIX_CA_STORE_PATH: &str = "nix-ca-store-path";
+pub const NIX_NAR_SHA256: &str = "nix-nar-sha256";
+pub const SNIX_CASTORE_ENTRY: &str = "snix-castore-entry";
 pub const MAX_OBJECT_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, thiserror::Error)]
@@ -161,6 +165,9 @@ impl Bundle {
         decode(&self.dsse_envelope.signatures[0].sig)
     }
 
+    /// Authenticate the statement and validate its structure. Consumers must
+    /// separately select usable identities and accept critical features before
+    /// using it as build evidence.
     pub fn verify(&self, key: &VerifyingKey) -> Result<Value, Error> {
         if self.media_type != BUNDLE_TYPE
             && self.media_type != "application/vnd.dev.sigstore.bundle+json;version=0.3"
@@ -252,10 +259,25 @@ pub fn parse_bundle(bytes: &[u8]) -> Result<Bundle, Error> {
     Ok(serde_json::from_value(parse_json(bytes)?)?)
 }
 
-pub fn input_hash(statement: &Value) -> Option<&str> {
-    statement
-        .pointer("/predicate/buildDefinition/externalParameters/resolvedInputHash")?
-        .as_str()
+/// Select the complete-request identity supported by the Nix cache and reasoner.
+/// Other schemes remain valid wire representations, but cannot serve this lookup.
+pub fn nix_input_hash(statement: &Value) -> Option<&str> {
+    let hash = statement
+        .pointer("/predicate/buildDefinition/externalParameters/resolvedInput/digest")?
+        .get(NIX_RESOLVED_INPUT)?
+        .as_str()?;
+    if hash.len() != 32 {
+        return None;
+    }
+    let bytes = nix_compat::nixbase32::decode(hash).ok()?;
+    (bytes.len() == 20 && nix_compat::nixbase32::encode(&bytes) == hash).then_some(hash)
+}
+
+/// Select an output identity usable for Nix dependency substitution and consensus.
+pub fn nix_output_path(subject: &Value) -> Option<&str> {
+    let path = subject.get("digest")?.get(NIX_CA_STORE_PATH)?.as_str()?;
+    crate::store_path::extract_store_hash(path).ok()?;
+    Some(path)
 }
 
 pub fn from_ia(statement: &Value) -> bool {
@@ -265,6 +287,7 @@ pub fn from_ia(statement: &Value) -> bool {
         == Some(IA_BUILD_TYPE)
 }
 
+/// Validate the wire contract without imposing a consumer's feature policy.
 pub fn validate_statement(s: &Value, key: &VerifyingKey) -> Result<(), Error> {
     let invalid = || Error::Invalid("statement does not match laut's SLSA v1 profile");
     if s["_type"] != STATEMENT_TYPE || s["predicateType"] != PREDICATE_TYPE {
@@ -277,18 +300,25 @@ pub fn validate_statement(s: &Value, key: &VerifyingKey) -> Result<(), Error> {
     let params = build["externalParameters"]
         .as_object()
         .ok_or_else(invalid)?;
-    if params.len() != 1 {
-        return Err(invalid());
-    }
-    let hash = input_hash(s).ok_or_else(invalid)?;
-    if hash.len() != 32 || nix_compat::nixbase32::decode(hash).map_or(true, |v| v.len() != 20) {
-        return Err(invalid());
-    }
-    if build
-        .get("resolvedDependencies")
-        .is_some_and(|v| !v.is_null() && v != &json!([]))
+    if params
+        .keys()
+        .any(|name| name != "resolvedInput" && name != "criticalFeatures")
     {
         return Err(invalid());
+    }
+    if let Some(features) = params.get("criticalFeatures").filter(|v| !v.is_null()) {
+        let mut seen = HashSet::new();
+        for feature in features.as_array().ok_or_else(invalid)? {
+            if !seen.insert(feature.as_str().ok_or_else(invalid)?) {
+                return Err(invalid());
+            }
+        }
+    }
+    validate_identity_resource(params.get("resolvedInput").ok_or_else(invalid)?)?;
+    if let Some(dependencies) = build.get("resolvedDependencies").filter(|v| !v.is_null()) {
+        for dependency in dependencies.as_array().ok_or_else(invalid)? {
+            validate_resource_descriptor(dependency)?;
+        }
     }
     let run = &s["predicate"]["runDetails"];
     if run["builder"]["id"] != builder_id(key)? {
@@ -319,30 +349,61 @@ pub fn validate_statement(s: &Value, key: &VerifyingKey) -> Result<(), Error> {
     }
     let mut names = HashSet::new();
     for subject in subjects {
+        validate_identity_resource(subject)?;
         let name = subject["name"].as_str().ok_or_else(invalid)?;
         if name.is_empty() || !names.insert(name) {
             return Err(invalid());
         }
-        let digest = subject["digest"]["sha256"].as_str().ok_or_else(invalid)?;
-        if digest.len() != 64
-            || !digest
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    }
+    Ok(())
+}
+
+fn validate_identity_resource(resource: &Value) -> Result<(), Error> {
+    validate_resource_descriptor(resource)?;
+    if resource["digest"].as_object().is_none_or(|m| m.is_empty()) {
+        return Err(Error::Invalid(
+            "identity resource requires a nonempty digest set",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_resource_descriptor(resource: &Value) -> Result<(), Error> {
+    let invalid = || Error::Invalid("invalid resource descriptor");
+    let fields = resource.as_object().ok_or_else(invalid)?;
+    for name in ["name", "uri", "downloadLocation", "mediaType", "content"] {
+        if fields
+            .get(name)
+            .is_some_and(|v| !v.is_null() && !v.is_string())
         {
             return Err(invalid());
         }
-        if subject["mediaType"] != "application/x-nix-nar" {
+    }
+    if let Some(digests) = fields.get("digest").filter(|v| !v.is_null()) {
+        if !digests.as_object().is_some_and(|m| {
+            m.iter().all(|(scheme, value)| {
+                !scheme.is_empty() && value.as_str().is_some_and(|s| !s.is_empty())
+            })
+        }) {
             return Err(invalid());
         }
-        let annotations = &subject["annotations"];
-        let path = annotations["laut_storePath"].as_str().ok_or_else(invalid)?;
-        crate::store_path::extract_store_hash(path).map_err(|_| invalid())?;
-        let castore = annotations["laut_castoreEntry"]
-            .as_str()
-            .ok_or_else(invalid)?;
-        if decode(castore)?.is_empty() {
-            return Err(invalid());
-        }
+    }
+    if fields
+        .get("annotations")
+        .is_some_and(|v| !v.is_null() && !v.is_object())
+    {
+        return Err(invalid());
+    }
+    if let Some(content) = resource["content"].as_str() {
+        decode(content)?;
+    }
+    if !resource["uri"].as_str().is_some_and(|s| !s.is_empty())
+        && !resource["digest"]
+            .as_object()
+            .is_some_and(|m| !m.is_empty())
+        && !resource["content"].as_str().is_some_and(|s| !s.is_empty())
+    {
+        return Err(invalid());
     }
     Ok(())
 }
@@ -370,6 +431,9 @@ pub fn create_trace_bundle(
             .ok_or(Error::Invalid("expected a SHA-256 NAR hash"))?;
         let digest =
             nix_compat::nixbase32::decode(hash).map_err(|_| Error::Invalid("invalid NAR hash"))?;
+        if digest.len() != 32 {
+            return Err(Error::Invalid("expected a SHA-256 NAR hash"));
+        }
         let mut metadata = output
             .as_object()
             .ok_or(Error::Invalid("invalid output"))?
@@ -378,11 +442,12 @@ pub fn create_trace_bundle(
         metadata.remove("hash");
         subjects.push(json!({
             "name": name,
-            "digest": {"sha256": data_encoding::HEXLOWER.encode(&digest)},
-            "mediaType": "application/x-nix-nar",
+            "digest": {
+                NIX_CA_STORE_PATH: output["path"],
+                NIX_NAR_SHA256: data_encoding::HEXLOWER.encode(&digest),
+                SNIX_CASTORE_ENTRY: encode(decode(castore[name].as_str().ok_or(Error::Invalid("missing castore entry"))?)?),
+            },
             "annotations": {
-                "laut_storePath": output["path"],
-                "laut_castoreEntry": encode(decode(castore[name].as_str().ok_or(Error::Invalid("missing castore entry"))?)?),
                 "laut_output": metadata,
             },
         }));
@@ -401,7 +466,10 @@ pub fn create_trace_bundle(
         "predicate": {
             "buildDefinition": {
                 "buildType": if from_ia { IA_BUILD_TYPE } else { CA_BUILD_TYPE },
-                "externalParameters": {"resolvedInputHash": input_hash},
+                "externalParameters": {
+                    "resolvedInput": {"digest": {NIX_RESOLVED_INPUT: input_hash}},
+                    "criticalFeatures": [],
+                },
             },
             "runDetails": {
                 "builder": {"id": builder_id(&key.verifying_key())?, "version": versions},
@@ -436,12 +504,34 @@ mod tests {
         let (key, bundle) = fixture();
         let statement = bundle.verify(&key.verifying_key()).unwrap();
         assert_eq!(
-            input_hash(&statement),
+            nix_input_hash(&statement),
             Some("00000000000000000000000000000000")
+        );
+        assert_eq!(
+            statement["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"],
+            json!({"aterm": "0".repeat(32)})
         );
         assert_eq!(
             statement["predicate"]["runDetails"]["builder"]["version"]["nixVersion"],
             "2.34"
+        );
+        assert_eq!(
+            statement["predicate"]["buildDefinition"]["externalParameters"]["criticalFeatures"],
+            json!([])
+        );
+        assert_eq!(
+            statement["subject"][0]["digest"],
+            json!({
+                NIX_CA_STORE_PATH: format!("/nix/store/{}-test", "0".repeat(32)),
+                NIX_NAR_SHA256: "0".repeat(64),
+                SNIX_CASTORE_ENTRY: "CgA=",
+            })
+        );
+        assert!(statement["subject"][0].get("mediaType").is_none());
+        assert!(
+            statement["subject"][0]["annotations"]
+                .get("laut_storePath")
+                .is_none()
         );
         let mut altered = bundle.clone();
         altered.dsse_envelope.payload = encode(serde_json::to_vec_pretty(&statement).unwrap());
@@ -500,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_duplicate_subjects_dependencies_and_ambiguous_containers() {
+    fn rejects_duplicate_subjects_unknown_parameters_and_ambiguous_containers() {
         let (key, bundle) = fixture();
         let statement = bundle.verify(&key.verifying_key()).unwrap();
         let mut duplicate = statement.clone();
@@ -513,10 +603,10 @@ mod tests {
         extra["predicate"]["buildDefinition"]["externalParameters"]["unresolvedDrv"] =
             "not-allowed".into();
         assert!(Bundle::sign(&extra, &key).is_err());
-        extra = statement;
-        extra["predicate"]["buildDefinition"]["resolvedDependencies"] =
-            json!([{"uri":"unwanted-dependency"}]);
-        assert!(Bundle::sign(&extra, &key).is_err());
+        let mut old = statement.clone();
+        old["predicate"]["buildDefinition"]["externalParameters"] =
+            json!({"resolvedInputHash": "0".repeat(32)});
+        assert!(Bundle::sign(&old, &key).is_err(), "no old-shape fallback");
         let mut container = serde_json::to_value(&bundle).unwrap();
         container["messageSignature"] = json!({});
         assert!(parse_bundle(&serde_json::to_vec(&container).unwrap()).is_err());
@@ -526,6 +616,196 @@ mod tests {
             .signatures
             .push(multi.dsse_envelope.signatures[0].clone());
         assert!(multi.verify(&key.verifying_key()).is_err());
+    }
+
+    #[test]
+    fn critical_features_are_opaque_sets_not_signing_policy() {
+        let (key, bundle) = fixture();
+        let mut statement = bundle.verify(&key.verifying_key()).unwrap();
+        for features in [
+            Value::Null,
+            json!([]),
+            json!(["gpu-access"]),
+            json!(["", "GPU", "gpu", " gpu ", "arbitrary:/feature.v2"]),
+        ] {
+            statement["predicate"]["buildDefinition"]["externalParameters"]["criticalFeatures"] =
+                features;
+            let signed = Bundle::sign(&statement, &key).unwrap();
+            assert_eq!(signed.verify(&key.verifying_key()).unwrap(), statement);
+            if statement["predicate"]["buildDefinition"]["externalParameters"]["criticalFeatures"]
+                .as_array()
+                .is_some_and(|features| !features.is_empty())
+            {
+                let mut stripped = statement.clone();
+                stripped["predicate"]["buildDefinition"]["externalParameters"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("criticalFeatures");
+                let mut tampered = signed;
+                tampered.dsse_envelope.payload = encode(serde_json::to_vec(&stripped).unwrap());
+                assert!(tampered.verify(&key.verifying_key()).is_err());
+            }
+        }
+        for features in [
+            json!("gpu-access"),
+            json!({}),
+            json!(false),
+            json!([null]),
+            json!([1]),
+            json!(["gpu-access", "gpu-access"]),
+        ] {
+            statement["predicate"]["buildDefinition"]["externalParameters"]["criticalFeatures"] =
+                features.clone();
+            assert!(Bundle::sign(&statement, &key).is_err(), "{features}");
+            // A producer bypassing our signing validator still cannot get an
+            // authenticated malformed set through verification.
+            let mut malformed = bundle.clone();
+            malformed.dsse_envelope.payload = encode(serde_json::to_vec(&statement).unwrap());
+            let signature = key
+                .sign_prehashed(
+                    Sha512::new_with_prefix(malformed.signing_bytes().unwrap()),
+                    None,
+                )
+                .unwrap();
+            malformed.dsse_envelope.signatures[0].sig = encode(signature.to_bytes());
+            assert!(matches!(
+                malformed.verify(&key.verifying_key()),
+                Err(Error::Invalid(_))
+            ));
+        }
+        statement["predicate"]["buildDefinition"]["externalParameters"]
+            .as_object_mut()
+            .unwrap()
+            .remove("criticalFeatures");
+        assert_eq!(
+            Bundle::sign(&statement, &key)
+                .unwrap()
+                .verify(&key.verifying_key())
+                .unwrap(),
+            statement
+        );
+    }
+
+    #[test]
+    fn supplementary_evidence_and_representations_round_trip() {
+        let (key, bundle) = fixture();
+        let mut statement = bundle.verify(&key.verifying_key()).unwrap();
+        statement["example_metadata"] = json!({"arbitrary": [1, null, true]});
+        statement["predicate"]["runDetails"]["builder"]["example_host"] =
+            json!({"hardwareEvidence": {"format": "experimental", "value": "opaque"}});
+        statement["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"]
+            ["experimental-request"] = "opaque-request-id".into();
+        statement["predicate"]["buildDefinition"]["resolvedDependencies"] = json!([
+            {"name": "compiler", "digest": {"experimental-tree": "opaque-input-id"},
+                "annotations": {"example_evidence": ["uninterpreted"]}, "example_extra": true},
+            {"uri": "urn:example:input", "digest": null, "content": null},
+            {"content": encode(b"input description")}
+        ]);
+        statement["subject"][0]["digest"]["example-nar-sha512"] = "ab".repeat(64).into();
+        statement["subject"][0]["digest"]["experimental-tree"] = "opaque-output-id".into();
+        statement["subject"][0]["annotations"]["example_representation"] =
+            json!({"format": "alternative-tree", "root": "opaque"});
+        let signed = Bundle::sign(&statement, &key).unwrap();
+        assert_eq!(signed.verify(&key.verifying_key()).unwrap(), statement);
+        assert_eq!(
+            nix_input_hash(&statement),
+            Some("00000000000000000000000000000000")
+        );
+    }
+
+    #[test]
+    fn identity_resources_do_not_require_any_current_scheme() {
+        let (key, bundle) = fixture();
+        let mut statement = bundle.verify(&key.verifying_key()).unwrap();
+        statement["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"] =
+            json!({"digest": {"future-request": "request-reference"}});
+        statement["subject"] = json!([{
+            "name": "out", "digest": {"future-output": "output-reference"}
+        }]);
+        let signed = Bundle::sign(&statement, &key).unwrap();
+        assert_eq!(signed.verify(&key.verifying_key()).unwrap(), statement);
+        assert!(nix_input_hash(&statement).is_none());
+        assert!(nix_output_path(&statement["subject"][0]).is_none());
+
+        // Each produced output representation is also a valid identity alone.
+        let original = bundle.verify(&key.verifying_key()).unwrap();
+        for scheme in [NIX_CA_STORE_PATH, NIX_NAR_SHA256, SNIX_CASTORE_ENTRY] {
+            statement["subject"][0]["digest"] =
+                json!({scheme: original["subject"][0]["digest"][scheme]});
+            assert_eq!(
+                Bundle::sign(&statement, &key)
+                    .unwrap()
+                    .verify(&key.verifying_key())
+                    .unwrap(),
+                statement
+            );
+        }
+    }
+
+    #[test]
+    fn identity_resources_require_nonempty_string_digest_sets() {
+        let (key, bundle) = fixture();
+        let statement = bundle.verify(&key.verifying_key()).unwrap();
+        for pointer in [
+            "/predicate/buildDefinition/externalParameters/resolvedInput",
+            "/subject/0",
+        ] {
+            for digest in [
+                Value::Null,
+                json!({}),
+                json!([]),
+                json!("reference"),
+                json!({"": "value"}),
+                json!({"scheme": ""}),
+                json!({"scheme": 1}),
+            ] {
+                let mut malformed = statement.clone();
+                malformed.pointer_mut(pointer).unwrap()["digest"] = digest.clone();
+                assert!(
+                    Bundle::sign(&malformed, &key).is_err(),
+                    "{pointer}: {digest}"
+                );
+            }
+            let mut malformed = statement.clone();
+            malformed
+                .pointer_mut(pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .remove("digest");
+            assert!(Bundle::sign(&malformed, &key).is_err());
+        }
+        let mut missing = statement;
+        missing["predicate"]["buildDefinition"]["externalParameters"]
+            .as_object_mut()
+            .unwrap()
+            .remove("resolvedInput");
+        assert!(Bundle::sign(&missing, &key).is_err());
+    }
+
+    #[test]
+    fn supplementary_resources_must_have_valid_shapes() {
+        let (key, bundle) = fixture();
+        let mut statement = bundle.verify(&key.verifying_key()).unwrap();
+        for dependencies in [
+            json!({}),
+            json!([null]),
+            json!([{}]),
+            json!([{"uri": 1}]),
+            json!([{"uri": "urn:example:input", "digest": {"unknown": 1}}]),
+            json!([{"uri": "urn:example:input", "annotations": []}]),
+            json!([{"content": "!not-base64!"}]),
+        ] {
+            statement["predicate"]["buildDefinition"]["resolvedDependencies"] =
+                dependencies.clone();
+            assert!(Bundle::sign(&statement, &key).is_err(), "{dependencies}");
+        }
+        for dependencies in [Value::Null, json!([])] {
+            statement["predicate"]["buildDefinition"]["resolvedDependencies"] = dependencies;
+            assert!(Bundle::sign(&statement, &key).is_ok());
+        }
+        statement["subject"][0]["digest"]["unknown"] = json!(42);
+        assert!(Bundle::sign(&statement, &key).is_err());
     }
 
     #[test]

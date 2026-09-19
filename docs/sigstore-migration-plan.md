@@ -4,6 +4,17 @@ Status: initial implementation completed and tested locally, 2026-09-16. This do
 the agreed scope, implementation order,
 and upstream references so that subsequent changes can be reviewed against them.
 
+The original, format-wide philosophy lives in [Format Design Principles](design.md),
+not in this migration plan. The [provenance profile](slsa-provenance-v1.md)
+applies it to the SLSA contract, including sibling identity maps and
+`criticalFeatures` from the outset.
+Neither the JWS format nor this branch has external deployments to accommodate.
+The existing CA and synthetic IA build-type URIs remain unchanged; no version
+bump, compatibility parser, or deployed-data migration is required for this
+contract. Fixtures were regenerated from the original scenarios at stable parent
+`49feb5f`, using the current test keys, not new builds. Missing, `null`, and empty
+critical-feature lists all mean the empty set under SLSA parsing rules.
+
 ## Progress
 
 - `001f8eb`: committed this plan before implementation.
@@ -32,6 +43,21 @@ and upstream references so that subsequent changes can be reviewed against them.
   derivation unchanged; the temporary edit was removed afterward.
 - The JSON Lines inspection utility extracted all 314 fixture statements into
   two hint groups. Its grouping is explicitly unauthenticated.
+- The critical-feature, sibling-identity, and supplementary-evidence tests pass
+  with and without default features (87 tests in each configuration).
+  Authenticated critical claims cannot supply consensus votes or exclude valid
+  claims in the same cache. Alternative-only identities are structurally valid;
+  unusable identities cannot supply partial claims or additional signer votes.
+- Both packages and the private Sigstore sign/verify VM checks pass with the
+  signer emitting `criticalFeatures: []`, including independent sigstore-go
+  verification. Build-type URIs are unchanged.
+- All 314 fixture bundles were authenticated before conversion to sibling
+  identity maps and re-signed with their original test keys. Both tracked lookup
+  maps were refreshed; input/output values, debug contents, and invocation IDs
+  were preserved. No old-shape acceptance was added.
+- The small CA and IA sign/verify VM checks and the debug-probe check also pass
+  with sibling identities. The debug helper's pre-existing line-length lint
+  errors were fixed without changing its behavior.
 
 The implementation uses `ed25519-dalek` 2.1.1, `p256` 0.13.2, and the existing
 SHA-2/serde stack in Rust. It implements the small DSSE and RFC 6962/checkpoint
@@ -48,12 +74,26 @@ tests confirm the duplicate response and do not generate a replacement claim.
 ## Goals and Decisions
 
 - Replace the custom compact JWS format outright. Do not add legacy JWS
-  acceptance; regenerate the repository's fixtures instead.
+  acceptance or compatibility parsers for earlier statement shapes; regenerate
+  the repository's fixtures from `49feb5f` with current keys, not new builds.
 - Describe completed builds using an in-toto Statement v1 with a SLSA Provenance
   v1 predicate, signed in a DSSE envelope and distributed in a Sigstore Bundle.
-- Record only the aggregate resolved input hash, not individual dependency
-  identities, the unresolved dependency graph, or an original flake/source
-  identity. The same resolved request can arise from different unresolved builds.
+- Require `externalParameters.resolvedInput`, one ResourceDescriptor with a
+  nonempty DigestSet identifying the complete resolved request. All schemes
+  are siblings; there is no universally required known scheme. The current
+  producer uses `nix-resolved-derivation`, without changing its hashing.
+- Represent each logical named output with one subject ResourceDescriptor and
+  a nonempty sibling digest map. The current producer emits `nix-ca-store-path`,
+  `nix-nar-sha256`, and `snix-castore-entry`, with no required NAR `mediaType`.
+  Preserve other output metadata in `annotations.laut_output`.
+- Accept and preserve supplementary actual input ResourceDescriptors in
+  `resolvedDependencies`, not sibling full-request representations. They neither
+  supply the current reasoner's graph nor claim an unresolved dependency graph
+  or original flake/source identity. The same resolved request can arise from
+  different unresolved builds.
+- Apply the profile's minimal signed `criticalFeatures` contract. Shared format
+  and cryptographic operations accept any well-formed set; verifier admission
+  rejects every nonempty set. There are no feature handlers or acceptance CLI.
 - Preserve resolved-input-hash computation, CA and synthetic-CA-from-IA semantics,
   named output claims, and the existing consensus calculation.
 - Keep keys narrowly scoped. Evidence production must remain independent of
@@ -68,8 +108,11 @@ tests confirm the duplicate response and do not generate a replacement claim.
 - Use the same statement, envelope, and bundle machinery for direct and logged
   evidence. Logging adds verification material; it does not replace the build
   signer's signature or authorize otherwise untrusted signers.
-- Store one object per resolved input hash at `traces/<resolved-input-hash>`.
-  Each line is one standard Sigstore Bundle, encoded as JSON Lines.
+- Store one object per input identity at `traces/<scheme>/<hash>`; the current
+  input scheme is `aterm`.
+  Each line is one standard Sigstore Bundle, encoded as JSON Lines. This is a
+  Nix-specific transport/index, not a universal identity requirement; valid
+  alternative-only producers are not usable by the current backend.
 - Keep ordinary verification to one cache GET per input hash per configured
   cache, with no mandatory log lookup, directory listing, or manifest fetch.
 - Make the first log requirement verification-wide. Eventually it belongs in
@@ -95,6 +138,11 @@ tests confirm the duplicate response and do not generate a replacement claim.
 - Log monitoring, witnessing policy, cross-checkpoint consistency tracking,
   cache completeness proofs, and analysis of other log entries.
 - A new policy language, Nix-version selection UI, or the pending Nix-module UI.
+- Critical-feature handlers and acceptance configuration. Future handlers must
+  define evidence checks and relevant request matching/hash commitments, not
+  merely allow marker strings. The cache hash does not commit to the signed list.
+- Fetching detached evidence. Retaining descriptors does not implement retrieval
+  or verification of the resources they describe.
 - Alternative cache directory layouts, per-bundle object storage, and a separate
   ingestion/materialization service.
 - Production operation of cache.nixos.org or a public log. This migration should
@@ -105,7 +153,7 @@ tests confirm the duplicate response and do not generate a replacement claim.
 The proposed hierarchy is:
 
 ```text
-traces/<resolved-input-hash>       one JSON Lines object
+traces/<scheme>/<hash>            JSON Lines index object
   Sigstore Bundle                one build signature per bundle
     DSSE envelope
       payloadType: application/vnd.in-toto+json
@@ -132,14 +180,16 @@ separate operation and must not be confused with payload serialization.
 
 ### Payload Mapping
 
-| Current information | Planned location or treatment |
+| Original information | Location or treatment |
 | --- | --- |
-| `in.rdrv_aterm_ca` | `buildDefinition.externalParameters.resolvedInputHash`, interpreted by the documented build type |
-| Input representation/version | Versioned `buildDefinition.buildType` URI |
-| Individual dependency identities | Omitted; do not populate `resolvedDependencies` with them |
-| `in.from_ia` | Required distinction in the laut profile; decide its precise encoding before implementation |
-| `out.nix.<name>` | Named statement subjects, with explicit Nix output identity and metadata semantics |
-| `out.castore-entry.<name>` | Precisely specified representation associated with that named output, not mislabeled as a NAR digest |
+| `in.rdrv_aterm_ca` | `buildDefinition.externalParameters.resolvedInput.digest["aterm"]`, a sibling identity of the complete request |
+| Input representation | Existing CA or synthetic IA `buildDefinition.buildType` URI, defining the parameters |
+| Unsafe-to-ignore departures | `buildDefinition.externalParameters.criticalFeatures`, a minimal set of opaque exact strings |
+| Other complete-request identities | Sibling schemes in `externalParameters.resolvedInput.digest`, not `resolvedDependencies` |
+| Supplementary actual input resources | Open `resolvedDependencies` ResourceDescriptors, preserved but ignored by the current reasoner |
+| `in.from_ia` | Required distinction via the existing CA and synthetic IA build types |
+| `out.nix.<name>` | One named subject with sibling `digest["nix-ca-store-path"]` and `digest["nix-nar-sha256"]`; other metadata in `annotations.laut_output` |
+| `out.castore-entry.<name>` | The same subject's sibling `digest["snix-castore-entry"]`, a base64 empty-root Entry protobuf immutable reference, not a hash |
 | Builder execution trust boundary | `runDetails.builder.id` |
 | `builder.nix_flavor` and `builder.nix_version` | `runDetails.builder.version` |
 | `builder.rebuild_id` | `runDetails.metadata.invocationId`, using a larger random identifier |
@@ -151,15 +201,33 @@ underlying evidence semantics:
 
 - Define the input hash's algorithm and encoding accurately. A Nix derivation
   store-path digest is not simply `sha256(ATerm)`.
-- Specify output digest algorithms, representations, encodings, output names,
-  store paths, and castore entries. Do not label a structured castore entry as
-  an ordinary digest or conflate a rewritten IA output with its original bytes.
+- Specify scheme semantics and encodings: `nix-ca-store-path` is an absolute
+  `/nix/store` path; `nix-nar-sha256` is a lowercase 64-hex NAR digest;
+  `snix-castore-entry` is a base64 empty-root Entry protobuf structured immutable
+  reference, not a hash. Do not conflate rewritten IA outputs with original bytes.
+- Require unique nonempty output names and nonempty DigestSets with nonempty
+  scheme keys and nonempty string values. Unknown-only maps are structurally valid.
+  Preserve schemes as equal siblings, with no required known hash, path, or
+  castore representation and no mandatory namespace or version convention.
+  The current producer omits `mediaType`; a NAR media type is not required.
+- Use the standard DigestSet extension mechanism, including immutable
+  references. Generic tooling can verify signatures/logs, but needs scheme
+  knowledge to match an artifact; there is no universal SHA-256 matching promise.
+- Allow consumers that accept the signer to trust the signed same-resource
+  relationship between siblings without independent equivalence proofs or
+  mathematical isomorphism. Schemes can be finer while still identifying the
+  resource adequately. Independent attestations guarantee only what their
+  evidence defines, not every scheme relationship by implication.
+- Never turn multiple representations into extra signer votes or union or
+  synthesize separate claims' output/identity maps to reach a threshold.
 - Make the CA/IA distinction mandatory to interpret and accept a claim. It
   must not depend on an ignorable annotation that changes another field's meaning.
 - Choose and document the build-type and builder-ID URI conventions. A builder
   ID describes an execution trust boundary, not a software release or an
   independent source of authority. Do not silently broaden signer scope or
   combine signers that claim the same builder ID.
+  Different security modes MUST use different builder IDs per SLSA, requiring
+  separate keys with the current key-derived IDs, not an umbrella laut identity.
 - Keep implementation/version metadata authenticated and available after
   verification, even though this migration adds no version-policy interface.
 - Give each newly produced claim a sufficiently large random invocation ID.
@@ -198,9 +266,31 @@ the same signature must never create extra consensus votes.
 ### Evidence Admission
 
 The verifier must check the expected Bundle/DSSE/Statement/predicate/build-type
-formats and the mandatory fields of the laut profile. Authenticate the exact
-payload bytes, then match the signed input hash and CA/IA regime to the local
-request and admit the named output claim atomically.
+formats and the structural fields of the laut profile. Authenticate the exact
+payload bytes. Current Nix admission then requires a well-formed
+`resolvedInput.digest["nix-resolved-derivation"]` matching both the reconstructed
+request and cache lookup hash, the matching CA/IA regime, and a usable
+`nix-ca-store-path` for every subject. A structurally valid unknown-only map is
+not enough for this implementation. If any subject cannot be used, skip the
+entire atomic claim, not an output subset or other cache entries. NAR and castore
+representations are signed assertions: the current reasoner does not need,
+parse, or verify them.
+
+Check the signed `criticalFeatures` set separately before inserting any facts:
+the cache hash does not commit to that list. Only then admit the named output
+claim atomically. See the [profile's admission contract](slsa-provenance-v1.md#critical-features-and-admission)
+for marker structure and missing/null/empty equivalence. Unknown external
+parameters remain rejected; only `resolvedInput` and `criticalFeatures` are
+defined. The descriptor's digest schemes remain open.
+
+Marker strings have no namespace, prefix, version syntax, lexical restrictions,
+or central registry. Shared format/signing/cryptographic verification accepts
+well-formed sets, including strings unsupported by laut. Actual verifier admission
+rejects all nonempty sets, including `[""]`, and excludes only the affected
+claim, not other claims in the collection. The initial signer emits `[]`.
+Authenticating metadata does not verify its assertions, and accepting a marker
+would not by itself verify associated evidence. Producers must truthfully mark
+unsafe-to-ignore departures; no marker semantics are implemented in this scope.
 
 DSSE `keyid` and the bundle's key hint are unauthenticated routing hints. Follow
 the bundle's hint-consistency rules, but derive the counted signer authority

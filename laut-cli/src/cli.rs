@@ -107,10 +107,10 @@ pub struct VerifyArgs {
     #[arg(long = "trusted-key")]
     pub trusted_key: Vec<PathBuf>,
 
-    /// Cache URL to scan for signer-side debug preimages. When a
+    /// Cache-root URL (HTTP(S) or file) to scan for signer-side debug preimages. When a
     /// resolved-input-hash lookup misses, runs difft against any preimage
     /// with a matching drv-name. Requires the cache to expose a
-    /// `GET /traces/` listing endpoint; production caches will refuse.
+    /// `GET /traces/aterm/` listing endpoint when using HTTP.
     #[arg(long)]
     pub debug_preimage_corpus: Option<String>,
 

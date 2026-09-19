@@ -127,7 +127,7 @@ When a `ct_input_hash` lookup misses, the probe scans the corpus URL for
 signer-side debug preimages with a matching `drv_name` and renders a
 `difft` structural diff between the local and the signer's preimage. The
 corpus URL accepts `http(s)://` (requires the cache to expose
-`GET /traces/`, which most production caches refuse) or `file://`.
+`GET /traces/aterm/`, which most production caches refuse) or `file://`.
 
 ## Architecture notes
 
@@ -145,7 +145,7 @@ corpus URL accepts `http(s)://` (requires the cache to expose
   (`TrustModel::Key(KeyId)` and `TrustModel::Threshold(n, Vec<TrustModel>)`).
   Evaluated by the two-pass `Verifier` in the same file (see `docs/semantics.md`
   for the formal definition).
-- **Storage**: HTTP cache with a `traces/<input-hash>` path layout, accessed
+- **Storage**: HTTP cache with a `traces/<scheme>/<input-hash>` path layout, accessed
   via `ureq`. The `Backend` trait in `laut-verify/src/backend.rs` abstracts
   cache I/O so tests can use an in-memory backend.
 - **Snix integration**: ed25519 keyfile parsing, ATerm derivation handling,

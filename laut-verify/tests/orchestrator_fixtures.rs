@@ -9,6 +9,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use ed25519_dalek::SigningKey;
+use laut_sign::attestation::NIX_RESOLVED_INPUT;
+use laut_sign::http_cache::trace_directory;
 use laut_verify::backend::InMemoryBackend;
 use laut_verify::keyfiles;
 use laut_verify::orchestrator::{Config, Error, Orchestrator, cartesian_product};
@@ -38,7 +40,7 @@ fn read_aterms(name: &str) -> HashMap<String, String> {
 }
 
 fn read_all_signatures() -> HashMap<String, Vec<u8>> {
-    let dir = data_dir().join("traces").join("signatures");
+    let dir = data_dir().join(trace_directory(NIX_RESOLVED_INPUT));
     let mut out = HashMap::new();
     for entry in fs::read_dir(&dir).expect("signatures dir missing") {
         let entry = entry.unwrap();
@@ -92,7 +94,9 @@ fn trusted_keys() -> Vec<(String, Vec<u8>)> {
 fn every_migrated_bundle_verifies_under_its_cache_key() {
     let trusted = trusted_keys();
     let mut total = 0;
-    for (hash, bytes) in read_all_signatures() {
+    let signatures = read_all_signatures();
+    assert_eq!(signatures.len(), 157);
+    for (hash, bytes) in signatures {
         let text = std::str::from_utf8(&bytes).unwrap();
         let bundles: Vec<_> = text
             .lines()
@@ -173,6 +177,164 @@ fn verify_ca_drv_small_returns_one_resolution() {
     .expect("orchestrator construction");
     let verified = orch.verify().expect("verify");
     assert_eq!(verified.len(), 1, "expected exactly one verified candidate");
+}
+
+#[test]
+fn critical_features_cannot_supply_consensus_or_poison_valid_claims() {
+    let root = "/nix/store/cjpxbf5h30808h53lckfyvzacsvfs08q-bootstrap-stage1-stdenv-linux.drv";
+    // The root's resolved input hash; dependency claims remain untouched.
+    let hash = "mdw7ghk4133r650ali5jdmgqi4ccwp65";
+    let backend = ca_backend();
+    let originals: Vec<String> = std::str::from_utf8(&backend.signatures[hash])
+        .unwrap()
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(originals.len(), 2);
+    let critical = resign_claims(&originals, hash, |statement| {
+        let params = &mut statement["predicate"]["buildDefinition"]["externalParameters"];
+        assert!(params.get("criticalFeatures").is_none());
+        params["criticalFeatures"] = serde_json::json!(["gpu-access"]);
+    });
+
+    let baseline = make_orchestrator(backend, root).unwrap().verify().unwrap();
+    assert_eq!(baseline.len(), 1, "omitted criticalFeatures means empty");
+    for claims in [
+        critical.clone(),
+        vec![critical[0].clone(), originals[1].clone()],
+        vec![originals[0].clone(), critical[1].clone()],
+    ] {
+        let mut backend = ca_backend();
+        backend
+            .signatures
+            .insert(hash.into(), claims.join("\n").into_bytes());
+        let verified = make_orchestrator(backend, root).unwrap().verify().unwrap();
+        assert!(
+            verified.is_empty(),
+            "critical claims must not count as votes"
+        );
+    }
+
+    for claims in [
+        [critical.clone(), originals.clone()].concat(),
+        [originals, critical].concat(),
+    ] {
+        let mut backend = ca_backend();
+        backend
+            .signatures
+            .insert(hash.into(), claims.join("\n").into_bytes());
+        let verified = make_orchestrator(backend, root).unwrap().verify().unwrap();
+        assert_eq!(
+            verified, baseline,
+            "critical claims must not poison the cache"
+        );
+    }
+}
+
+fn resign_claims(
+    originals: &[String],
+    hash: &str,
+    mutate: impl Fn(&mut serde_json::Value),
+) -> Vec<String> {
+    use laut_sign::attestation::{Bundle, nix_input_hash, parse_bundle};
+
+    let keys: Vec<_> = ["builderA_key.private", "builderB_key.private"]
+        .into_iter()
+        .map(|name| {
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("testkeys")
+                .join(name);
+            laut_sign::keyfiles::parse_private_key_file(&path)
+                .expect("private key fixture invalid")
+                .1
+        })
+        .collect();
+    originals
+        .iter()
+        .map(|serialized| {
+            let bundle = parse_bundle(serialized.as_bytes()).unwrap();
+            let (key, mut statement) = keys
+                .iter()
+                .find_map(|key| {
+                    bundle
+                        .verify(&key.verifying_key())
+                        .ok()
+                        .map(|statement| (key, statement))
+                })
+                .expect("fixture must authenticate under one of the fixture keys");
+            assert_eq!(nix_input_hash(&statement), Some(hash));
+            mutate(&mut statement);
+            let signed = Bundle::sign(&statement, key).unwrap();
+            assert_eq!(signed.verify(&key.verifying_key()).unwrap(), statement);
+            serde_json::to_string(&signed).unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn identity_representations_preserve_consensus_but_cannot_supply_extra_votes() {
+    use laut_sign::attestation::{NIX_CA_STORE_PATH, nix_output_path};
+    use serde_json::json;
+
+    let root = "/nix/store/cjpxbf5h30808h53lckfyvzacsvfs08q-bootstrap-stage1-stdenv-linux.drv";
+    let hash = "mdw7ghk4133r650ali5jdmgqi4ccwp65";
+    let backend = ca_backend();
+    let originals: Vec<String> = std::str::from_utf8(&backend.signatures[hash])
+        .unwrap()
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(originals.len(), 2);
+    let baseline = make_orchestrator(backend, root).unwrap().verify().unwrap();
+    assert_eq!(baseline.len(), 1);
+
+    let supported = resign_claims(&originals, hash, |statement| {
+        statement["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"]
+            ["future-input"] = json!("signer-asserted-input-association");
+        for subject in statement["subject"].as_array_mut().unwrap() {
+            let path = nix_output_path(subject).unwrap().to_owned();
+            subject["digest"] = json!({NIX_CA_STORE_PATH: path, "future-output": "signer-asserted-output-association"});
+            subject.as_object_mut().unwrap().remove("mediaType");
+        }
+    });
+    let unknown_only = resign_claims(&supported, hash, |statement| {
+        let subject = &mut statement["subject"][0];
+        let path = nix_output_path(subject).unwrap().to_owned();
+        subject["digest"] = json!({"future-output": path});
+    });
+    for (claims, has_consensus) in [
+        (supported.clone(), true),
+        (vec![originals[0].clone(), supported[1].clone()], true),
+        (vec![supported[0].clone(), unknown_only[1].clone()], false),
+        (vec![unknown_only[0].clone(), supported[1].clone()], false),
+        // Multiple representations from one signer cannot replace another's vote.
+        (
+            vec![
+                originals[0].clone(),
+                supported[0].clone(),
+                unknown_only[1].clone(),
+            ],
+            false,
+        ),
+        ([unknown_only, supported].concat(), true),
+    ] {
+        let mut backend = ca_backend();
+        backend
+            .signatures
+            .insert(hash.into(), claims.join("\n").into_bytes());
+        let verified = make_orchestrator(backend, root).unwrap().verify().unwrap();
+        if has_consensus {
+            assert_eq!(verified, baseline);
+        } else {
+            assert!(
+                verified.is_empty(),
+                "unusable identities must not supply a vote"
+            );
+        }
+    }
 }
 
 #[test]

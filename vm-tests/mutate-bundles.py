@@ -1,4 +1,9 @@
-"""Adversarial mutations of private-test bundles, never public infrastructure."""
+"""Adversarial mutations of private-test bundles, never public infrastructure.
+
+Usage: mutate-bundles.py <trace-scheme-dir> <mode>
+Pass the scheme leaf, e.g. /var/lib/cache/traces/aterm,
+not the traces namespace root.
+"""
 import base64
 import json
 import pathlib
@@ -17,7 +22,7 @@ for path in directory.iterdir():
             bundle["verificationMaterial"].pop("tlogEntries", None)
         elif mode == "payload":
             payload = json.loads(base64.b64decode(envelope["payload"]))
-            payload["predicate"]["buildDefinition"]["externalParameters"]["resolvedInputHash"] = "0" * 32
+            payload["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"]["aterm"] = "0" * 32
             envelope["payload"] = base64.b64encode(json.dumps(payload).encode()).decode()
         elif mode == "signature":
             envelope["signatures"][0]["sig"] = base64.b64encode(bytes(64)).decode()

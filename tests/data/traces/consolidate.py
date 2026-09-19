@@ -28,7 +28,7 @@ def process_json_files(input_dir, output_dir, key_field="drv_path", allow_duplic
             predicate = statement["predicate"]
             hint = bundle["verificationMaterial"]["publicKey"]["hint"]
             if key_field == "in":
-                key = predicate["buildDefinition"]["externalParameters"]["resolvedInputHash"]
+                key = predicate["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"]["aterm"]
             else:
                 byproduct = next(v for v in predicate["runDetails"].get("byproducts", [])
                                  if v["name"] == "laut-debug-preimage")

@@ -85,6 +85,7 @@ let
       import json
       import shlex
 
+      trace_dir = "/var/lib/cache/traces/aterm"
       start_all()
       rekor.wait_for_unit("rekor.service")
       rekor.wait_for_open_port(80)
@@ -102,7 +103,16 @@ let
       builder.succeed(f"laut sign {drv} --out-paths '{outputs}' --secret-key-file /etc/nix/test-key > /tmp/direct.json")
       builder.succeed("laut-interop /etc/sigstore/log-root.json /tmp/direct.json ${../testkeys/builderA_key.public} direct")
       builder.fail("laut-interop /etc/sigstore/log-root.json /tmp/direct.json ${../testkeys/builderA_key.public} logged")
-      recorded = json.loads(cache.succeed("cat /var/lib/cache/traces/*").splitlines()[0])
+      assert cache.succeed("ls -A /var/lib/cache/traces").split() == ["aterm"]
+      recorded = json.loads(cache.succeed(f"cat {trace_dir}/*").splitlines()[0])
+      statement = json.loads(base64.b64decode(recorded["dsseEnvelope"]["payload"]))
+      assert statement["predicate"]["buildDefinition"]["externalParameters"]["criticalFeatures"] == []
+      params = statement["predicate"]["buildDefinition"]["externalParameters"]
+      assert set(params) == {"resolvedInput", "criticalFeatures"}
+      assert set(params["resolvedInput"]["digest"]) == {"aterm"}
+      for subject in statement["subject"]:
+          assert set(subject["digest"]) == {"nix-ca-store-path", "nix-nar-sha256", "snix-castore-entry"}
+          assert "mediaType" not in subject
       direct = dict(recorded)
       direct["verificationMaterial"] = {"publicKey": recorded["verificationMaterial"]["publicKey"]}
       wire_bytes = lambda value: len(json.dumps(value, separators=(",", ":")).encode())
@@ -114,10 +124,10 @@ let
       status = cache.succeed("curl -sS -o /tmp/duplicate-response -w '%{http_code}' -H 'Content-Type: application/json' --data " + shlex.quote(request) + " http://rekor/api/v2/log/entries")
       assert status == "409", status
       # Stopping the log must not silently turn logged publication into direct.
-      before = cache.succeed("sha256sum /var/lib/cache/traces/*")
+      before = cache.succeed(f"sha256sum {trace_dir}/*")
       rekor.succeed("systemctl stop rekor.service")
       builder.fail(f"laut sign-and-upload {drv} --out-paths '{outputs}' --secret-key-file /etc/nix/test-key --to http://cache:9000 --rekor http://rekor --trusted-root /etc/sigstore/log-root.json")
-      assert before == cache.succeed("sha256sum /var/lib/cache/traces/*")
+      assert before == cache.succeed(f"sha256sum {trace_dir}/*")
       cache.copy_from_vm("/var/lib/cache", "")
     '';
   };
@@ -132,11 +142,12 @@ let
       verifier.environment.systemPackages = [ laut tools ];
     };
     testScript = ''
+      trace_dir = "/var/lib/cache/traces/aterm"
       start_all()
       cache.wait_for_unit("http-cache-server.service")
       cache.succeed("systemctl stop http-cache-server.service")
       cache.copy_from_host("${sign}/cache", "/var/lib")
-      cache.succeed("chmod -R u+w /var/lib/cache; cp -r /var/lib/cache/traces /var/lib/original-traces; systemctl start http-cache-server.service")
+      cache.succeed(f"chmod -R u+w /var/lib/cache; cp -r {trace_dir} /var/lib/original-traces; systemctl start http-cache-server.service")
       cache.wait_for_open_port(9000)
       verifier.wait_for_unit("multi-user.target")
       verifier.fail("curl --connect-timeout 1 --max-time 2 http://192.0.2.1")
@@ -147,23 +158,24 @@ let
       for drv in targets:
           verifier.succeed(f"{logged} {drv}")
       # No log node exists in this test. Independently verify every bundle.
-      hashes = cache.succeed("ls /var/lib/cache/traces").split()
+      hashes = cache.succeed(f"ls {trace_dir}").split()
+      assert hashes
       for h in hashes:
-          verifier.succeed(f"curl -fsS http://cache:9000/traces/{h} -o /tmp/bundle.jsonl")
+          verifier.succeed(f"curl -fsS http://cache:9000/traces/aterm/{h} -o /tmp/bundle.jsonl")
           verifier.succeed("laut-interop /etc/sigstore/log-root.json /tmp/bundle.jsonl ${../testkeys/builderA_key.public} logged")
       verifier.fail(f"{base} --require-log --trusted-root /etc/sigstore/wrong-log-root.json {targets[0]}")
       for mutation in ["strip", "payload", "signature", "checkpoint", "proof", "index", "binding", "verifier"]:
-          cache.succeed("cp /var/lib/original-traces/* /var/lib/cache/traces/")
-          cache.succeed(f"python3 /etc/mutate-bundles.py /var/lib/cache/traces {mutation}")
+          cache.succeed(f"cp /var/lib/original-traces/* {trace_dir}/")
+          cache.succeed(f"python3 /etc/mutate-bundles.py {trace_dir} {mutation}")
           for drv in targets:
               status, output = verifier.execute(f"{logged} {drv}")
               assert status == 118, (mutation, status, output)
           if mutation == "strip":
               for drv in targets:
                   verifier.succeed(f"{base} {drv}")
-      cache.succeed("cp /var/lib/original-traces/* /var/lib/cache/traces/")
+      cache.succeed(f"cp /var/lib/original-traces/* {trace_dir}/")
       marker = "LAUT_SIGSTORE_PREIMAGE_TAMPER"
-      cache.succeed(f"python3 /etc/tamper-preimage.py /var/lib/cache/traces {marker}")
+      cache.succeed(f"python3 /etc/tamper-preimage.py {trace_dir} {marker}")
       failures = 0
       for drv in targets:
           status, output = verifier.execute(f"{logged} --debug-preimage-corpus http://cache:9000 --debug-out-dir /tmp/probe {drv} 2>&1")
@@ -173,7 +185,7 @@ let
           else:
               assert status == 0, output
       assert failures == 1
-      cache.succeed("cp /var/lib/original-traces/* /var/lib/cache/traces/")
+      cache.succeed(f"cp /var/lib/original-traces/* {trace_dir}/")
       verifier.succeed(f"{logged} {targets[0]}")
     '';
   };

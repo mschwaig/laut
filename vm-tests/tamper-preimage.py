@@ -4,7 +4,9 @@ Appends `marker` to each bundle's signed debugging byproduct
 so the verifier's debug probe sees corpus entries that differ from what
 the verifier computes locally.
 
-Usage: tamper-preimage <trace-dir> <marker>
+Usage: tamper-preimage <trace-scheme-dir> <marker>
+Pass the scheme leaf, e.g. /var/lib/cache/traces/aterm,
+not the traces namespace root.
 
 Both signers' signatures must be tampered: the orchestrator only fires
 the probe when the post-verify signature list is empty, so leaving any
@@ -25,13 +27,17 @@ def tamper_bundle(bundle, marker):
     payload_b64 = bundle["dsseEnvelope"]["payload"]
     padding = "=" * (-len(payload_b64) % 4)
     payload = json.loads(base64.urlsafe_b64decode(payload_b64 + padding))
-    descriptor = next(v for v in payload["predicate"]["runDetails"]["byproducts"]
-                      if v["name"] == "laut-debug-preimage")
+    descriptor = next(
+        v for v in payload["predicate"]["runDetails"]["byproducts"]
+        if v["name"] == "laut-debug-preimage"
+    )
     debug = json.loads(base64.b64decode(descriptor["content"]))
     debug["rdrv_aterm_ca_preimage"] = (
         debug["rdrv_aterm_ca_preimage"] + " " + marker
     )
-    descriptor["content"] = base64.b64encode(json.dumps(debug).encode()).decode()
+    descriptor["content"] = base64.b64encode(
+        json.dumps(debug).encode()
+    ).decode()
     bundle["dsseEnvelope"]["payload"] = base64.b64encode(
         json.dumps(payload, separators=(",", ":")).encode()).decode()
     return bundle, debug.get("drv_name")

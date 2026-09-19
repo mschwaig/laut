@@ -1,9 +1,14 @@
 # Laut SLSA Provenance v1
 
 This profile describes one completed Nix build attempt, not an aggregation of
-attempts or an unresolved dependency graph. The signed statement maps an
-aggregate resolved input hash to named outputs. SLSA schema compliance does not
-claim a SLSA security level.
+attempts or an unresolved dependency graph. The signed statement maps one
+complete resolved request to named output resources, each with sibling identity
+representations. SLSA schema compliance does not claim a SLSA security level.
+
+This profile applies laut's original [format design principles](design.md):
+independent producer/consumer evolution, incremental verification of evidence,
+and coexisting representations. `criticalFeatures` is part of the contract of
+both build types below.
 
 ## Envelope
 
@@ -24,18 +29,50 @@ Key aliases and repeated evidence must not multiply consensus votes.
 ## Build Definition
 
 The statement `_type` is `https://in-toto.io/Statement/v1` and `predicateType`
-is `https://slsa.dev/provenance/v1`. `buildDefinition.externalParameters` contains
-exactly one field, `resolvedInputHash`, with the 32-character Nix-base32 digest
-of the resolved derivation store path. No `resolvedDependencies` are emitted.
+is `https://slsa.dev/provenance/v1`. Under `predicate`,
+`buildDefinition.externalParameters` defines only:
 
-This hash is the existing Nix text-store-path construction, including the
-resolved ATerm, references, store root, and derivation name, followed by Nix's
-20-byte digest compression. It is not SHA-256 of the ATerm alone. Dependencies
-are already resolved to content identities before hashing; the hash neither
-specifies nor commits to the original unresolved derivation graph. Verifiers
-reconstruct the request from their own graph and candidate resolutions.
+- `resolvedInput`: a required ResourceDescriptor for the complete resolved
+  request, with a nonempty `digest` map and optional ResourceDescriptor metadata.
+  Every entry identifies the same complete request, not one of its dependencies.
+- `criticalFeatures`: a set represented as an array of unique strings, declaring
+  departures from baseline assumptions that are unsafe to ignore. The initial
+  signer emits `[]`.
 
-All paths in this profile use `/nix/store`. Changing the store-root semantics
+Reject unknown external parameter fields. `buildType` defines this parameter
+interface, following [SLSA v1.2 externalParameters](https://slsa.dev/spec/v1.2/build-provenance#builddefinition).
+It is not an open metadata bag. Supplementary evidence belongs in the standard
+evidence fields or ignorable metadata instead.
+
+The `digest` map is a DigestSet: nonempty scheme keys with nonempty string values.
+Unknown-only maps are structurally valid; no known scheme is universally
+required. Scheme keys are compared exactly, with no mandatory namespace, prefix,
+or version syntax. Consumers ignore unsupported schemes by their exact key,
+without guessing semantics from their spelling. This openness applies inside
+the descriptor, not to the closed external-parameter interface.
+
+The current producer emits `resolvedInput.digest["aterm"]`:
+the existing 32-character Nix-base32 digest of the resolved derivation store
+path. This scheme uses the existing Nix text-store-path construction, including
+the resolved ATerm, references, store root, and derivation name, followed by
+Nix's 20-byte digest compression. It is not SHA-256 of the ATerm alone.
+Dependencies are already resolved to content identities before hashing; the
+hash neither specifies nor commits to the original unresolved derivation graph.
+Verifiers reconstruct the request from their own graph and candidate resolutions.
+Future schemes can identify that same complete request as sibling map entries;
+adding them does not change this Nix hashing algorithm.
+
+`buildDefinition.resolvedDependencies` is an open collection of supplementary
+input resources using SLSA/in-toto ResourceDescriptors. The initial signer need
+not emit it; well-formed descriptors are accepted and preserved, but ignored by
+the current reasoner. These describe actual inputs, not a collection of sibling
+identities for the complete resolved request; those belong in `resolvedInput`.
+They do not change the resolved-input-hash calculation or assert an unresolved
+dependency graph, completeness of such a graph, or a mapping back to an original
+flake/source identity. The verifier still
+reconstructs its own request rather than trusting a supplied graph.
+
+Nix store paths in this profile use `/nix/store`. Changing the store-root semantics
 requires another build type. The following distinct build types make the
 CA/IA distinction mandatory rather than an ignorable annotation.
 
@@ -58,27 +95,195 @@ dependency paths with synthetic CA paths and own output paths with placeholders
 when computing the input hash. Output subjects describe the rewritten contents,
 not the original IA NAR bytes. CA and synthetic IA evidence are not interchangeable.
 
+### Critical Features and Admission
+
+The full signed field is
+`predicate.buildDefinition.externalParameters.criticalFeatures`. Each marker is
+an opaque string compared exactly, without normalization or interpretation of
+its spelling. There are no lexical restrictions, namespaces, required prefixes,
+version syntax, or central registry. Different implementations may support
+different strings. Even `""` is a structurally valid opaque marker, not an empty
+set or a supported feature. Producers using the same string must agree on what
+acceptance authorizes. Incompatible changes require a different string, with no
+prescribed naming or versioning convention.
+
+Absent, `null`, and `[]` all mean the empty set, following
+[SLSA parsing rules](https://slsa.dev/spec/v1.2/build-provenance#parsing-rules).
+Otherwise the field must be an array of strings without duplicates; wrong types,
+non-string elements, and duplicate strings are malformed. Array order has no
+semantic significance.
+
+For example, a producer implementing GPU access could record:
+
+```json
+"externalParameters": {
+  "resolvedInput": {
+    "digest": {
+      "nix-resolved-derivation": "00000000000000000000000000000000"
+    }
+  },
+  "criticalFeatures": ["gpu-access"]
+}
+```
+
+The hash is illustrative. `gpu-access` is an example, not a registered or
+implemented feature. It declares an intentionally enabled execution feature;
+the producer must faithfully record the request and execute it accordingly.
+Supporting evidence can accompany it elsewhere in the signed statement. A
+consumer without explicit support must decline the claim even if it trusts the
+signer. Recognized features also need acceptance under the consumer's policy,
+which may rely on trust, procedures, or automated verification. Security-distinct
+builder modes still require distinct identities as described below.
+
+Keep the set minimal. A supplementary descriptor, annotation, or digest that
+leaves the baseline claim intact does not need a marker merely because some
+consumers do not understand it. Producers MUST truthfully mark departures that
+would be unsafe to interpret as baseline claims. A marker is not proof of the
+departure's properties, and omission by a dishonest signer is not detectable
+through this mechanism alone.
+
+Shared format validation, signing, and cryptographic verification accept any
+well-formed marker set structurally. This does not authorize it for reasoning.
+Before inserting any facts, the actual verifier separately checks the signed
+set: an unknown or unaccepted marker makes that entire atomic output claim
+ineligible. Other claims, including claims in the same cache object, remain
+eligible for their own checks. The initial laut verifier rejects ALL nonempty
+sets. No marker semantics, acceptance CLI, or feature handlers are implemented.
+
+The Nix resolved input hash and hence its trace lookup do not commit to
+the marker list. The signature covers the list separately, and admission must
+check it even when the input hash matches. A future handler must address the
+departure's relevant request matching and hash commitment as well as its evidence
+checks; neither recognition of a string nor acceptance of a marker verifies
+evidence. This profile implements no such future semantics.
+
 ## Subjects
 
-Each subject is one named output, with a unique nonempty `name` and:
+Each subject is one logical named output ResourceDescriptor, with a unique
+nonempty `name` and a nonempty `digest` map. Output names must be unique across
+the statement. As for `resolvedInput`, map keys must be nonempty strings and
+values must be nonempty strings; unknown-only maps are structurally valid. No current
+hash, path, or castore scheme is mandatory universally.
 
-- `digest.sha256`: lowercase hexadecimal SHA-256 of the NAR bytes (after
-  rewriting for synthetic IA). Producers convert the existing Nix-base32 NAR
-  hash; they do not hash the hash's textual representation.
-- `mediaType`: `application/x-nix-nar`.
-- `annotations.laut_storePath`: the output's absolute CA or synthetic CA path.
-- `annotations.laut_castoreEntry`: base64 of the existing empty-root-name
-  castore Entry protobuf for that output. This is a structured representation,
-  not a NAR digest or a generic BLAKE3 digest.
-- `annotations.laut_output`: other Nix derivation output metadata, excluding
-  `path` and `hash`, which are represented above.
+The current producer emits these sibling schemes in each subject's `digest`:
 
-Laut requires the store path and castore representation; generic in-toto tools
-may match the NAR digest alone, but that does not implement laut's resolution
-and consensus semantics. A claim is an atomic output map; verifiers must not
-mix outputs from different claims. The current reasoner uses store paths as
-content identities. This format change does not make it verify local output
-bytes where it previously only resolved provenance.
+- `nix-ca-store-path`: the output's absolute CA or synthetic CA `/nix/store` path.
+- `nix-nar-sha256`: lowercase 64-character hexadecimal SHA-256 of the NAR bytes
+  (after rewriting for synthetic IA). Producers convert the existing Nix-base32
+  NAR hash; they do not hash the hash's textual representation.
+- `snix-castore-entry`: base64 of the existing empty-root-name castore Entry
+  protobuf for that output. This is a structured immutable reference, not a
+  hash, a NAR digest, or a generic BLAKE3 digest.
+
+Other schemes are allowed as equal siblings. `annotations.laut_output` retains
+other Nix derivation output metadata, excluding `path` and `hash`, which have
+identity representations above. `mediaType` is optional; no NAR media type is
+required, and the current producer omits it because the descriptor identifies
+the logical output rather than prescribing one serialization.
+
+These custom schemes use the standard
+[in-toto DigestSet](https://github.com/in-toto/attestation/blob/main/spec/v1/digest_set.md)
+extension mechanism, including immutable references. Every scheme must define
+what it identifies and how it is encoded. There is no universal `sha256` entry
+or generic SHA-256 artifact-matching guarantee. A generic tool can still verify
+signatures and log evidence, but must understand a scheme to match an artifact
+using it; that alone does not implement laut's resolution and consensus rules.
+
+### Sibling Examples
+
+These statement fragments omit the envelope and other required statement fields
+to illustrate sibling maps for the complete request and one output. The zero
+hashes and hypothetical `future-request` scheme are
+illustrative, not evidence of a real build. JSON object order gives no entry
+priority; the output map below is valid without a castore entry.
+
+```json
+{
+  "predicate": {
+    "buildDefinition": {
+      "externalParameters": {
+        "resolvedInput": {
+          "digest": {
+            "aterm": "00000000000000000000000000000000",
+            "future-request": "immutable-request-reference"
+          }
+        },
+        "criticalFeatures": []
+      }
+    }
+  },
+  "subject": [
+    {
+      "name": "out",
+      "digest": {
+        "nix-ca-store-path": "/nix/store/00000000000000000000000000000000-example",
+        "nix-nar-sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ]
+}
+```
+
+These future-only maps are also structurally valid, but unusable by the current
+Nix backend and reasoner:
+
+```json
+{
+  "predicate": {
+    "buildDefinition": {
+      "externalParameters": {
+        "resolvedInput": {"digest": {"future-request": "immutable-request-reference"}},
+        "criticalFeatures": []
+      }
+    }
+  },
+  "subject": [
+    {"name": "out", "digest": {"future-output": "immutable-output-reference"}}
+  ]
+}
+```
+
+### Identity Trust and Current Admission
+
+Sibling entries assert identities of the same resource. After accepting the
+signer under its trust policy, a verifier can trust that relationship without
+independently proving equivalence or requiring a mathematical isomorphism
+between schemes. Schemes may capture finer distinctions while still providing
+adequate identifiers for the resource. Independent evidence, such as a hardware
+attestation, supplies only the guarantees its own semantics define; it does not
+implicitly attest every relationship between schemes.
+
+The actual current verifier requires a well-formed `aterm`
+identity matching the locally reconstructed request hash and the cache lookup
+hash, the matching CA/IA build type, and a usable `nix-ca-store-path` for EVERY
+subject. If it cannot use any of these, it skips the entire atomic claim, not
+just the unusable output or other claims in the cache collection. This admission
+restriction is distinct from structural validity, which requires no known
+scheme. Authentication, required log checks, and critical-feature admission
+also precede insertion of facts.
+
+The current reasoner uses store paths as content identities. It neither needs
+nor parses or verifies the NAR and castore representations; these remain signed
+assertions. Authenticating them does not verify local output bytes. Multiple
+representations never add signer votes. Preserve each claim's atomic output
+map: do not union or synthesize outputs or identity maps from separate claims
+to reach a threshold.
+
+## Supplementary Evidence
+
+Unknown signed metadata, annotations, and digest keys are retained,
+not stripped when admitting a claim. Subject to the structural requirements
+above, consumers may ignore what they do not use. This follows the
+[in-toto parsing rules](https://github.com/in-toto/attestation/blob/main/spec/v1/README.md#parsing-rules)
+and [SLSA extension rules](https://slsa.dev/spec/v1.2/build-provenance#extension-fields):
+ignorable extensions must not change the meaning of another field. The closed
+`externalParameters` interface and its checked `criticalFeatures` set are not
+ignorable extensions.
+
+Authenticating metadata establishes who asserted it, not whether its claims are
+true. Preserving supplementary evidence enables independent consumers to use it
+without making it a current reasoner input. No hardware-attestation verification,
+detached-evidence fetching, or new policy language is provided here.
 
 ## Run Details
 
@@ -87,12 +292,18 @@ is SHA-256 of the signing key's DER SubjectPublicKeyInfo. It identifies the
 execution trust boundary for which this narrowly scoped key is responsible,
 not all installations of a Nix release. This managed-key profile requires the
 ID to match the verifying key, establishing the signer-builder pair explicitly.
-Use separate keys for independently trusted execution boundaries. A future
-certificate/platform profile must define its own binding.
+Use separate keys for independently trusted execution boundaries. Under
+[SLSA's builder rules](https://slsa.dev/spec/v1.2/build-provenance#builder), modes
+with different security attributes MUST have different builder IDs. Since this
+profile derives IDs from keys, those modes require separate keys. Neither an
+annotation nor a critical marker permits an umbrella laut builder identity for
+different security modes. `buildType` defines the parameters, not this execution
+trust boundary. A future certificate/platform profile must define its own binding.
 
 `builder.version` may contain `nixFlavor` and `nixVersion`, as well as future
-string-valued component versions. These values are authenticated evidence and
-are retained for policy evaluation; this migration adds no version-policy UI.
+string-valued component versions. These values are authenticated assertions and
+are retained for possible policy evaluation, not verified software-state claims;
+the current implementation has no version-policy UI.
 
 `metadata.invocationId` is a random 128-bit value encoded as 32 lowercase hex
 characters. It identifies a claimed attempt, not an independently verified
@@ -108,8 +319,15 @@ unauthenticated and does not admit claims into verification.
 
 ## Storage and Logging
 
-`traces/<resolvedInputHash>` is one JSON Lines object, one complete bundle per
-line. Conditional create/replacement preserves concurrent contributions.
+Trace collections are indexed at `traces/<scheme>/<hash>`. The current signer
+and verifier use `traces/aterm/<hash>`, where `hash` is the
+corresponding value in the resolved input's digest map. This is one JSON Lines object, one complete
+bundle per line. It is not a universal format requirement: an alternative-only
+producer can produce valid statements but cannot use this backend without the
+Nix lookup identity. Conditional create/replacement preserves concurrent
+contributions.
+Cache URLs name the cache root. The debug corpus uses that same root and scans
+`traces/aterm/`, requiring a directory listing for HTTP caches.
 Direct bundles have no `tlogEntries`. Logged bundles attach verified Rekor v2
 `hashedrekord` v0.0.2 evidence binding the SHA-512 digest of the DSSE PAE,
 Ed25519ph signature, and public key to a signed checkpoint via an inclusion

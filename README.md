@@ -24,6 +24,12 @@ from whichever cache a result happened to pass through. This lets you pick who
 you trust independently from everyone else and change your mind about it over
 time.
 
+See **[Format Design Principles](docs/design.md)** for the original goals:
+independent producer and consumer evolution, evidence that can gradually replace
+trust with verification, and coexisting input/output representations. The
+[provenance profile](docs/slsa-provenance-v1.md) applies those principles to the
+signed format and its admission rules.
+
 The fundamentals are in place, with a few things still needing work (marked ❎):
 * configurable trust model[^2] ✅, ...
 * which can be re-configured over time, ✅ based on ...
@@ -94,13 +100,20 @@ laut verify --cache https://cache.example --trusted-key builder.public \
 
 The root file supplies log keys, not trusted build signers. No public Sigstore
 services or trust roots are contacted implicitly. Logging errors do not fall
-back to direct signing. One JSON Lines object at `traces/<resolved-input-hash>`
-contains all bundles for that input hash; verification needs no log connection.
+back to direct signing. One JSON Lines object at
+`traces/aterm/<hash>` contains bundles for that Nix resolved
+input hash; verification needs no log
+connection. This is a Nix-specific transport/index, not a universal format
+requirement. A valid alternative-only producer is not usable by this backend.
 Without `--require-log`, valid direct signatures are sufficient.
 
 See the [provenance profile](docs/slsa-provenance-v1.md) for exact fields,
-supported log algorithms, trust-root configuration, and limitations. Old JWS
-objects are no longer accepted.
+supported log algorithms, trust-root configuration, and limitations. Signed
+`criticalFeatures` declare departures that cannot safely be ignored. The initial
+signer emits `[]`; the verifier excludes any claim with a nonempty set, without
+excluding other claims. Supplementary evidence can be retained without being
+used or verified by the reasoner. Shared format validation accepts any
+well-formed marker set; omitted, `null`, and `[]` all mean the empty set.
 
 ### How does it work
 
@@ -110,6 +123,19 @@ It's a Rust workspace (`laut-cli` for argument parsing and dispatch,
 encoding come from `nix-compat` / `laut-compat` on the
 `mschwaig/snix#fanfic` branch. The signed payload is an in-toto Statement v1
 with a SLSA Provenance v1 predicate, wrapped in DSSE and a Sigstore Bundle.
+
+The complete resolved request and each named output have open maps of sibling
+identities, with no universally required scheme. The current signer publishes
+the Nix request identity and store-path, NAR, and castore output identities.
+Other producers can publish different schemes independently. Accepting a signer
+can justify trusting its assertion that siblings identify the same resource;
+independent evidence guarantees only what its own semantics define.
+
+The current verifier selects the Nix request identity and a store path for every
+output. A claim lacking these can be valid format but unusable by this verifier.
+It declines that whole claim rather than dropping outputs, and never counts
+representations as additional signer votes. See the profile's
+[sibling examples and admission rules](docs/slsa-provenance-v1.md#sibling-examples).
 
 The signing side is straightforward: it walks the derivation, computes the
 resolved input hash, gathers output content hashes, and assembles a signed

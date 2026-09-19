@@ -90,8 +90,7 @@ impl<B: Backend> Orchestrator<B> {
                 continue;
             }
             for (payload, kid) in signatures {
-                // Regime filter: IA verifier rejects CA-shaped traces (no
-                // `from_ia`); CA verifier rejects IA-shaped ones. Cross-regime
+                // Regime filter: CA and synthetic IA build types are distinct. Cross-regime
                 // mixing is deliberately not supported yet — see the design
                 // notes and the followup TODO around bit-equivalence testing.
                 let signed_from_ia = laut_sign::attestation::from_ia(&payload);
@@ -111,9 +110,8 @@ impl<B: Backend> Orchestrator<B> {
                 let mut consistent = true;
                 for subject in subjects {
                     let output_name = subject["name"].as_str().expect("validated output name");
-                    let path = subject["annotations"]["laut_storePath"]
-                        .as_str()
-                        .expect("validated store path");
+                    let path = laut_sign::attestation::nix_output_path(subject)
+                        .expect("admitted Nix output identity");
                     let Some(udrv_output) = udrv.outputs.get(output_name) else {
                         // Signer claimed an output we don't have — skip claim.
                         consistent = false;

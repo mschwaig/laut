@@ -13,7 +13,8 @@ verifier.wait_for_unit("default.target")
 # Copy the on-disk cache produced by the sign-test onto the verifier.
 verifier.copy_from_host(binaryCacheData, "/var/lib")
 verifier.succeed("chmod -R 755 /var/lib/cache")
-verifier.succeed("test -d /var/lib/cache/traces")
+trace_dir = "/var/lib/cache/traces/aterm"
+verifier.succeed(f"test -d {trace_dir}")
 
 # Run the writePython3Bin-wrapped tamper helper (`tamper-preimage` is on PATH
 # because of the test's verifierExtraConfig). It appends a unique marker to
@@ -21,7 +22,7 @@ verifier.succeed("test -d /var/lib/cache/traces")
 # divergent preimage but the signature for that hash no longer verifies.
 TAMPER_MARKER = "LAUT_DEBUG_TAMPER_MARKER_98c4e3"
 tamper_output = verifier.succeed(
-    f"tamper-preimage /var/lib/cache/traces {TAMPER_MARKER}"
+    f"tamper-preimage {trace_dir} {TAMPER_MARKER}"
 )
 print(f"tamper output:\n{tamper_output}")
 

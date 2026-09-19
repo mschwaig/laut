@@ -96,7 +96,7 @@ impl InMemoryCorpusIndex {
 #[derive(Debug, thiserror::Error)]
 pub enum CorpusError {
     #[error(
-        "cache at {url:?} does not support listing /traces/ (HTTP {status}); --debug-preimage-corpus needs a cache with a listing endpoint, like the test cache server"
+        "cache does not support listing {url:?} (HTTP {status}); --debug-preimage-corpus needs a cache with a listing endpoint, like the test cache server"
     )]
     ListingNotSupported { url: String, status: u16 },
     #[error("cache at {url:?} returned a listing that is not a JSON array of objects: {detail}")]
@@ -129,29 +129,35 @@ pub enum CorpusError {
     },
 }
 
-/// Build an `InMemoryCorpusIndex` by listing the cache's `/traces/` directory
+/// Build an `InMemoryCorpusIndex` by listing the Nix input scheme's trace directory
 /// and pulling the debugging byproduct out of each bundle. Signatures are
 /// deliberately not verified here; only malformed/missing debug data is skipped.
 /// The flag-gated invariant is "preimages are only ever
 /// generated when the signer opts in", so absence is expected.
 ///
 /// Dispatches on the same URL schemes as `Backend::fetch_signatures`:
-/// `http(s)://` requires a JSON listing endpoint at `/traces/`; `file://`
-/// reads `<path>/traces/` from disk.
+/// The URL names the cache root. `http(s)://` requires a JSON listing endpoint at
+/// `/traces/aterm/`; `file://` reads the same directory on disk.
 pub fn build_corpus_from_cache(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
     match crate::backend::parse_cache_url(cache_url)? {
         crate::backend::CacheTransport::Http(url) => build_from_http(&url),
-        crate::backend::CacheTransport::File(dir) => build_from_dir(&dir.join("traces")),
+        crate::backend::CacheTransport::File(dir) => build_from_dir(&dir.join(
+            laut_sign::http_cache::trace_directory(attestation::NIX_RESOLVED_INPUT),
+        )),
     }
 }
 
 fn build_from_http(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
     let base_url = cache_url.trim_end_matches('/');
-    let listing_url = format!("{}/traces/", base_url);
+    let listing_url = format!(
+        "{}/{}/",
+        base_url,
+        laut_sign::http_cache::trace_directory(attestation::NIX_RESOLVED_INPUT)
+    );
     let names = fetch_listing(&listing_url)?;
     let mut index = InMemoryCorpusIndex::new();
     for name in names {
-        let trace_url = format!("{}/traces/{}", base_url, name);
+        let trace_url = format!("{}{}", listing_url, name);
         let Ok(body) = fetch_bytes(&trace_url) else {
             continue;
         };

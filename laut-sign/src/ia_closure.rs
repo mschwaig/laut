@@ -43,7 +43,7 @@ impl From<HashError> for Error {
 /// Output of [`Walker::root_result`] for one of the requested root output
 /// paths: the synthetic Nix CA store path and pass-2 artifacts (castore
 /// Entry that goes into the attestation, NAR hash + size of the
-/// rewritten content for stamping `payload.out.nix[name].hash`).
+/// rewritten content for the output's sibling identities).
 pub struct RootResult {
     pub synthetic_ca_path: StorePath<String>,
     pub castore_entry_base64: String,

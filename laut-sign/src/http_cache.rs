@@ -10,6 +10,15 @@ use std::io::Read;
 
 const MAX_RETRIES: u32 = 5;
 
+/// Cache-relative collection directory for an input identity scheme.
+pub fn trace_directory(input_scheme: &str) -> String {
+    format!("traces/{input_scheme}")
+}
+
+pub fn trace_path(input_scheme: &str, input_hash: &str) -> String {
+    format!("{}/{input_hash}", trace_directory(input_scheme))
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("unsupported url scheme {0:?} (expected http or https)")]
@@ -80,12 +89,17 @@ fn get_existing(url: &str) -> Result<Option<(String, String)>, Error> {
     }
 }
 
-/// Upload `signature` to `<store_url>/traces/<input_hash>`. If another builder
+/// Upload `signature` to `<store_url>/traces/aterm/<input_hash>`.
+/// If another builder
 /// is publishing the same input hash concurrently, ETag-based optimistic
 /// concurrency merges the lists across retries.
 pub fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> Result<(), Error> {
     let base_url = parse_http_cache_url(store_url)?;
-    let url = format!("{}/traces/{}", base_url, input_hash);
+    let url = format!(
+        "{}/{}",
+        base_url,
+        trace_path(attestation::NIX_RESOLVED_INPUT, input_hash)
+    );
 
     let incoming = parse_json(signature.as_bytes())?;
     attestation::parse_bundle(signature.as_bytes())?;
@@ -137,11 +151,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn trace_paths_are_scheme_qualified() {
+        assert_eq!(
+            trace_directory(attestation::NIX_RESOLVED_INPUT),
+            "traces/aterm"
+        );
+        assert_eq!(
+            trace_path(attestation::NIX_RESOLVED_INPUT, "hash"),
+            "traces/aterm/hash"
+        );
+        assert_eq!(
+            trace_path("another-input", "hash"),
+            "traces/another-input/hash"
+        );
+    }
+
+    #[test]
     fn conditional_conflict_merges_without_losing_other_publishers() {
         use std::io::{BufRead, BufReader, Write};
         use std::net::TcpListener;
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
+        let url = format!("http://{}/cache/", listener.local_addr().unwrap());
         let key = ed25519_dalek::SigningKey::from_bytes(&[7; 32]);
         let bundle = attestation::create_trace_bundle(&"0".repeat(32), None,
             &serde_json::json!({"out": {"path": format!("/nix/store/{}-test", "0".repeat(32)), "hash": format!("sha256:{}", "0".repeat(52))}}),
@@ -194,6 +224,12 @@ mod tests {
         // A retry of the exact published bundle performs only the final GET.
         upload_signature(&url, &"0".repeat(32), &serialized).unwrap();
         let requests = server.join().unwrap();
+        for (header, _) in &requests {
+            assert_eq!(
+                header.split_whitespace().nth(1),
+                Some(format!("/cache/traces/aterm/{}", "0".repeat(32)).as_str())
+            );
+        }
         assert!(requests[1].0.to_lowercase().contains("if-none-match: *"));
         assert!(requests[3].0.to_lowercase().contains("if-match: \"other\""));
         assert!(requests[3].1.starts_with("{\"preserve\":true}\n"));
