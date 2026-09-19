@@ -33,7 +33,7 @@ still describes one logical output, with sibling `digest` entries:
 - `nix-ca-store-path`: the original `annotations.laut_storePath`.
 - `nix-nar-sha256`: the original `digest.sha256`, unchanged lowercase hex.
 - `snix-castore-entry`: the original `annotations.laut_castoreEntry`, unchanged
-  base64 of the structured castore reference, not a hash of NAR bytes.
+  base64 of the empty-root-name castore Entry protobuf.
 
 The old identity fields and subject `mediaType: application/x-nix-nar` were
 removed, not retained as compatibility aliases. Output names, output order,

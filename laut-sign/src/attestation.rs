@@ -315,11 +315,6 @@ pub fn validate_statement(s: &Value, key: &VerifyingKey) -> Result<(), Error> {
         }
     }
     validate_identity_resource(params.get("resolvedInput").ok_or_else(invalid)?)?;
-    if let Some(dependencies) = build.get("resolvedDependencies").filter(|v| !v.is_null()) {
-        for dependency in dependencies.as_array().ok_or_else(invalid)? {
-            validate_resource_descriptor(dependency)?;
-        }
-    }
     let run = &s["predicate"]["runDetails"];
     if run["builder"]["id"] != builder_id(key)? {
         return Err(invalid());
@@ -359,32 +354,23 @@ pub fn validate_statement(s: &Value, key: &VerifyingKey) -> Result<(), Error> {
 }
 
 fn validate_identity_resource(resource: &Value) -> Result<(), Error> {
-    validate_resource_descriptor(resource)?;
-    if resource["digest"].as_object().is_none_or(|m| m.is_empty()) {
-        return Err(Error::Invalid(
-            "identity resource requires a nonempty digest set",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_resource_descriptor(resource: &Value) -> Result<(), Error> {
     let invalid = || Error::Invalid("invalid resource descriptor");
     let fields = resource.as_object().ok_or_else(invalid)?;
+    let digests = resource["digest"]
+        .as_object()
+        .filter(|m| !m.is_empty())
+        .ok_or_else(invalid)?;
+    if !digests
+        .iter()
+        .all(|(scheme, value)| !scheme.is_empty() && value.as_str().is_some_and(|s| !s.is_empty()))
+    {
+        return Err(invalid());
+    }
     for name in ["name", "uri", "downloadLocation", "mediaType", "content"] {
         if fields
             .get(name)
             .is_some_and(|v| !v.is_null() && !v.is_string())
         {
-            return Err(invalid());
-        }
-    }
-    if let Some(digests) = fields.get("digest").filter(|v| !v.is_null()) {
-        if !digests.as_object().is_some_and(|m| {
-            m.iter().all(|(scheme, value)| {
-                !scheme.is_empty() && value.as_str().is_some_and(|s| !s.is_empty())
-            })
-        }) {
             return Err(invalid());
         }
     }
@@ -396,14 +382,6 @@ fn validate_resource_descriptor(resource: &Value) -> Result<(), Error> {
     }
     if let Some(content) = resource["content"].as_str() {
         decode(content)?;
-    }
-    if !resource["uri"].as_str().is_some_and(|s| !s.is_empty())
-        && !resource["digest"]
-            .as_object()
-            .is_some_and(|m| !m.is_empty())
-        && !resource["content"].as_str().is_some_and(|s| !s.is_empty())
-    {
-        return Err(invalid());
     }
     Ok(())
 }
@@ -695,12 +673,6 @@ mod tests {
             json!({"hardwareEvidence": {"format": "experimental", "value": "opaque"}});
         statement["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"]
             ["experimental-request"] = "opaque-request-id".into();
-        statement["predicate"]["buildDefinition"]["resolvedDependencies"] = json!([
-            {"name": "compiler", "digest": {"experimental-tree": "opaque-input-id"},
-                "annotations": {"example_evidence": ["uninterpreted"]}, "example_extra": true},
-            {"uri": "urn:example:input", "digest": null, "content": null},
-            {"content": encode(b"input description")}
-        ]);
         statement["subject"][0]["digest"]["example-nar-sha512"] = "ab".repeat(64).into();
         statement["subject"][0]["digest"]["experimental-tree"] = "opaque-output-id".into();
         statement["subject"][0]["annotations"]["example_representation"] =
@@ -781,31 +753,6 @@ mod tests {
             .unwrap()
             .remove("resolvedInput");
         assert!(Bundle::sign(&missing, &key).is_err());
-    }
-
-    #[test]
-    fn supplementary_resources_must_have_valid_shapes() {
-        let (key, bundle) = fixture();
-        let mut statement = bundle.verify(&key.verifying_key()).unwrap();
-        for dependencies in [
-            json!({}),
-            json!([null]),
-            json!([{}]),
-            json!([{"uri": 1}]),
-            json!([{"uri": "urn:example:input", "digest": {"unknown": 1}}]),
-            json!([{"uri": "urn:example:input", "annotations": []}]),
-            json!([{"content": "!not-base64!"}]),
-        ] {
-            statement["predicate"]["buildDefinition"]["resolvedDependencies"] =
-                dependencies.clone();
-            assert!(Bundle::sign(&statement, &key).is_err(), "{dependencies}");
-        }
-        for dependencies in [Value::Null, json!([])] {
-            statement["predicate"]["buildDefinition"]["resolvedDependencies"] = dependencies;
-            assert!(Bundle::sign(&statement, &key).is_ok());
-        }
-        statement["subject"][0]["digest"]["unknown"] = json!(42);
-        assert!(Bundle::sign(&statement, &key).is_err());
     }
 
     #[test]

@@ -5,31 +5,9 @@ This document defines what it means to verify a *derivation output* under a *tru
 ## Claim Admission
 
 The reasoning below operates only on claims admitted under the
-[provenance profile](slsa-provenance-v1.md), applying the
-[format design principles](design.md). Authentication, request/build-type
-matching, required log checks, and the signed `criticalFeatures` check precede
-insertion of facts. Structural or cryptographic validity alone is insufficient:
-the current verifier rejects every nonempty marker set. Missing, `null`, and
-`[]` all mean the empty set. An unknown or unaccepted marker excludes only the
-affected atomic claim, not other claims in the collection.
-
-The format describes each complete request and named output using sibling
-identities. The current reasoner selects `nix-resolved-derivation` for input
-matching and `nix-ca-store-path` for every output. These are implementation
-requirements, not universal format requirements. A claim with an unusable input
-or output identity is declined atomically; a usable subset is not substituted.
-
-An accepted signer vouches for the same-resource relationship among its sibling
-identities, without requiring independent equivalence proofs. Supplementary
-`resolvedDependencies`, metadata, and unused digest schemes remain authenticated
-assertions: they do not supply the reasoner's graph or imply extra verification.
-
-Multiple representations never add signer votes. Preserve atomic output maps;
-do not union or synthesize outputs or identity maps from separate claims to
-reach a threshold. These admission rules leave the closure, threshold, and
-atomic-output-map semantics below unchanged. The hashes and paths used below
-are the current reasoner's projection of an admitted claim, not a restriction
-on which schemes the wire format can carry.
+[provenance profile](slsa-provenance-v1.md#current-admission). Authentication,
+request/build-type matching, required log checks, and critical-feature admission
+precede insertion of facts.
 
 ## Setup
 

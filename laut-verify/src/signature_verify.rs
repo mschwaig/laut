@@ -182,9 +182,7 @@ mod tests {
 
     #[test]
     fn identity_selection_gates_whole_claims_not_authentication() {
-        use attestation::{
-            NIX_CA_STORE_PATH, NIX_NAR_SHA256, NIX_RESOLVED_INPUT, SNIX_CASTORE_ENTRY,
-        };
+        use attestation::{NIX_CA_STORE_PATH, NIX_RESOLVED_INPUT};
 
         let key = ed25519_dalek::SigningKey::from_bytes(&[7; 32]);
         let hash = "0".repeat(32);
@@ -318,19 +316,16 @@ mod tests {
             assert_eq!(claims, expected, "{label}");
         }
 
-        // Sibling identities are signed associations, not independently computed
-        // equivalences or extra votes. Put unknown schemes on both sides in sort order.
+        // Unknown siblings must not interfere with selecting a supported scheme.
         for reverse in [false, true] {
             let mut inputs = vec![
-                ("aaa-future-input", json!("unrelated-input")),
+                ("aaa-future-input", json!("opaque-input")),
                 (NIX_RESOLVED_INPUT, json!(hash)),
                 ("zzz-future-input", json!("another-input")),
             ];
             let mut outputs = vec![
-                ("aaa-future-output", json!("unrelated-output")),
+                ("aaa-future-output", json!("opaque-output")),
                 (NIX_CA_STORE_PATH, json!(path)),
-                (NIX_NAR_SHA256, json!("not-a-nar-hash")),
-                (SNIX_CASTORE_ENTRY, json!("not-a-castore-entry")),
                 ("zzz-future-output", json!("another-output")),
             ];
             if reverse {

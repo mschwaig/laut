@@ -51,35 +51,14 @@ ResourceDescriptor's nonempty `digest` map, with no universally required scheme.
 `externalParameters.resolvedInput` describes the complete resolved request;
 each named subject describes one logical output resource. All entries in a map
 identify that same resource, not separate dependencies or separate outputs.
-`resolvedDependencies` instead describes supplementary actual input resources,
-not alternative representations of the complete request.
 
 Coexistence provides compatibility and migration paths: a producer can publish a
 new representation alongside one existing consumers understand. Consumers need
 an identity they can actually use, not support for every representation present.
-A descriptor containing only unknown schemes is structurally valid, even if the
-current verifier cannot use it. Scheme keys are compared exactly, with no forced
-namespace or version syntax. Each scheme defines what it identifies and its
-encoding: a hash must define its preimage, while an immutable structured
-reference need not be a hash at all. In particular, a castore Entry and a NAR
-digest are distinct identifiers, not interchangeable byte encodings.
+Each scheme defines what it identifies and its encoding, including the preimage
+for a hash or the structure of an immutable reference.
 
-After accepting the signer under its trust policy, a verifier can trust the
-signed assertion that these sibling identities describe the same resource. It
-does not need an independent equivalence proof or a mathematical isomorphism
-between schemes. One scheme may distinguish more detail than another while both
-provide adequate identifiers for the resource. Signature verification alone does
-not establish truth; trusting the relationship is an explicit trust decision.
-Independent evidence, including hardware attestation, supplies only the
-guarantees defined by that evidence, not an implicit guarantee of every scheme
-relationship in the statement.
-
-Multiple representations never create additional signer votes. Output maps
-remain atomic: consumers must not union or synthesize representations or outputs
-from separate claims to reach a threshold. The current Nix verifier requires a
-usable Nix request identity and a Nix CA store path for every subject, otherwise
-it skips the whole claim, not just unusable outputs or other cache entries.
-These are implementation admission requirements, not universal format rules.
+Multiple representations never create additional signer votes.
 
 ## Critical Departures
 
@@ -91,26 +70,14 @@ to ignore, not every optional annotation, implementation detail, or extra digest
 An unknown or unaccepted marker makes the affected atomic build claim ineligible
 for reasoning, not other claims in the same cache collection.
 
-Markers are opaque, exact strings. There is no central registry, namespace,
-prefix convention, or version syntax. Different implementations may support
-different strings; they must agree on an exact string's meaning to interoperate,
-not infer semantics from its spelling. The profile defines the structural rules
+Markers are opaque, exact strings. The profile defines their structural rules
 and keeps structural/cryptographic validity separate from verifier admission.
-Acceptance may rest on explicit trust, a human procedure, or implemented checks;
-recognizing a marker is not itself an acceptance decision. An incompatible
-change to what acceptance authorizes needs a different string, without any
-prescribed version syntax.
-
-A feature implementation must address how the departure matches the consumer's
-request and what justifies acceptance. Signing a marker authenticates it, but
-does not by itself solve request matching or make a departure safe to accept.
 
 ## Execution Boundaries
 
 `buildType` defines the build template and its parameters. `builder.id` instead
 identifies the execution trust boundary, including the systems and people relied
-upon to execute the build and report it faithfully. There is no umbrella "laut
-builder" identity covering all installations or security modes.
+upon to execute the build and report it faithfully.
 
 As required by SLSA, modes with different security attributes MUST have different
 builder IDs. In the current key-derived-ID profile this requires separate keys;
@@ -124,4 +91,4 @@ the properties claimed about the execution.
 - [SLSA v1.2 Builder](https://slsa.dev/spec/v1.2/build-provenance#builder): execution trust boundaries, security modes, and signer-builder pairs.
 - [SLSA v1.2 extension fields](https://slsa.dev/spec/v1.2/build-provenance#extension-fields): ignorable extensions must not alter other fields' meanings.
 - [in-toto parsing rules](https://github.com/in-toto/attestation/blob/main/spec/v1/README.md#parsing-rules): open fields and monotonic interpretation.
-- [in-toto DigestSet](https://github.com/in-toto/attestation/blob/main/spec/v1/digest_set.md): custom sibling identity schemes with explicit semantics and encodings, including immutable references; no universal SHA-256 identity is implied.
+- [in-toto DigestSet](https://github.com/in-toto/attestation/blob/main/spec/v1/digest_set.md): custom sibling identity schemes with explicit semantics and encodings, including immutable references.

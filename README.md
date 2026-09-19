@@ -102,18 +102,14 @@ The root file supplies log keys, not trusted build signers. No public Sigstore
 services or trust roots are contacted implicitly. Logging errors do not fall
 back to direct signing. One JSON Lines object at
 `traces/aterm/<hash>` contains bundles for that Nix resolved
-input hash; verification needs no log
-connection. This is a Nix-specific transport/index, not a universal format
-requirement. A valid alternative-only producer is not usable by this backend.
+input hash; verification needs no log connection.
 Without `--require-log`, valid direct signatures are sufficient.
 
 See the [provenance profile](docs/slsa-provenance-v1.md) for exact fields,
 supported log algorithms, trust-root configuration, and limitations. Signed
 `criticalFeatures` declare departures that cannot safely be ignored. The initial
 signer emits `[]`; the verifier excludes any claim with a nonempty set, without
-excluding other claims. Supplementary evidence can be retained without being
-used or verified by the reasoner. Shared format validation accepts any
-well-formed marker set; omitted, `null`, and `[]` all mean the empty set.
+excluding other claims.
 
 ### How does it work
 
@@ -127,15 +123,12 @@ with a SLSA Provenance v1 predicate, wrapped in DSSE and a Sigstore Bundle.
 The complete resolved request and each named output have open maps of sibling
 identities, with no universally required scheme. The current signer publishes
 the Nix request identity and store-path, NAR, and castore output identities.
-Other producers can publish different schemes independently. Accepting a signer
-can justify trusting its assertion that siblings identify the same resource;
-independent evidence guarantees only what its own semantics define.
+Other producers can publish different schemes independently.
 
 The current verifier selects the Nix request identity and a store path for every
 output. A claim lacking these can be valid format but unusable by this verifier.
-It declines that whole claim rather than dropping outputs, and never counts
-representations as additional signer votes. See the profile's
-[sibling examples and admission rules](docs/slsa-provenance-v1.md#sibling-examples).
+It declines that whole claim rather than dropping outputs. See the profile's
+[admission rules](docs/slsa-provenance-v1.md#current-admission).
 
 The signing side is straightforward: it walks the derivation, computes the
 resolved input hash, gathers output content hashes, and assembles a signed

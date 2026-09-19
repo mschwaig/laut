@@ -1,19 +1,15 @@
 # Sigstore Migration Plan
 
-Status: initial implementation completed and tested locally, 2026-09-16. This document records
-the agreed scope, implementation order,
-and upstream references so that subsequent changes can be reviewed against them.
+Status: initial implementation completed and tested locally, 2026-09-16. This
+document records migration decisions, implementation history, and upstream
+references. Test counts below record those historical runs.
 
-The original, format-wide philosophy lives in [Format Design Principles](design.md),
-not in this migration plan. The [provenance profile](slsa-provenance-v1.md)
-applies it to the SLSA contract, including sibling identity maps and
-`criticalFeatures` from the outset.
-Neither the JWS format nor this branch has external deployments to accommodate.
-The existing CA and synthetic IA build-type URIs remain unchanged; no version
-bump, compatibility parser, or deployed-data migration is required for this
-contract. Fixtures were regenerated from the original scenarios at stable parent
-`49feb5f`, using the current test keys, not new builds. Missing, `null`, and empty
-critical-feature lists all mean the empty set under SLSA parsing rules.
+Format-wide principles live in [Format Design Principles](design.md); the current
+wire contract and admission rules live in the [provenance profile](slsa-provenance-v1.md).
+The migration retained the existing CA and synthetic IA build-type URIs and
+replaced JWS without a compatibility parser. Fixtures were regenerated from the
+original scenarios at stable parent `49feb5f`, using the current test keys, not
+new builds.
 
 ## Progress
 
@@ -43,19 +39,16 @@ critical-feature lists all mean the empty set under SLSA parsing rules.
   derivation unchanged; the temporary edit was removed afterward.
 - The JSON Lines inspection utility extracted all 314 fixture statements into
   two hint groups. Its grouping is explicitly unauthenticated.
-- The critical-feature, sibling-identity, and supplementary-evidence tests pass
+- The critical-feature, sibling-identity, and supplementary-evidence tests passed
   with and without default features (87 tests in each configuration).
-  Authenticated critical claims cannot supply consensus votes or exclude valid
-  claims in the same cache. Alternative-only identities are structurally valid;
-  unusable identities cannot supply partial claims or additional signer votes.
-- Both packages and the private Sigstore sign/verify VM checks pass with the
+- Both packages and the private Sigstore sign/verify VM checks passed with the
   signer emitting `criticalFeatures: []`, including independent sigstore-go
   verification. Build-type URIs are unchanged.
 - All 314 fixture bundles were authenticated before conversion to sibling
   identity maps and re-signed with their original test keys. Both tracked lookup
   maps were refreshed; input/output values, debug contents, and invocation IDs
   were preserved. No old-shape acceptance was added.
-- The small CA and IA sign/verify VM checks and the debug-probe check also pass
+- The small CA and IA sign/verify VM checks and the debug-probe check also passed
   with sibling identities. The debug helper's pre-existing line-length lint
   errors were fixed without changing its behavior.
 
@@ -65,12 +58,6 @@ protocol surface directly rather than relying on incomplete high-level Rust
 Sigstore verification. Independent sigstore-go tests validate interoperability;
 they do not constitute a security audit or a production-scale benchmark.
 
-Known initial limits are documented in [the profile](slsa-provenance-v1.md):
-managed Ed25519ph build keys, Ed25519/P-256 checkpoint keys, explicit local log
-trust, no trusted timestamps/validity-window policy, and explicit failure on
-duplicate-submission HTTP 409 rather than online proof recovery. The private
-tests confirm the duplicate response and do not generate a replacement claim.
-
 ## Goals and Decisions
 
 - Replace the custom compact JWS format outright. Do not add legacy JWS
@@ -78,31 +65,11 @@ tests confirm the duplicate response and do not generate a replacement claim.
   the repository's fixtures from `49feb5f` with current keys, not new builds.
 - Describe completed builds using an in-toto Statement v1 with a SLSA Provenance
   v1 predicate, signed in a DSSE envelope and distributed in a Sigstore Bundle.
-- Require `externalParameters.resolvedInput`, one ResourceDescriptor with a
-  nonempty DigestSet identifying the complete resolved request. All schemes
-  are siblings; there is no universally required known scheme. The current
-  producer uses `nix-resolved-derivation`, without changing its hashing.
-- Represent each logical named output with one subject ResourceDescriptor and
-  a nonempty sibling digest map. The current producer emits `nix-ca-store-path`,
-  `nix-nar-sha256`, and `snix-castore-entry`, with no required NAR `mediaType`.
-  Preserve other output metadata in `annotations.laut_output`.
-- Accept and preserve supplementary actual input ResourceDescriptors in
-  `resolvedDependencies`, not sibling full-request representations. They neither
-  supply the current reasoner's graph nor claim an unresolved dependency graph
-  or original flake/source identity. The same resolved request can arise from
-  different unresolved builds.
-- Apply the profile's minimal signed `criticalFeatures` contract. Shared format
-  and cryptographic operations accept any well-formed set; verifier admission
-  rejects every nonempty set. There are no feature handlers or acceptance CLI.
+- Use the profile's sibling identity maps and signed `criticalFeatures` contract.
 - Preserve resolved-input-hash computation, CA and synthetic-CA-from-IA semantics,
   named output claims, and the existing consensus calculation.
-- Keep keys narrowly scoped. Evidence production must remain independent of
-  verification-time aggregation and policy. Neither signatures nor builder IDs
-  are an aggregation mechanism.
-- Retain signed Nix implementation/version metadata so verifiers can eventually
-  reject evidence involving, for example, vulnerable sandbox implementations.
+- Retain signed Nix implementation/version metadata.
 - Distinguish individual claimed build attempts with random invocation IDs.
-  Multiple attempts from one signer do not create additional independent votes.
 - Reuse existing Nix cache keyfiles and Ed25519 key material, but use Ed25519ph
   for the new DSSE signatures. Existing Nix cache signatures remain unchanged.
 - Use the same statement, envelope, and bundle machinery for direct and logged
@@ -110,47 +77,18 @@ tests confirm the duplicate response and do not generate a replacement claim.
   signer's signature or authorize otherwise untrusted signers.
 - Store one object per input identity at `traces/<scheme>/<hash>`; the current
   input scheme is `aterm`.
-  Each line is one standard Sigstore Bundle, encoded as JSON Lines. This is a
-  Nix-specific transport/index, not a universal identity requirement; valid
-  alternative-only producers are not usable by the current backend.
+  Each line is one standard Sigstore Bundle, encoded as JSON Lines.
 - Keep ordinary verification to one cache GET per input hash per configured
   cache, with no mandatory log lookup, directory listing, or manifest fetch.
-- Make the first log requirement verification-wide. Eventually it belongs in
-  the trust model as a criterion on the signer; do not pull in the untested
-  Nix-module-shaped configuration interface now.
+- Make the log requirement verification-wide.
 - Exercise transparency services privately in NixOS VM tests. Tests must not
   submit entries to, or otherwise depend on, public Sigstore infrastructure.
-- Do not clone research repositories as part of this work. Record relevant
-  sources and selected dependency revisions here or in the resulting profile.
 - Run only small VM tests locally, including the focused private-log checks.
   Medium and large VM tests are explicitly excluded from local execution.
 
-## Deferred Work
-
-- Pre-execution/start attestations, paired start/completion events, execution
-  gates, and detecting unfinished builds. This was considered and explicitly
-  deferred because it needs additional payload and orchestration work.
-- Keyless signing, Fulcio/OIDC integration, certificate verification workflows,
-  key rotation/revocation, and automated trust-root distribution.
-- Hardware-attestation generation or verification. Standardized evidence should
-  leave room for this later, but provenance does not itself prove execution on
-  measured hardware.
-- Log monitoring, witnessing policy, cross-checkpoint consistency tracking,
-  cache completeness proofs, and analysis of other log entries.
-- A new policy language, Nix-version selection UI, or the pending Nix-module UI.
-- Critical-feature handlers and acceptance configuration. Future handlers must
-  define evidence checks and relevant request matching/hash commitments, not
-  merely allow marker strings. The cache hash does not commit to the signed list.
-- Fetching detached evidence. Retaining descriptors does not implement retrieval
-  or verification of the resources they describe.
-- Alternative cache directory layouts, per-bundle object storage, and a separate
-  ingestion/materialization service.
-- Production operation of cache.nixos.org or a public log. This migration should
-  support that deployment, not perform it.
-
 ## Representation
 
-The proposed hierarchy is:
+The hierarchy is:
 
 ```text
 traces/<scheme>/<hash>            JSON Lines index object
@@ -168,16 +106,6 @@ traces/<scheme>/<hash>            JSON Lines index object
       log entry, inclusion proof, signed checkpoint (logged mode)
 ```
 
-Target Bundle v0.3, with media type
-`application/vnd.dev.sigstore.bundle.v0.3+json`. SLSA's current specification is
-v1.2, but the provenance predicate URI remains `https://slsa.dev/provenance/v1`.
-Using these schemas does not establish or claim a SLSA security level.
-
-DSSE does not canonicalize JSON. It authenticates the payload type and exact
-payload bytes through Pre-Authentication Encoding (PAE). Preserve those bytes
-through signing, logging, and verification. Rekor entry canonicalization is a
-separate operation and must not be confused with payload serialization.
-
 ### Payload Mapping
 
 | Original information | Location or treatment |
@@ -185,54 +113,14 @@ separate operation and must not be confused with payload serialization.
 | `in.rdrv_aterm_ca` | `buildDefinition.externalParameters.resolvedInput.digest["aterm"]`, a sibling identity of the complete request |
 | Input representation | Existing CA or synthetic IA `buildDefinition.buildType` URI, defining the parameters |
 | Unsafe-to-ignore departures | `buildDefinition.externalParameters.criticalFeatures`, a minimal set of opaque exact strings |
-| Other complete-request identities | Sibling schemes in `externalParameters.resolvedInput.digest`, not `resolvedDependencies` |
-| Supplementary actual input resources | Open `resolvedDependencies` ResourceDescriptors, preserved but ignored by the current reasoner |
 | `in.from_ia` | Required distinction via the existing CA and synthetic IA build types |
 | `out.nix.<name>` | One named subject with sibling `digest["nix-ca-store-path"]` and `digest["nix-nar-sha256"]`; other metadata in `annotations.laut_output` |
-| `out.castore-entry.<name>` | The same subject's sibling `digest["snix-castore-entry"]`, a base64 empty-root Entry protobuf immutable reference, not a hash |
+| `out.castore-entry.<name>` | The same subject's sibling `digest["snix-castore-entry"]` |
 | Builder execution trust boundary | `runDetails.builder.id` |
 | `builder.nix_flavor` and `builder.nix_version` | `runDetails.builder.version` |
 | `builder.rebuild_id` | `runDetails.metadata.invocationId`, using a larger random identifier |
-| `builder.store_root` | Preserve its meaning; specify whether implicit in the build type or explicitly recorded |
+| `builder.store_root` | `/nix/store`, defined by the build type |
 | Optional signed debug preimage | Debugging byproduct, kept separate from the regular build-input interface |
-
-The profile must settle these representation details without changing the
-underlying evidence semantics:
-
-- Define the input hash's algorithm and encoding accurately. A Nix derivation
-  store-path digest is not simply `sha256(ATerm)`.
-- Specify scheme semantics and encodings: `nix-ca-store-path` is an absolute
-  `/nix/store` path; `nix-nar-sha256` is a lowercase 64-hex NAR digest;
-  `snix-castore-entry` is a base64 empty-root Entry protobuf structured immutable
-  reference, not a hash. Do not conflate rewritten IA outputs with original bytes.
-- Require unique nonempty output names and nonempty DigestSets with nonempty
-  scheme keys and nonempty string values. Unknown-only maps are structurally valid.
-  Preserve schemes as equal siblings, with no required known hash, path, or
-  castore representation and no mandatory namespace or version convention.
-  The current producer omits `mediaType`; a NAR media type is not required.
-- Use the standard DigestSet extension mechanism, including immutable
-  references. Generic tooling can verify signatures/logs, but needs scheme
-  knowledge to match an artifact; there is no universal SHA-256 matching promise.
-- Allow consumers that accept the signer to trust the signed same-resource
-  relationship between siblings without independent equivalence proofs or
-  mathematical isomorphism. Schemes can be finer while still identifying the
-  resource adequately. Independent attestations guarantee only what their
-  evidence defines, not every scheme relationship by implication.
-- Never turn multiple representations into extra signer votes or union or
-  synthesize separate claims' output/identity maps to reach a threshold.
-- Make the CA/IA distinction mandatory to interpret and accept a claim. It
-  must not depend on an ignorable annotation that changes another field's meaning.
-- Choose and document the build-type and builder-ID URI conventions. A builder
-  ID describes an execution trust boundary, not a software release or an
-  independent source of authority. Do not silently broaden signer scope or
-  combine signers that claim the same builder ID.
-  Different security modes MUST use different builder IDs per SLSA, requiring
-  separate keys with the current key-derived IDs, not an umbrella laut identity.
-- Keep implementation/version metadata authenticated and available after
-  verification, even though this migration adds no version-policy interface.
-- Give each newly produced claim a sufficiently large random invocation ID.
-  Reuse the same statement and ID on publication retries. IDs distinguish
-  claimed attempts; they do not prove distinct executions or full disclosure.
 
 ## Publication and Verification
 
@@ -260,37 +148,12 @@ a second, laut-specific representation of their claims or receipts.
 For collection updates, preserve existing entries, deduplicate publication
 retries, and use conditional writes: `If-None-Match: *` for creation and
 `If-Match` with the observed ETag for replacement. On conflict, re-read and merge.
-Define deduplication separately from invocation identity; different proofs of
-the same signature must never create extra consensus votes.
 
 ### Evidence Admission
 
-The verifier must check the expected Bundle/DSSE/Statement/predicate/build-type
-formats and the structural fields of the laut profile. Authenticate the exact
-payload bytes. Current Nix admission then requires a well-formed
-`resolvedInput.digest["nix-resolved-derivation"]` matching both the reconstructed
-request and cache lookup hash, the matching CA/IA regime, and a usable
-`nix-ca-store-path` for every subject. A structurally valid unknown-only map is
-not enough for this implementation. If any subject cannot be used, skip the
-entire atomic claim, not an output subset or other cache entries. NAR and castore
-representations are signed assertions: the current reasoner does not need,
-parse, or verify them.
-
-Check the signed `criticalFeatures` set separately before inserting any facts:
-the cache hash does not commit to that list. Only then admit the named output
-claim atomically. See the [profile's admission contract](slsa-provenance-v1.md#critical-features-and-admission)
-for marker structure and missing/null/empty equivalence. Unknown external
-parameters remain rejected; only `resolvedInput` and `criticalFeatures` are
-defined. The descriptor's digest schemes remain open.
-
-Marker strings have no namespace, prefix, version syntax, lexical restrictions,
-or central registry. Shared format/signing/cryptographic verification accepts
-well-formed sets, including strings unsupported by laut. Actual verifier admission
-rejects all nonempty sets, including `[""]`, and excludes only the affected
-claim, not other claims in the collection. The initial signer emits `[]`.
-Authenticating metadata does not verify its assertions, and accepting a marker
-would not by itself verify associated evidence. Producers must truthfully mark
-unsafe-to-ignore departures; no marker semantics are implemented in this scope.
+Authenticate the exact payload bytes and apply the
+[profile's admission rules](slsa-provenance-v1.md#current-admission) before
+inserting facts.
 
 DSSE `keyid` and the bundle's key hint are unauthenticated routing hints. Follow
 the bundle's hint-consistency rules, but derive the counted signer authority
@@ -307,20 +170,17 @@ In logged mode, additionally verify:
 - The Merkle inclusion path, index, and tree size against that authenticated
   checkpoint. Keep the tree hash distinct from the signing scheme's hash.
 
-Choose one well-specified entry-binding implementation, rather than fallback
-paths. Retaining the server's canonicalized entry bytes and validating all
-bindings avoids inventing another receipt format.
+Verification retains the server's canonicalized entry bytes and validates all
+bindings against them.
 
 The initial verification-wide requirement is either signature-only or
 signature-plus-log. Signature-only can accept a logged bundle based on its valid
 build signature. Required log evidence cannot be stripped or made invalid to
-downgrade acceptance. Structure the check so a future signer criterion can
-supply the requirement without changing the consensus algorithm.
+downgrade acceptance.
 
 The managed-key profile does not assert a trusted signing timestamp. Rekor v2
-does not supply a trusted integration timestamp; certificate/time-based
-workflows remain deferred. Unknown or unsupported security-relevant formats
-must not become accepted evidence.
+does not supply a trusted integration timestamp. Unknown or unsupported
+security-relevant formats must not become accepted evidence.
 
 Inclusion proves membership in a signed tree. It does not prove that the cache
 returned every matching claim, that the producer disclosed every build, or that
@@ -345,7 +205,7 @@ proof size and hashing work are `O(log N)`.
 Use `sigstore-go` as an interoperability reference, not an assumed production
 runtime dependency. The inspected `sigstore-rs` high-level bundle verifier has
 unimplemented log-proof checks; its presence is not evidence that those checks
-are performed. Reassess the exact revisions selected for implementation.
+are performed.
 
 ### 2. Shared Format and Direct Signing
 
@@ -374,9 +234,7 @@ are performed. Reassess the exact revisions selected for implementation.
 - [x] Implement submission to explicitly configured Rekor v2 endpoints and
   verification of returned entry bindings, proofs, and checkpoints.
 - [x] Add explicit log trust configuration and the initial verification-wide
-  log requirement in `laut-cli`; do not add the pending policy UI.
-- [x] Keep the log criterion at the signer-admission boundary for future
-  signer-specific requirements, without treating logs as build-signer votes.
+  log requirement in `laut-cli`.
 - [x] Verify that cache-based validation needs no log connection or implicit
   public trust-root download.
 - [x] Test failures, bounded submission retries, duplicate entries, proof stripping,
@@ -406,7 +264,7 @@ are performed. Reassess the exact revisions selected for implementation.
 
 Source/dependency downloads to build the test closure are distinct from test
 execution. Test execution must neither read public Sigstore services nor submit
-public entries. Pre-execution/start-record tests are not part of this scope.
+public entries.
 
 ### 6. Migration Verification and Documentation
 
@@ -444,22 +302,14 @@ automatic choices of production dependency versions.
 | [sigstore/sigstore-go](https://github.com/sigstore/sigstore-go) | Independent managed-key bundle/signing/verification reference: `pkg/bundle/`, `pkg/sign/`, `pkg/verify/` | `c97e21803801b4acaf59941cb4327d03e8a2da38` |
 | [sigstore/sigstore-rs](https://github.com/sigstore/sigstore-rs) | Candidate Rust components, not yet an adequate high-level verifier for this task: `src/bundle/verify/verifier.rs` contains log verification TODOs in this snapshot | `038e36aefac21dd4ae608cda33736a494250fd1f` |
 
-### Supporting and Deferred Sources
+### Supporting Sources
 
 | Repository | Relevance or reason not to adopt now |
 | --- | --- |
 | [sigstore/sigstore-conformance](https://github.com/sigstore/sigstore-conformance) | Relevant adversarial and managed-key test cases; use local fixtures/private services, not its public-service test defaults |
-| [C2SP/C2SP](https://github.com/C2SP/C2SP) | Signed notes and transparency checkpoints; witnessing/consistency protocols are future context, not current scope |
+| [C2SP/C2SP](https://github.com/C2SP/C2SP) | Signed notes and transparency checkpoints |
 | [transparency-dev/tessera](https://github.com/transparency-dev/tessera) | Rekor's tile-backed log implementation and POSIX/cloud operation; prefer the existing Rekor service over a custom log personality |
 | [transparency-dev/merkle](https://github.com/transparency-dev/merkle) | RFC 6962 Merkle implementation and proof behavior used by Rekor; useful verification reference |
 | [sigstore/rekor](https://github.com/sigstore/rekor) | Historical v1 behavior and fixtures; do not add v1 support without a concrete requirement |
 | [sigstore/cosign](https://github.com/sigstore/cosign) | Secondary interoperability/CLI reference; OCI storage and identity-centric defaults are not our architecture |
-| [project-oak/oak](https://github.com/project-oak/oak) | `docs/tr/README.md` and remote-attestation documentation show in-toto/Rekor composition with hardware-attestation verification; future work only |
-| [in-toto/in-toto](https://github.com/in-toto/in-toto) | `in-toto-record start/stop` is a local unfinished-link workflow, not a pre-execution transparency guarantee; lifecycle feature deferred |
-| [sigstore/fulcio](https://github.com/sigstore/fulcio), [sigstore/root-signing](https://github.com/sigstore/root-signing) | Certificate identity and public trust distribution are out of scope; private tests must not rely on them |
-| [edgelesssys/contrast](https://github.com/edgelesssys/contrast) | Broader confidential-workload context, not a required component or an established solution for this build-evidence migration |
 | [mschwaig/snix](https://github.com/mschwaig/snix) | Existing pinned Nix hashing, key parsing, and castore representation; preserve these semantics, do not bump incidentally |
-
-The in-toto layout/link workflow and SBOM formats are not required to adopt the
-in-toto Statement and SLSA predicate. Keep those projects separate from the
-minimal format, signing, log, and verification components selected here.

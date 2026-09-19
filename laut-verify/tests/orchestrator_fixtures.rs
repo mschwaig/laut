@@ -274,7 +274,7 @@ fn resign_claims(
 }
 
 #[test]
-fn identity_representations_preserve_consensus_but_cannot_supply_extra_votes() {
+fn usable_identity_representations_preserve_consensus() {
     use laut_sign::attestation::{NIX_CA_STORE_PATH, nix_output_path};
     use serde_json::json;
 
@@ -293,10 +293,10 @@ fn identity_representations_preserve_consensus_but_cannot_supply_extra_votes() {
 
     let supported = resign_claims(&originals, hash, |statement| {
         statement["predicate"]["buildDefinition"]["externalParameters"]["resolvedInput"]["digest"]
-            ["future-input"] = json!("signer-asserted-input-association");
+            ["future-input"] = json!("opaque-input");
         for subject in statement["subject"].as_array_mut().unwrap() {
             let path = nix_output_path(subject).unwrap().to_owned();
-            subject["digest"] = json!({NIX_CA_STORE_PATH: path, "future-output": "signer-asserted-output-association"});
+            subject["digest"] = json!({NIX_CA_STORE_PATH: path, "future-output": "opaque-output"});
             subject.as_object_mut().unwrap().remove("mediaType");
         }
     });
