@@ -73,9 +73,9 @@ Missing evidence remains an error, not empty-equals-empty agreement.
 ## Compare Observations
 
 The report tool pairs the rooted recipe graphs and, by default, compares
-**recorded Nix metadata**, without hashing contents or authenticating signatures. It reports
-dependency-first and stops attributing new local divergences above a failing
-dependency. Same-name ambiguities remain explicit failures.
+**recorded Nix metadata**, without hashing contents or authenticating signatures.
+It reports dependency-first and stops attributing new local divergences above a
+failing dependency. Same-name ambiguities remain explicit failures.
 
 ```sh
 python3 -B vm-tests/compare-experiments.py \
@@ -227,18 +227,155 @@ the within-configuration reports separately compared both builders.
 Local JSON reports are under `/tmp/opencode/laut-final-{ia,seed-a,seed-b,ca}-repeat/`
 and `/tmp/opencode/laut-final-cross-seed-{a,b}/`. They can be regenerated from
 the table's artifacts using the commands above. The IA/CA report correctly
-returns `unsupported` (exit 2), not agreement, until synthetic identity extraction
-is implemented. The demonstrated synthetic/native equivalence frontier is still
+returned `unsupported` (exit 2), not agreement, before synthetic identity extraction
+was implemented. The demonstrated synthetic/native equivalence frontier was still
 empty; this baseline provides reproducibility/reference-transparency evidence
 for the tested perturbations, not answers to the remaining hashing questions.
 
 These store paths identify local observations, not permanently hosted artifacts.
 Keep result links or another GC root for runs that remain under investigation.
 
+### Signed Identity Ledger
+
+2026-09-20, comparison support `dde55e9`, `41b344b`, and `1b597c3`, using the
+same immutable four-configuration artifacts above. No workloads were rebuilt;
+these are new analyses of the existing observations, not additional repeats.
+No VM tests, bootstrap patches, dependency bumps, or host-daemon changes were
+needed. The mixed-addressing restriction and trust admission are unchanged.
+
+All eight reports have six paired nodes, no correspondence/collection/schema
+errors, and successful structural-diff commands where needed:
+
+| Comparison | Result | Exit |
+| --- | --- | --- |
+| IA, seed A, seed B, CA: builder A versus B, four reports | All four rebuilt nodes agree on signed input/output claims and exact ATerms; two FOD boundaries agree on metadata | 0 |
+| IA versus seed A, builder A | `bootstrap-tools` divergent; three dependents blocked; two FOD boundaries agree | 1 |
+| IA versus seed B, builder A | Same | 1 |
+| IA versus CA, builder A | Same | 1 |
+| IA versus CA, builder B | Same | 1 |
+
+Reports live under `/tmp/opencode/laut-signed-{ia,seed-a,seed-b,ca}-repeat/`,
+`/tmp/opencode/laut-signed-cross-seed-{a,b}/`,
+`/tmp/opencode/laut-signed-ia-ca/`, and
+`/tmp/opencode/laut-signed-ia-ca-builder-b/`. Reproduce with the cache-enabled
+command above, substituting the table's immutable outputs and builder names.
+All four rebuilt nodes have differing input/output claims in each failed report;
+only the earliest, `bootstrap-tools`, is attributed locally. Its three blocked
+dependents are `bootstrap-stage0-stdenv-linux`,
+`bootstrap-stage0-glibc-bootstrapFiles`, and
+`bootstrap-stage0-binutils-wrapper-`.
+
+The dependency-closed synthetic/native agreement frontier remains empty beyond
+the two metadata-only FOD boundaries. Signature authentication, full source
+comparison, and synthetic NAR size comparison remain untested.
+
+#### Recipe Difference
+
+At `bootstrap-tools`, IA's normalized input identity is
+`2lz7xkklxh2dxcs9s43bmmdz9cmdw9v8`; CA's is
+`jy80sl8j6218d6mwnqlyirmhskxibags`. The exact ATerms differ only in two native-CA
+environment entries: `outputHashAlgo=sha256` and `outputHashMode=recursive`.
+Sources, resolved FOD paths, builder executable, arguments, and own-output
+placeholder agree at this node.
+
+This is a real recipe difference, not an ATerm parser omission. At the pinned
+nixpkgs revision, `pkgs/stdenv/linux/bootstrap-tools/default.nix:17-25` adds these
+attributes only under `config.contentAddressedByDefault`; `glibc.nix` passes them
+to `derivation`. Nix retains the explicit attributes in the builder environment,
+but can also create recursive SHA-256 floating outputs using defaults **without**
+these environment fields (`src/libexpr/primops.cc` at the pinned Nix revision).
+Inserting or dropping them during hashing would identify distinguishable recipes.
+The new `ia_normalization_preserves_explicit_hash_environment` Rust regression
+checks absent fields and explicit `recursive`/`nar` values against corresponding
+native-shaped ATerms, without changing the production normalization.
+
+#### Self-Reference Hashing
+
+The output mismatch is independently localized to self-reference addressing:
+
+| Layer | Observed Value |
+| --- | --- |
+| Original IA path hash | `razasrvdg7ckplfmvdxv4ia3wbayr94s` |
+| Signed synthetic path hash | `akqphqb3rn9zvv8dbnsw9rmi2899w7f0` |
+| Native CA path hash | `n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2` |
+| Both NAR sizes | `140352008` bytes |
+| Self-hash occurrences in each NAR | `111` |
+| Zero-masked NAR SHA-256, Nix base32 | `0asyng1f449h2bk3dcdwkxyzips956npk2nchm7m83kqqk849ls4` |
+| Zero-masked NAR plus `\|position` suffixes, SHA-256, Nix base32 | `1jbircp9pzxnfjvna7avpiyrjganpxhw84x4qid5jln40lx1lcsy` |
+
+Replacing just the original IA self hash with the native CA self hash makes the
+complete serialized NARs **byte-for-byte equal**. The zero-masked hash equals the
+native cache's declared CA hash. Rewriting to laut's signed synthetic self hash
+instead yields SHA-256
+`68e1832473500f23f25d0cdadb8aa65b469d4b2487a326507538d96a3511ba71`, exactly the
+signed synthetic NAR identity. Native CA's final NAR identity is
+`397dae7c565275036841c3e55e2193da0f59f64b8f131edd849850a3440810f0`.
+This is a targeted content comparison for this one output, not whole-closure or
+cross-seed content equivalence; castore roots were not independently recomputed.
+
+At pinned Nix `40ab933003b7f0bc9fd9270fd95aca2d2dc34c24`,
+`src/libstore/references.cc:76-102` rewrites bytes without populating `matches`.
+`HashModuloSink::finish()` still loops over that empty vector at lines 119-124,
+so no self-reference position suffixes reach the hash. The native build path
+uses this sink in `src/libstore/unix/build/derivation-builder.cc:1366-1370`.
+In contrast, pinned Snix `95cd1ba7515d409edaf0dfb249f6cdf327f4c209`,
+`snix/laut-compat/src/content_hash.rs:348-370`, records and hashes the positions.
+The latter prevents already-zeroed content from colliding with masked references;
+do not remove that protection merely to match this experimental Nix revision.
+
+The local one-off diagnostic is `/tmp/opencode/laut-bootstrap-nar-diagnostic.py`.
+The essential byte-level check can be reproduced independently as follows; `IA`
+and `CA` below are `pathlib.Path` values for the immutable test-output directories
+in the baseline table:
+
+```python
+import hashlib
+import lzma
+
+contents = "experiment/builderA/laut-experiment/builderA/contents/nar"
+left = lzma.decompress((IA / contents /
+    "1hm5gxjc66q8z5c2l1xqhj6103san9k0cp2fgdzvfp1f96bjqv5x.nar.xz").read_bytes())
+right = lzma.decompress((CA / contents /
+    "0ghv4ji22hrwzy80kjvpjfkjsc449545lf90nhc01hk3lgqv5q97.nar.xz").read_bytes())
+ia_self = b"razasrvdg7ckplfmvdxv4ia3wbayr94s"
+ca_self = b"n7cxavpfzzz2pb1a71fg5hy1mqf1xlf2"
+assert len(left) == len(right) == 140352008
+assert left.count(ia_self) == right.count(ca_self) == 111
+assert left.replace(ia_self, ca_self) == right
+masked = left.replace(ia_self, bytes(32))
+assert masked == right.replace(ca_self, bytes(32))
+assert hashlib.sha256(masked).hexdigest() == (
+    "44d344d0c4780e544f85cc8a79ad2949dff87d9fbcb136e6123011e2c2b35e2b")
+```
+
+#### Seed Boundaries
+
+Both baseline-to-seed comparisons differ first in the retained FOD paths for
+`busybox` and `bootstrap-tools.tar.xz`, and the source path for
+`unpack-bootstrap-tools.sh`. These appear in the normalized input-source list,
+builder, arguments, and environment. The signed output identities also differ.
+Stable repeats and matching recorded-unseeded metadata do not resolve these
+synthetic-namespace questions. No source/FOD remapping or new scanner behavior
+was introduced.
+
+#### Validation
+
+- `nix build .#checks.x86_64-linux.experiment-tools --no-link --print-out-paths`:
+  113 offline tests and lint pass; output
+  `/nix/store/726anmfn278wwrdsvc6dp2aq9xc67wz6-laut-experiment-tools-tests`.
+- `nix develop -c cargo test --workspace`: 95 Rust tests pass.
+- `nix develop -c cargo test --workspace --no-default-features`: 95 pass.
+- Eight retained small-graph comparisons rerun after association/schema review;
+  outcomes unchanged, with all 16 required structural diffs successful.
+
 ## Remaining Work
 
-- Extract and compare the existing signed synthetic/native identities and exact
-  normalized ATerms using the paired graph, with structural diff artifacts.
+- Reproduce and correct the pinned Nix self-reference position regression in a
+  tiny native-CA oracle before selecting a revised experimental Nix pin. Preserve
+  the old observations; do not add a laut hash-version fallback.
+- Establish common builder-visible recipe attributes for an additional controlled
+  IA/CA experiment, with a reviewable common-source patch rather than silently
+  inserting or removing environment fields in normalized ATerms.
 - Establish seed-independent synthetic source/FOD normalization. Nix's recorded
   unseeded NAR metadata is a different normalization and must not substitute for
   laut's synthetic identities.

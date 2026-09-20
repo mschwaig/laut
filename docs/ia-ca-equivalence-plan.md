@@ -1,9 +1,9 @@
 # Synthetic IA / Native CA Equivalence Investigation
 
-Status: investigation in progress, 2026-09-20. The first small signing experiments
-now export reusable observations. Commands and results live in the
-[experiment runbook](ia-ca-experiments.md). The approach below is not a fixed
-sequence of implementation steps.
+Status: investigation in progress, 2026-09-20. Signed-claim and exact-ATerm
+comparisons now localize the first small-graph divergences. Commands and results
+live in the [experiment runbook](ia-ca-experiments.md). The approach below is not
+a fixed sequence of implementation steps.
 
 ## Goal and Boundaries
 
@@ -245,3 +245,25 @@ report green.
   metadata comparisons agree across the six-node small graph, comprising four
   rebuilt outputs and two preloaded FODs. These are observations, not yet a
   demonstration of synthetic/native CA equivalence.
+- Diagnostic comparisons: per-builder signed output identities, resolved-input
+  identities, and exact normalized ATerms now compare over the paired graph,
+  retaining provenance and structural diffs even above blocked dependencies.
+  All four configurations' repeats agree. Both IA/CA builder pairs and both
+  baseline-to-seed comparisons first diverge at `bootstrap-tools`; three rebuilt
+  dependents remain blocked and the two FODs remain metadata-only boundaries.
+- Recipe cause: the pinned nixpkgs CA switch adds builder-visible
+  `outputHashAlgo` and `outputHashMode` attributes absent from the IA recipe.
+  These are not implied by native floating-CA outputs. Preserve the distinction,
+  now covered by a Rust regression, rather than forcing preimage agreement.
+- Output cause: the pinned Nix `RewritingSink` does not record self-reference
+  positions although `HashModuloSink` still intends to hash them; the pinned
+  laut compatibility implementation does hash positions. For `bootstrap-tools`,
+  the complete IA/native NARs become identical by replacing the self hash alone,
+  and the zero-masked hash exactly matches native CA's declared address. See the
+  runbook for byte counts, hashes, immutable artifacts, and reproduction details.
+- Next decision: correct/re-pin the experimental Nix with a tiny self-reference
+  oracle, and control the recipe environment via a common-source experiment
+  patch. Do not weaken laut's hashing or erase environment fields to match these
+  observations. Source/FOD seed normalization and signature authentication remain
+  separate unresolved work. No production hashing, trust, or mixed-regime policy
+  changed during this investigation slice; no VM rebuilds were needed.

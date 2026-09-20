@@ -115,8 +115,9 @@ pub fn compute_resolved_input_hash(
 
 /// IA variant of [`compute_resolved_input_hash`]: take an input-addressed drv
 /// ATerm and transform it into the structural equivalent of an unresolved
-/// floating-CA derivation, so that the resulting drv path matches what a
-/// natively-CA analogue would produce.
+/// floating-CA derivation with the same builder-visible environment. Explicit
+/// `outputHashAlgo` / `outputHashMode` environment attributes are not implied by
+/// the floating output tuple: Nix can also use its defaults without those fields.
 ///
 /// Concretely:
 ///   - Each output's `path` is cleared and `ca_floating` is set to
@@ -331,5 +332,39 @@ mod tests {
         let (drv_b, _) =
             compute_resolved_input_hash_ia("self", aterm_b.as_bytes(), input_sources, &subs_b).unwrap();
         assert_eq!(drv_a, drv_b);
+    }
+
+    #[test]
+    fn ia_normalization_preserves_explicit_hash_environment() {
+        // The bootstrap IA/CA experiment differs in these builder-visible
+        // fields. Do not silently inject defaults or erase explicit values to
+        // force recipe equality. Native CA also supports absent attributes.
+        let placeholder = hash_placeholder("out");
+        let ia_path = format!("/nix/store/{SELF_IA}-self");
+        let substitutions = HashMap::from([(ia_path.clone(), placeholder.clone())]);
+        let mut paths = Vec::new();
+        for extra_env in [
+            "",
+            r#",("outputHashAlgo","sha256"),("outputHashMode","recursive")"#,
+            r#",("outputHashAlgo","sha256"),("outputHashMode","nar")"#,
+        ] {
+            let ia = format!(
+                r#"Derive([("out","{ia_path}","","")],[],[],"x86_64-linux","/bin/sh",[],[("out","{ia_path}"){extra_env}])"#
+            );
+            let native = format!(
+                r#"Derive([("out","","r:sha256","")],[],[],"x86_64-linux","/bin/sh",[],[("out","{placeholder}"){extra_env}])"#
+            );
+            let normalized =
+                compute_resolved_input_hash_ia("self", ia.as_bytes(), vec![], &substitutions)
+                    .unwrap();
+            let expected =
+                compute_resolved_input_hash("self", native.as_bytes(), &Resolutions::new())
+                    .unwrap();
+            assert_eq!(normalized, expected);
+            paths.push(normalized.0);
+        }
+        assert_ne!(paths[0], paths[1]);
+        assert_ne!(paths[1], paths[2]);
+        assert_ne!(paths[0], paths[2]);
     }
 }
