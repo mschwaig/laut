@@ -10,10 +10,13 @@
     # Pinned so the same drv hashes show up across runs and across the
     # IA/CA modes (which derive both from this same input).
     nixpkgs-under-test.url = "github:nixos/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e";
+    nix-seeded = {
+      url = "github:mschwaig/nix/40ab933003b7f0bc9fd9270fd95aca2d2dc34c24";
+    };
     bombon.url = "github:nikstur/bombon";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-under-test, bombon }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-under-test, nix-seeded, bombon }@inputs:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -42,13 +45,14 @@
       packages.${system} = {
         inherit nix nix-vsbom test-drv-json;
         inherit (scope) laut laut-sign-only;
+        nix-seeded = nix-seeded.packages.${system}.nix-cli;
         rekor-test-tools = pkgs.callPackage ./nix/rekor-test-tools.nix { };
         default = scope.laut;
       };
 
 
       checks.${system} = (import ./vm-tests {
-          inherit pkgs nixpkgs-under-test;
+          inherit pkgs nixpkgs-under-test nix-seeded;
           inherit (scope) laut;
         });
 
