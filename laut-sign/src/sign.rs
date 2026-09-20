@@ -97,15 +97,11 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
     let drv_name = drv.name.clone();
     let output_names: Vec<String> = drv.outputs.keys().cloned().collect();
 
-    // Second parse to preserve fields like `hashAlgo` / `method` on each
-    // output entry that the narrow `DrvJson` shape drops.
-    let raw: Value = serde_json::from_str(&drv_show_raw)?;
-    let mut output_hashes_map = raw
-        .get(&cfg.drv_path)
-        .and_then(|d| d.get("outputs"))
-        .and_then(|o| o.as_object())
-        .cloned()
-        .ok_or(Error::MissingField("outputs"))?;
+    let mut output_hashes_map = drv
+        .outputs
+        .iter()
+        .map(|(name, output)| Ok((name.clone(), serde_json::to_value(output)?)))
+        .collect::<Result<serde_json::Map<_, _>, serde_json::Error>>()?;
 
     for path in &cfg.out_paths {
         let matched = output_names.iter().find(|name| {

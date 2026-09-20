@@ -1,14 +1,10 @@
-//! Subset of the `nix derivation show` JSON shape we care about.
-//!
-//! `nix derivation show --recursive <drv>` returns a `{drv_path: drv}` map;
-//! each entry has at least `name`, `inputDrvs`, and `outputs`. We capture just
-//! what the orchestrator needs and ignore everything else.
+//! Internal derivation summary, serialized as a `{drv_path: DrvJson}` map.
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DrvJson {
     pub name: String,
     #[serde(rename = "inputDrvs")]
@@ -16,30 +12,28 @@ pub struct DrvJson {
     pub outputs: BTreeMap<String, OutputRef>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct InputDrvRef {
     pub outputs: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct OutputRef {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
 }
 
 /// Classify a derivation as fixed-output and/or content-addressed by looking at
-/// the first output. Mirrors `laut.nix.commands.get_derivation_type`.
+/// the first output.
 pub fn classify(outputs: &BTreeMap<String, OutputRef>) -> (bool, bool) {
     let first = outputs.values().next();
     let has_path = first.and_then(|o| o.path.as_ref()).is_some();
     let has_hash = first.and_then(|o| o.hash.as_ref()).is_some();
-    // Lix's nix derivation show omits the `hash` field on some FOD outputs
-    // while still emitting `method` (e.g. "nar", "flat"). A non-CA
-    // derivation with a declared output hash method is a FOD.
+    // A declared content-address method with a concrete output path is fixed.
     let has_method = first.and_then(|o| o.method.as_ref()).is_some();
     let is_fixed_output = has_hash || (has_path && has_method);
     let is_content_addressed = !has_path && !has_hash;
