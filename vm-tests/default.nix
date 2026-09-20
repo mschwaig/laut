@@ -133,6 +133,15 @@ let
   };
   smallCaSign = smallCaSet."small-ca-sign";
   sigstore = import ./small-sigstore.nix { inherit pkgs system laut laut-sign-only; };
+  caIdentityProbe = laut-sign-only.overrideAttrs (old: {
+    pname = "laut-ca-identity-probe";
+    cargoBuildFlags = [ "--no-default-features" "--package" "laut-sign" "--example" "ca_identity_probe" ];
+    installPhase = ''
+      runHook preInstall
+      install -Dm755 target/${pkgs.stdenv.hostPlatform.rust.rustcTarget}/release/examples/ca_identity_probe $out/bin/ca_identity_probe
+      runHook postInstall
+    '';
+  });
   experimentTestSource = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [
@@ -144,6 +153,8 @@ let
       ./test_seed_inputs.py
       ./test_compare_experiments.py
       ./test_experiment_bundles.py
+      ./ca-oracle.py
+      ./test_ca_oracle.py
     ];
   };
 in
@@ -151,11 +162,17 @@ in
     experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
       nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
     } ''
-      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py ${experimentTestSource}/compare-experiments.py ${experimentTestSource}/experiment_bundles.py
+      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py ${experimentTestSource}/compare-experiments.py ${experimentTestSource}/experiment_bundles.py ${experimentTestSource}/ca-oracle.py
       python3 -B -m unittest discover -s ${experimentTestSource} -p 'test_*.py' -v
       touch "$out"
     '';
     small-sigstore-sign = sigstore.sign;
+    small-ca-oracle = import ./small-ca-oracle.nix {
+      inherit pkgs system;
+      nixPackage = nix-seeded.packages.${system}.nix-cli;
+      nixRevision = nix-seeded.rev;
+      probe = caIdentityProbe;
+    };
     small-sigstore-verify = sigstore.verify;
     # Exercises the hash-divergence debug probe end-to-end: reuses the
     # small-ca-sign cache (preimages on), tampers one trace's preimage with a

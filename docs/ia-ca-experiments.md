@@ -386,3 +386,43 @@ was introduced.
 - Compare source contents separately from the output checks, and distinguish
   diagnostic extraction from signature authentication. No new trust admission
   rule or hashing-algorithm fix has been introduced by this harness.
+
+## Tiny Native CA Oracle
+
+`small-ca-oracle` builds seven tiny native CA outputs in one isolated 2 GiB VM:
+plain content, one/two self hashes, a partially zeroed self hash, a large streaming
+file, a self-referencing symlink, and an external native-CA dependency. No IA
+builds or mixed-addressing dependency graphs are used. The Rust diagnostic example
+`ca_identity_probe` calls the existing compatibility pass-1/pass-2 functions on
+each native output, checking idempotence of its path, final NAR hash/size, and
+castore entry. Python independently checks only the zero-masked NAR plus position
+suffix preimage against Nix's recorded CA hash; it does not derive synthetic paths.
+
+```sh
+nix develop -c cargo test -p laut-sign --example ca_identity_probe
+nix build .#checks.x86_64-linux.experiment-tools --no-link
+nix build .#checks.x86_64-linux.small-ca-oracle \
+  --no-link --print-out-paths --keep-failed --max-jobs 1
+```
+
+The oracle requires agreement, not the known broken behavior. Its first run
+against unpatched Nix `40ab933...` was intentionally red:
+`/nix/store/crngy1ijf4l7jwbmizblbwdy0kkxrlx7-vm-test-run-laut-small-ca-oracle.drv`.
+All seven outputs built and collected with zero errors. Plain and external-ref
+controls agree; all five self-reference cases fail the CA hash, synthetic path,
+rewritten NAR hash, and castore comparisons. NAR sizes and reference counts agree.
+
+The two-self and zero-plus-self cases both have 184-byte NARs and the same masked
+SHA-256 `93d3d3b1c296bf27833c0c50447616bff6317148ef2d1481d9fbd4b0d4a4c550`,
+but self positions `[96, 130]` versus `[130]`. The unpatched Nix assigns the same
+CA content hash to both, demonstrating the missing position discrimination without
+the bootstrap closure. Their store names deliberately differ to avoid output-path
+collisions in the VM. This is a CA-content-hash collision, not a SHA-256 collision.
+
+The full baseline report is embedded in
+`/tmp/opencode/laut-ca-oracle-unpatched.log` (also available via `nix log` of the
+derivation above). Failed VM disks remain under
+`/nix/var/nix/builds/nix-367851-118118654/build`; failed checks do not produce valid
+store outputs. Successful runs export `ca-oracle/report.json`, exact NARs, original
+ATerms, probe results, and command/stdout/stderr sidecars. The example's three
+tests and all 116 offline experiment tests pass at this baseline.
