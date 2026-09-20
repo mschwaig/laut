@@ -275,7 +275,15 @@ report green.
   captured in a Rust characterization test. The bootstrap-tools recipe difference
   still blocks dependency-closed equivalence; cross-seed synthetic claims still
   differ. No medium/large local VM tests were run.
+- Source-reference fix: `dc47dd5` changes production synthetic hashing. The ATerm
+  summary preserves `inputSrcs`; signer and verifier share source-aware candidate
+  construction, identity-preserving source/FOD boundaries, and canonical sorting
+  of final reference paths. Both builders now show all three output identities
+  equal at all four rebuilt nodes, enforced by `small-equivalence-outputs`.
+  Small IA/CA verification VMs pass, as do 105 Rust tests in both feature modes.
+  The only remaining exact ATerm differences are the two explicit CA hash-env
+  attributes at each rebuilt node; no source/dependency/path differences remain.
 - Next: control recipe environment differences via a common-source experiment
-  patch and include source boundaries in synthetic output reference accounting
-  on both sides. Do not erase environment fields to force agreement. Source/FOD
-  seed normalization and signature authentication remain separate unresolved work.
+  patch. Do not erase environment fields to force agreement. Source/FOD seed
+  normalization, cross-subtree opaque source/output contexts, and authentication
+  of the diagnostic experiment claims remain separate unresolved work.

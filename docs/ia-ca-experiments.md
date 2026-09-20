@@ -373,10 +373,6 @@ was introduced.
 
 ## Remaining Work
 
-- Include explicit source boundaries in synthetic output reference accounting,
-  on both signing and verification sides, without conflating their addressing
-  methods or treating recorded unseeded NARs as synthetic identities. The
-  corrected matrix localizes the stdenv path discrepancy to omitted source refs.
 - Establish common builder-visible recipe attributes for an additional controlled
   IA/CA experiment, with a reviewable common-source patch rather than silently
   inserting or removing environment fields in normalized ATerms.
@@ -388,8 +384,12 @@ was introduced.
   to be available, even when a preloaded FOD makes its fetcher unnecessary. The
   small target's two FODs are leaves and do not exercise that limitation.
 - Compare source contents separately from the output checks, and distinguish
-  diagnostic extraction from signature authentication. No new trust admission
-  rule or hashing-algorithm fix has been introduced by this harness.
+  diagnostic extraction from signature authentication. Exercise hashing fixes
+  through production signing and verification without changing trust admission.
+- Investigate producer-scoped normalization when an opaque source's producer is
+  known only through an unrelated sibling branch. The current graph-wide candidate
+  universe can differ between signing a child and verifying a larger root; the
+  ordinary-output/source overlap test does not cover that graph-context question.
 
 ## Tiny Native CA Oracle
 
@@ -571,3 +571,90 @@ After adding the source-reference characterization, both
 `nix develop -c cargo test --workspace --all-targets --no-default-features`
 pass 99 tests. That final Rust change is test/comment-only; the signing matrix
 above remains explicitly identified by its build revision and immutable outputs.
+
+## Source-Reference Fix
+
+`dc47dd5` fixes the production IA-to-synthetic-CA computation, on both the signing
+and verification sides. This is not just a diagnostic or an acceptance exception:
+
+- The shared stored-ATerm reader now carries `inputSrcs` through `DrvJson` as a
+  required field, including explicit empty lists. There is no missing-field default.
+- `Walker::from_derivations` replaces the two output-only candidate-building loops.
+  It includes declared input sources from the recursive derivation inventory.
+- Sources without a known output producer and FODs retain their declared path
+  identity instead of being readdressed as floating recursive-SHA256 outputs.
+  Only actually scanned references enter the output's CA path computation;
+  unused source candidates do not become references.
+- A known ordinary output is still computed, even if an ancestor also mentions
+  that path as an input source. The source declaration must not masquerade as
+  independently computed output evidence in the verifier's memo.
+- References are sorted and deduplicated **after** replacing IA output paths with
+  their synthetic CA paths. Original IA-hash order need not be final CA-path order.
+
+The shared walker has focused filesystem-backed pass-1 tests for discovered versus
+unused sources, preserved flat FOD/source boundaries, and reordered references
+after dependency substitution. Other tests cover ATerm source ingestion, ordinary
+output/source overlap in both iteration orders, verifier setup, and unchanged
+mixed IA/CA rejection with FOD exceptions. The original stdenv native-path fixture
+remains as a regression oracle. No alternate legacy hash or signature admission
+path was added.
+
+### End-to-End Results
+
+The new `small-equivalence-outputs` check consumes independently built small IA
+and native CA signing artifacts. It uses the existing paired-graph comparator
+for both builders and requires all three signed output identities to agree at
+all four rebuilt nodes. Missing/ambiguous evidence, pairing failures, and output
+divergences fail the check. Exact normalized-input differences and blocked-node
+attribution remain in the exported reports; this check explicitly tests output
+identity equality, not complete recipe equivalence or signature authentication.
+
+```sh
+nix build .#checks.x86_64-linux.small-equivalence-outputs \
+  .#checks.x86_64-linux.small-ia-verify \
+  .#checks.x86_64-linux.small-ca-verify \
+  .#checks.x86_64-linux.experiment-tools \
+  --out-link /tmp/opencode/laut-source-reference-fix \
+  --print-out-paths --keep-failed --max-jobs 1 --cores 4
+```
+
+All checks passed. Only small VM tests were run, sequentially; the verification
+checks also rebuilt their small signing prerequisites. The experiment pair uses
+the corrected seeded-Nix package with empty seed, unchanged pinned nixpkgs, and
+no recipe patch. The ordinary small verify checks use their existing test Nix
+configuration and authenticate each mode's own signatures.
+
+| Artifact | Immutable Output |
+| --- | --- |
+| Experimental IA sign | `/nix/store/cqiy0ljrwkv6llg7sg72wx2cl43kvygz-vm-test-run-laut-small-equivalence-ia-sign` |
+| Experimental CA sign | `/nix/store/wq52yxiqr4f0r25n68xsm7farsx4bdkr-vm-test-run-laut-small-equivalence-ca-sign` |
+| Output-identity comparison | `/nix/store/xz6d9plgdm2qhizhbvnna48kbkhqns2p-laut-small-equivalence-outputs` |
+| Small IA verification | `/nix/store/ghyhxd6xcxsa6yyhyfdza6k6bglh7j0r-vm-test-run-laut-small-ia-verify` |
+| Small CA verification | `/nix/store/yhibggypp9inj7dnkfwdrs174122s1wd-vm-test-run-laut-small-ca-verify` |
+
+At **all four rebuilt nodes on both builders**, synthetic IA and native CA now
+agree on `nix-ca-store-path`, `nix-nar-sha256`, and `snix-castore-entry`. In
+particular, stdenv's synthetic path is now the native path
+`/nix/store/yfkmixcmvq3lnijhjn3sfdbyiwz6dsp1-bootstrap-stage0-stdenv-linux`,
+not the source-omitting `ckbi...` path. This closes the observed output identity
+discrepancy; the change is reflected in production signatures and verification.
+
+Both IA and CA builder-A/B repeat reports also agree at all six nodes, with no
+collection/schema/correspondence errors. These reports are under
+`/tmp/opencode/laut-source-fixed-{ia,ca}-repeat/`. Cross-mode reports and eight
+successful structural diffs are in the comparison output's `builderA/` and
+`builderB/` directories. At every rebuilt node, the **only** remaining exact ATerm
+differences are CA's explicit `outputHashAlgo=sha256` and
+`outputHashMode=recursive` environment entries. No dependency/source/path
+differences remain in these normalized ATerms.
+
+The full comparator therefore still reports one recipe-divergent node and three
+blocked dependents, plus two metadata-only FOD boundaries. That is not an output
+failure and is not silently relabeled full equivalence. Seed-independent source/FOD
+normalization remains separate; seeded variants were not rerun in this fix slice.
+
+Validation at `dc47dd5`: 105 Rust tests pass under both
+`nix develop -c cargo test --workspace --all-targets` and
+`nix develop -c cargo test --workspace --all-targets --no-default-features`.
+The 116-test offline experiment check plus lint passes unchanged. Both full and
+sign-only laut packages built as prerequisites of the VM checks.
