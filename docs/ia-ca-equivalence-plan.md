@@ -241,5 +241,7 @@ report green.
   signing-side VM tests agreed; nixpkgs checkout availability confirmed.
 - Implementation: one ATerm-based derivation reader, a pinned seeded Nix package,
   and four independent small signing configurations with per-builder artifacts.
-  Initial unseeded IA, native CA, and seeded IA signing runs succeeded. These
-  are observations, not yet a demonstration of synthetic/native CA equivalence.
+  All four signing configurations succeeded. Repeat and recorded-unseeded
+  metadata comparisons agree across the six-node small graph, comprising four
+  rebuilt outputs and two preloaded FODs. These are observations, not yet a
+  demonstration of synthetic/native CA equivalence.

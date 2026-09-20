@@ -143,14 +143,50 @@ admission or the probe's failure-triggered activation.
   observations; two are preloaded inputs. This establishes no synthetic/native
   CA equivalence yet.
 
-Initial captured test outputs, before subsequent hook-failure diagnostic
-improvements:
+### Final Baseline
+
+The complete four-configuration matrix passed after the hook-failure diagnostic
+improvements (`be856a7` harness, `09e54fb` report tool). Both laut packages also
+built successfully with the `e930df0` debug-probe change. No medium/large VM tests
+or bootstrap patches were used.
+
+```sh
+nix build .#checks.x86_64-linux.small-equivalence-ia-sign \
+  .#checks.x86_64-linux.small-equivalence-ia-seed-a-sign \
+  .#checks.x86_64-linux.small-equivalence-ia-seed-b-sign \
+  .#checks.x86_64-linux.small-equivalence-ca-sign \
+  --max-jobs 1 --no-link --print-out-paths --keep-failed
+nix build .#laut .#laut-sign-only --no-link --print-out-paths
+```
 
 | Configuration | Immutable Test Output |
 | --- | --- |
-| IA | `/nix/store/9y6ab5i7hi6siibdyy3lmcnp3yqvg4dr-vm-test-run-laut-small-equivalence-ia-sign` |
-| IA seed A | `/nix/store/78cmzzgdy4cdcwrb6s2ipfbxqxzv26pi-vm-test-run-laut-small-equivalence-ia-seed-a-sign` |
-| CA | `/nix/store/s2gmii9j6qw4jpw6xb9hhy4m03k90r30-vm-test-run-laut-small-equivalence-ca-sign` |
+| IA | `/nix/store/pgman8abavacbcq68iip55mjg78d20j1-vm-test-run-laut-small-equivalence-ia-sign` |
+| IA seed A | `/nix/store/0849amf0yyr3lz3353i7nzcxw0vnkyd8-vm-test-run-laut-small-equivalence-ia-seed-a-sign` |
+| IA seed B | `/nix/store/k2j7md25w9b3jmf308gnzj8jxddddc1g-vm-test-run-laut-small-equivalence-ia-seed-b-sign` |
+| CA | `/nix/store/nx1qvx02n9ks9ivms794lxf6989z30vp-vm-test-run-laut-small-equivalence-ca-sign` |
+
+All four within-configuration A/B comparisons and both IA-to-seed comparisons
+reported six paired nodes, zero collection/schema errors, and agreement of the
+selected metadata. Cross-seed comparisons used builder A of each configuration;
+the within-configuration reports separately compared both builders.
+
+| Node | Evidence |
+| --- | --- |
+| `busybox` | Preloaded FOD boundary; canonical/seeded mapping agrees |
+| `bootstrap-tools.tar.xz` | Preloaded FOD boundary; canonical/seeded mapping agrees |
+| `bootstrap-tools` | Rebuilt; repeat and recorded-unseeded metadata agree |
+| `bootstrap-stage0-stdenv-linux` | Rebuilt; repeat and recorded-unseeded metadata agree |
+| `bootstrap-stage0-glibc-bootstrapFiles` | Rebuilt; repeat and recorded-unseeded metadata agree |
+| `bootstrap-stage0-binutils-wrapper-` | Rebuilt; repeat and recorded-unseeded metadata agree |
+
+Local JSON reports are under `/tmp/opencode/laut-final-{ia,seed-a,seed-b,ca}-repeat/`
+and `/tmp/opencode/laut-final-cross-seed-{a,b}/`. They can be regenerated from
+the table's artifacts using the commands above. The IA/CA report correctly
+returns `unsupported` (exit 2), not agreement, until synthetic identity extraction
+is implemented. The demonstrated synthetic/native equivalence frontier is still
+empty; this baseline provides reproducibility/reference-transparency evidence
+for the tested perturbations, not answers to the remaining hashing questions.
 
 These store paths identify local observations, not permanently hosted artifacts.
 Keep result links or another GC root for runs that remain under investigation.
