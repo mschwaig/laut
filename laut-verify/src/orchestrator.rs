@@ -175,31 +175,9 @@ impl<B: Backend> Orchestrator<B> {
         let expected_root = interner.udrv(&cfg.root_drv_path);
 
         let walker = if matches!(regime, Regime::Ia) {
-            let mut w = laut_sign::ia_closure::Walker::new();
-            let mut global_hashes = std::collections::BTreeSet::new();
-            let mut hash_to_path: std::collections::HashMap<String, String> =
-                std::collections::HashMap::new();
-            for drv in derivations.values() {
-                let (is_fod, _) = drv_json::classify(&drv.outputs);
-                for output in drv.outputs.values() {
-                    if let Some(ref path) = output.path {
-                        let full = if path.starts_with("/nix/store/") {
-                            path.clone()
-                        } else {
-                            format!("/nix/store/{}", path)
-                        };
-                        if let Ok(hash) = store_path::extract_store_hash(&full) {
-                            global_hashes.insert(hash.clone());
-                            hash_to_path.entry(hash).or_insert(full.clone());
-                        }
-                        if is_fod {
-                            w.register_fod(full);
-                        }
-                    }
-                }
-            }
-            w.set_global_candidates(global_hashes, hash_to_path);
-            Some(w)
+            Some(laut_sign::ia_closure::Walker::from_derivations(
+                derivations.values(),
+            )?)
         } else {
             None
         };
@@ -295,5 +273,121 @@ impl<B: Backend> Orchestrator<B> {
         }
 
         Ok(verified)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::InMemoryBackend;
+    use serde_json::json;
+
+    const ROOT: &str = "/nix/store/00000000000000000000000000000000-root.drv";
+    const DEP: &str = "/nix/store/11111111111111111111111111111111-dep.drv";
+    const ROOT_OUT: &str = "/nix/store/22222222222222222222222222222222-root";
+    const DEP_OUT: &str = "/nix/store/33333333333333333333333333333333-dep";
+    const ROOT_SRC: &str = "/nix/store/44444444444444444444444444444444-root-source";
+    const DEP_SRC: &str = "/nix/store/55555555555555555555555555555555-dep-source";
+
+    fn orchestrator(root_output: Value, dep_output: Value) -> Orchestrator<InMemoryBackend> {
+        Orchestrator::new(
+            InMemoryBackend {
+                recursive_json: json!({
+                    ROOT: {
+                        "name": "root",
+                        "inputDrvs": { DEP: { "outputs": ["out"] } },
+                        "inputSrcs": [ROOT_SRC, DEP_OUT],
+                        "outputs": { "out": root_output }
+                    },
+                    DEP: {
+                        "name": "dep",
+                        "inputDrvs": {},
+                        "inputSrcs": [DEP_SRC],
+                        "outputs": { "out": dep_output }
+                    }
+                })
+                .to_string(),
+                aterms: HashMap::new(),
+                signatures: HashMap::new(),
+            },
+            Config {
+                root_drv_path: ROOT.into(),
+                trusted_keys: vec![(
+                    "test".into(),
+                    ed25519_dalek::SigningKey::from_bytes(&[0; 32])
+                        .verifying_key()
+                        .to_bytes()
+                        .to_vec(),
+                )],
+                ..Default::default()
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn ia_constructor_preserves_sources_from_every_derivation() {
+        let mut orch = orchestrator(json!({ "path": ROOT_OUT }), json!({ "path": DEP_OUT }));
+        let walker = orch.walker.as_mut().unwrap();
+        for source in [ROOT_SRC, DEP_SRC] {
+            assert_eq!(walker.lookup(source).unwrap().to_absolute_path(), source);
+            // Identity boundaries must not require these paths to exist on disk.
+            assert_eq!(
+                walker.synthetic_ca_path(source).unwrap().to_absolute_path(),
+                source
+            );
+        }
+        for output in [ROOT_OUT, DEP_OUT] {
+            assert!(walker.lookup(output).is_none());
+        }
+    }
+
+    #[test]
+    fn mixed_regimes_are_rejected_but_fods_are_allowed_in_both() {
+        for (root_output, dep_output, root_regime, found_regime) in [
+            (
+                json!({ "path": ROOT_OUT }),
+                json!({}),
+                Regime::Ia,
+                Regime::Ca,
+            ),
+            (
+                json!({}),
+                json!({ "path": DEP_OUT }),
+                Regime::Ca,
+                Regime::Ia,
+            ),
+        ] {
+            let mut orch = orchestrator(root_output.clone(), dep_output);
+            assert!(matches!(
+                orch.verify(),
+                Err(Error::MixedRegime { root_regime: root, found_regime: found, drv_path })
+                    if root == root_regime && found == found_regime && drv_path == DEP
+            ));
+
+            let mut orch = orchestrator(
+                root_output,
+                json!({ "path": DEP_OUT, "method": "nar", "hash": "00".repeat(32) }),
+            );
+            let root = orch.build_unresolved(ROOT).unwrap();
+            assert!(root.inputs[0].derivation.is_fixed_output);
+            assert_eq!(
+                root.inputs[0].derivation.fod_out_path.as_deref(),
+                Some(DEP_OUT)
+            );
+            if root_regime == Regime::Ia {
+                let walker = orch.walker.as_mut().unwrap();
+                assert_eq!(walker.lookup(DEP_OUT).unwrap().to_absolute_path(), DEP_OUT);
+                assert_eq!(
+                    walker
+                        .synthetic_ca_path(DEP_OUT)
+                        .unwrap()
+                        .to_absolute_path(),
+                    DEP_OUT
+                );
+            } else {
+                assert!(orch.walker.is_none());
+            }
+        }
     }
 }

@@ -145,6 +145,11 @@ fn read_derivations(
             DrvJson {
                 name,
                 input_drvs,
+                input_srcs: drv
+                    .input_sources
+                    .into_iter()
+                    .map(|path| path.to_absolute_path())
+                    .collect(),
                 outputs,
             },
         );
@@ -181,15 +186,18 @@ mod tests {
     const LEFT: &str = "/nix/store/11111111111111111111111111111111-left.drv";
     const RIGHT: &str = "/nix/store/22222222222222222222222222222222-right.drv";
     const SHARED: &str = "/nix/store/33333333333333333333333333333333-shared.drv";
+    const SOURCE: &str = "/nix/store/44444444444444444444444444444444-source";
+    const OTHER_SOURCE: &str = "/nix/store/55555555555555555555555555555555-other-source";
     const HASH: &str = "894517c9163c896ec31a2adbd33c0681fd5f45b2c0ef08a64c92a03fb97f390f";
 
-    fn aterm(outputs: &str, inputs: &[&str]) -> String {
+    fn aterm(outputs: &str, inputs: &[&str], sources: &[&str]) -> String {
         let inputs = inputs
             .iter()
             .map(|p| format!(r#"("{p}",["out"])"#))
             .collect::<Vec<_>>()
             .join(",");
-        format!(r#"Derive([{outputs}],[{inputs}],[],"x86_64-linux","/bin/sh",[],[])"#)
+        let sources = serde_json::to_string(sources).unwrap();
+        format!(r#"Derive([{outputs}],[{inputs}],{sources},"x86_64-linux","/bin/sh",[],[])"#)
     }
 
     #[test]
@@ -205,7 +213,11 @@ mod tests {
                 ("", "r:sha256", "", Some("nar"), (false, true)),
                 ("", "sha256", "", Some("flat"), (false, true)),
             ] {
-                let raw = aterm(&format!(r#"("out","{path}","{algo}","{hash}")"#), &[LEFT]);
+                let raw = aterm(
+                    &format!(r#"("out","{path}","{algo}","{hash}")"#),
+                    &[LEFT],
+                    &[SOURCE, OTHER_SOURCE],
+                );
                 let mut reads = 0;
                 let result = read_derivations(ROOT, false, |p| {
                     assert_eq!(p, ROOT);
@@ -219,6 +231,7 @@ mod tests {
                 let drv = &drvs[ROOT];
                 assert_eq!(drv.name, "example.drv");
                 assert_eq!(drv.input_drvs[LEFT].outputs, ["out"]);
+                assert_eq!(drv.input_srcs, [SOURCE, OTHER_SOURCE]);
                 assert_eq!(classify(&drv.outputs), classification);
                 let output = &drv.outputs["out"];
                 assert_eq!(output.path.as_deref(), (!path.is_empty()).then_some(path));
@@ -228,20 +241,24 @@ mod tests {
                 );
                 assert_eq!(output.method.as_deref(), method);
                 let value: Value = serde_json::from_str(&result).unwrap();
-                assert_eq!(value[ROOT].as_object().unwrap().len(), 3);
+                assert_eq!(value[ROOT].as_object().unwrap().len(), 4);
                 assert_eq!(value[ROOT]["inputDrvs"][LEFT], json!({"outputs": ["out"]}));
+                assert_eq!(value[ROOT]["inputSrcs"], json!([SOURCE, OTHER_SOURCE]));
             }
         }
     }
 
     #[test]
     fn multi_output_and_env_name() {
-        let raw = aterm(r#"("dev","/nix/store/11111111111111111111111111111111-example-dev","",""),("out","/nix/store/00000000000000000000000000000000-example","","")"#, &[])
+        let raw = aterm(r#"("dev","/nix/store/11111111111111111111111111111111-example-dev","",""),("out","/nix/store/00000000000000000000000000000000-example","","")"#, &[], &[])
             .replace(",[],[])", r#",[],[("name","ignored")])"#);
         let result = read_derivations(ROOT, false, |_| Ok(raw.clone())).unwrap();
         let drvs: BTreeMap<String, DrvJson> = serde_json::from_str(&result).unwrap();
         assert_eq!(drvs[ROOT].name, "example.drv");
         assert_eq!(drvs[ROOT].outputs.len(), 2);
+        assert!(drvs[ROOT].input_srcs.is_empty());
+        let value: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(value[ROOT]["inputSrcs"], json!([]));
         assert_eq!(
             drvs[ROOT].outputs["dev"].path.as_deref(),
             Some("/nix/store/11111111111111111111111111111111-example-dev")
@@ -257,13 +274,13 @@ mod tests {
         let mut reads = BTreeMap::new();
         let result = read_derivations(ROOT, true, |path| {
             *reads.entry(path.to_owned()).or_insert(0) += 1;
-            let deps: &[&str] = match path {
-                ROOT => &[LEFT, RIGHT],
-                LEFT | RIGHT => &[SHARED],
-                SHARED => &[],
+            let (deps, sources): (&[&str], &[&str]) = match path {
+                ROOT => (&[LEFT, RIGHT], &[SOURCE, OTHER_SOURCE]),
+                LEFT | RIGHT => (&[SHARED], &[]),
+                SHARED => (&[], &[OTHER_SOURCE]),
                 _ => panic!("unexpected read {path}"),
             };
-            Ok(aterm(r#"("out","","r:sha256","")"#, deps))
+            Ok(aterm(r#"("out","","r:sha256","")"#, deps, sources))
         })
         .unwrap();
         assert_eq!(reads.len(), 4);
@@ -272,6 +289,10 @@ mod tests {
         assert_eq!(drvs.len(), 4);
         assert!(drvs[LEFT].input_drvs.contains_key(SHARED));
         assert!(drvs[RIGHT].input_drvs.contains_key(SHARED));
+        assert_eq!(drvs[ROOT].input_srcs, [SOURCE, OTHER_SOURCE]);
+        assert!(drvs[LEFT].input_srcs.is_empty());
+        assert!(drvs[RIGHT].input_srcs.is_empty());
+        assert_eq!(drvs[SHARED].input_srcs, [OTHER_SOURCE]);
     }
 
     #[test]
@@ -284,7 +305,7 @@ mod tests {
         let error = read_derivations(ROOT, true, |path| {
             reads += 1;
             if path == ROOT {
-                Ok(aterm(r#"("out","","r:sha256","")"#, &[LEFT]))
+                Ok(aterm(r#"("out","","r:sha256","")"#, &[LEFT], &[]))
             } else {
                 Err(Error::Failed {
                     cmd: "nix store cat".into(),

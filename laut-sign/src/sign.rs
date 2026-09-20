@@ -6,7 +6,7 @@
 //! the payload assembly and the `$NIX_CONFIG` parsing factored into
 //! [`crate::attestation`] and [`nix_version`].
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use laut_compat::content_hash::format_nar_hash;
@@ -204,36 +204,9 @@ fn sign_ia_outputs(
     ia_aterm: &str,
     output_hashes_map: &mut serde_json::Map<String, Value>,
 ) -> Result<(String, Value, Option<Value>), Error> {
-    let mut walker = ia_closure::Walker::new();
-
-    // Build the global candidate set from the recursive derivation tree so
-    // `scan_for_references` can discover runtime references — mirrors what the
-    // verifier does. Also register FOD outputs so they are skipped during
-    // pass-1 scanning.
     let recursive_raw = nix_cmd::derivation_show_recursive(&cfg.drv_path)?;
     let recursive_drvs: BTreeMap<String, DrvJson> = serde_json::from_str(&recursive_raw)?;
-    let mut global_hashes: BTreeSet<String> = BTreeSet::new();
-    let mut hash_to_path: HashMap<String, String> = HashMap::new();
-    for rec_drv in recursive_drvs.values() {
-        let (rec_is_fod, _) = drv_json::classify(&rec_drv.outputs);
-        for output in rec_drv.outputs.values() {
-            if let Some(ref path) = output.path {
-                let full = if path.starts_with("/nix/store/") {
-                    path.clone()
-                } else {
-                    format!("/nix/store/{}", path)
-                };
-                if let Ok(hash) = store_path::extract_store_hash(&full) {
-                    global_hashes.insert(hash.clone());
-                    hash_to_path.entry(hash).or_insert(full.clone());
-                }
-                if rec_is_fod {
-                    walker.register_fod(full);
-                }
-            }
-        }
-    }
-    walker.set_global_candidates(global_hashes, hash_to_path);
+    let mut walker = ia_closure::Walker::from_derivations(recursive_drvs.values())?;
 
     // pass-1 + pass-2 for each requested output: synthetic CA path + castore
     // Entry of the rewritten content + NAR hash. The walker memoizes closure

@@ -37,10 +37,9 @@ drv_path = verifier.succeed(f"nix-instantiate '{nixpkgs_attr}' -A {packageToBuil
 
 # IA verification recomputes synthetic CA paths from local output bytes
 # (the closure walker scans content), so we need the runtime closure of
-# the root output(s) locally. The walker recurses by following
-# `nix-store -q --references`. Build-time-only deps (not in the runtime
-# closure) are resolved from already-verified trace data — their IA→CA
-# mappings are pre-populated in the walker's memo.
+# the root output(s) locally. The walker scans derivation-output and source
+# candidates, preserving declared source/FOD identities. Build-time-only deps
+# absent from that runtime closure are resolved from authenticated trace data.
 #
 # Build from the same nixpkgs the signer uses (`-f '<nixpkgs>'`).
 if addressing == "ia":

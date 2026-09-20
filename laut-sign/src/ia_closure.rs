@@ -20,6 +20,7 @@ use nix_compat::nixbase32;
 use nix_compat::nixhash::NixHash;
 use nix_compat::store_path::StorePath;
 
+use crate::drv_json::{self, DrvJson};
 use crate::nix_cmd;
 use crate::store_path::{self, extract_store_hash, extract_store_name};
 
@@ -58,35 +59,59 @@ struct MemoEntry {
 /// through it (the memo is shared).
 pub struct Walker {
     memo: HashMap<String, MemoEntry>,
-    fod_outputs: HashSet<String>,
     global_hashes: BTreeSet<String>,
     hash_to_path: HashMap<String, String>,
 }
 
 impl Walker {
-    pub fn new() -> Self {
-        Walker {
+    /// Build the reference universe once for both signing and verification.
+    /// Sources without a known output producer and FODs are boundaries: keep
+    /// their declared identities rather than readdressing them as floating CA.
+    pub fn from_derivations<'a>(
+        derivations: impl IntoIterator<Item = &'a DrvJson>,
+    ) -> Result<Self, Error> {
+        let mut walker = Self {
             memo: HashMap::new(),
-            fod_outputs: HashSet::new(),
             global_hashes: BTreeSet::new(),
             hash_to_path: HashMap::new(),
+        };
+        let mut ordinary_outputs = HashSet::new();
+        for drv in derivations {
+            let (is_fod, _) = drv_json::classify(&drv.outputs);
+            let sources = drv.input_srcs.iter().map(|path| (path, true));
+            let outputs = drv
+                .outputs
+                .values()
+                .filter_map(|output| output.path.as_ref().map(|path| (path, is_fod)));
+            for (path, boundary) in sources.chain(outputs) {
+                let sp =
+                    StorePath::<String>::from_absolute_path(path.as_bytes()).map_err(|source| {
+                        store_path::Error::Parse {
+                            path: path.clone(),
+                            source,
+                        }
+                    })?;
+                let hash = nixbase32::encode(sp.digest());
+                walker.global_hashes.insert(hash.clone());
+                walker.hash_to_path.insert(hash, path.clone());
+                if boundary {
+                    walker.memo.insert(
+                        path.clone(),
+                        MemoEntry {
+                            synthetic_ca_path: sp,
+                        },
+                    );
+                } else {
+                    ordinary_outputs.insert(path.clone());
+                }
+            }
         }
-    }
-
-    pub fn set_global_candidates(
-        &mut self,
-        hashes: BTreeSet<String>,
-        map: HashMap<String, String>,
-    ) {
-        self.global_hashes = hashes;
-        self.hash_to_path = map;
-    }
-
-    /// Register a FOD output path. FOD outputs are already content-addressed
-    /// — their IA path is their synthetic CA path. The walker skips scanning
-    /// them entirely.
-    pub fn register_fod(&mut self, path: String) {
-        self.fod_outputs.insert(path);
+        // An ancestor may also mention a dependency's output as an inputSrc.
+        // Do not mistake that source declaration for computed output evidence.
+        for path in ordinary_outputs {
+            walker.memo.remove(&path);
+        }
+        Ok(walker)
     }
 
     /// Synthetic CA hash (32-char nixbase32) of `path`'s rewritten-content
@@ -96,19 +121,14 @@ impl Walker {
         if let Some(entry) = self.memo.get(path) {
             return Ok(nixbase32::encode(entry.synthetic_ca_path.digest()));
         }
-        if self.fod_outputs.contains(path) {
-            let sp = StorePath::<String>::from_absolute_path(path.as_bytes()).map_err(|e| {
-                Error::Hash(format!("fod path {} parse: {:?}", path, e))
-            })?;
-            let hash = nixbase32::encode(sp.digest());
-            self.memo
-                .insert(path.to_owned(), MemoEntry { synthetic_ca_path: sp });
-            return Ok(hash);
-        }
-        let sp = self.compute_pass1(path)?;
+        let sp = self.compute_pass1(path, Path::new(path))?;
         let hash = nixbase32::encode(sp.digest());
-        self.memo
-            .insert(path.to_owned(), MemoEntry { synthetic_ca_path: sp });
+        self.memo.insert(
+            path.to_owned(),
+            MemoEntry {
+                synthetic_ca_path: sp,
+            },
+        );
         Ok(hash)
     }
 
@@ -119,10 +139,10 @@ impl Walker {
         Ok(self.memo[path].synthetic_ca_path.clone())
     }
 
-    fn compute_pass1(&mut self, path: &str) -> Result<StorePath<String>, Error> {
+    fn compute_pass1(&mut self, path: &str, contents: &Path) -> Result<StorePath<String>, Error> {
         let self_ia_hash = extract_store_hash(path)?;
 
-        let scanned = scan_for_references(Path::new(path), &self.global_hashes)?;
+        let scanned = scan_for_references(contents, &self.global_hashes)?;
 
         let mut deps_rewrites: HashMap<String, String> = HashMap::new();
         let mut refs_as_ca: Vec<String> = Vec::new();
@@ -130,24 +150,17 @@ impl Walker {
             if ref_hash == &self_ia_hash {
                 continue;
             }
-            let full_path = self
-                .hash_to_path
-                .get(ref_hash)
-                .cloned()
-                .unwrap_or_else(|| format!("/nix/store/{}-dummy", ref_hash));
+            let full_path = self.hash_to_path[ref_hash].clone();
             let ref_ca_hash = self.synthetic_ca_hash(&full_path)?;
             deps_rewrites.insert(ref_hash.clone(), ref_ca_hash);
             refs_as_ca.push(self.memo[&full_path].synthetic_ca_path.to_absolute_path());
         }
+        // Substitution can change ordering; Nix hashes a set of final paths.
+        refs_as_ca.sort();
+        refs_as_ca.dedup();
 
         let name = extract_store_name(path)?;
-        let sp = rewrite_to_ca_pass1(
-            Path::new(path),
-            &name,
-            &deps_rewrites,
-            &self_ia_hash,
-            &refs_as_ca,
-        )?;
+        let sp = rewrite_to_ca_pass1(contents, &name, &deps_rewrites, &self_ia_hash, &refs_as_ca)?;
         Ok(sp)
     }
 
@@ -167,11 +180,7 @@ impl Walker {
             if ref_hash == &self_ia_hash {
                 continue;
             }
-            let full_path = self
-                .hash_to_path
-                .get(ref_hash)
-                .cloned()
-                .unwrap_or_else(|| format!("/nix/store/{}-dummy", ref_hash));
+            let full_path = self.hash_to_path[ref_hash].clone();
             let ref_ca_hash = self.synthetic_ca_hash(&full_path)?;
             rewrites.insert(ref_hash.clone(), ref_ca_hash);
         }
@@ -197,26 +206,140 @@ impl Walker {
     }
 }
 
-impl Default for Walker {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use laut_compat::content_hash::calculate_nar_hash;
     use nix_compat::{nixhash::CAHash, store_path::build_ca_path};
+    use serde_json::json;
+
+    const ROOT: &str = "/nix/store/22222222222222222222222222222222-result";
+    const SOURCE: &str = "/nix/store/11111111111111111111111111111111-script";
+    const UNUSED: &str = "/nix/store/44444444444444444444444444444444-unused";
+    const FOD: &str = "/nix/store/33333333333333333333333333333333-flat-input";
+
+    #[test]
+    fn discovered_sources_and_fods_keep_their_declared_identities() {
+        let drvs: Vec<DrvJson> = serde_json::from_value(json!([
+            {"name": "result", "inputDrvs": {
+                "/nix/store/55555555555555555555555555555555-transitive.drv": {"outputs": ["out"]}
+             }, "inputSrcs": [],
+             "outputs": {"out": {"path": ROOT}}},
+            {"name": "transitive", "inputDrvs": {}, "inputSrcs": [SOURCE, UNUSED, FOD],
+             "outputs": {"out": {"path": "/nix/store/55555555555555555555555555555555-transitive"}}},
+            {"name": "fixed", "inputDrvs": {}, "inputSrcs": [SOURCE],
+             "outputs": {"out": {"path": FOD, "method": "flat", "hash": "declared"}}}
+        ])).unwrap();
+        let mut walker = Walker::from_derivations(&drvs).unwrap();
+        assert_eq!(walker.global_hashes.len(), 5);
+        for boundary in [SOURCE, UNUSED, FOD] {
+            // These paths need not exist: sources/FODs must not be readdressed.
+            assert_eq!(
+                walker
+                    .synthetic_ca_path(boundary)
+                    .unwrap()
+                    .to_absolute_path(),
+                boundary
+            );
+        }
+        assert!(walker.lookup(ROOT).is_none());
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), format!("{SOURCE} {FOD}")).unwrap();
+        let actual = walker.compute_pass1(ROOT, file.path()).unwrap();
+        let (hash, _) = calculate_nar_hash(file.path(), None).unwrap();
+        let expected: StorePath<String> = build_ca_path(
+            "result",
+            &CAHash::Nar(hash.clone()),
+            vec![SOURCE, FOD],
+            false,
+        )
+        .unwrap();
+        let missing: StorePath<String> = build_ca_path(
+            "result",
+            &CAHash::Nar(hash.clone()),
+            Vec::<&str>::new(),
+            false,
+        )
+        .unwrap();
+        let extra: StorePath<String> = build_ca_path(
+            "result",
+            &CAHash::Nar(hash),
+            vec![SOURCE, FOD, UNUSED],
+            false,
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_ne!(actual, missing);
+        assert_ne!(actual, extra);
+    }
+
+    #[test]
+    fn ordinary_outputs_are_not_precomputed_from_source_declarations() {
+        let drvs: Vec<DrvJson> = serde_json::from_value(json!([
+            {"name": "ancestor", "inputDrvs": {}, "inputSrcs": [ROOT],
+             "outputs": {}},
+            {"name": "result", "inputDrvs": {}, "inputSrcs": [SOURCE],
+             "outputs": {"out": {"path": ROOT}}}
+        ]))
+        .unwrap();
+        for drvs in [drvs.iter().collect::<Vec<_>>(), drvs.iter().rev().collect()] {
+            let mut walker = Walker::from_derivations(drvs).unwrap();
+            assert!(walker.lookup(ROOT).is_none());
+            assert_eq!(
+                walker.synthetic_ca_path(SOURCE).unwrap().to_absolute_path(),
+                SOURCE
+            );
+        }
+    }
+
+    #[test]
+    fn references_are_sorted_after_substitution_not_by_original_ia_hash() {
+        let dep = "/nix/store/00000000000000000000000000000000-dep";
+        let synthetic = "/nix/store/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz-dep";
+        let drvs: Vec<DrvJson> = serde_json::from_value(json!([
+            {"name": "result", "inputDrvs": {}, "inputSrcs": [SOURCE],
+             "outputs": {"out": {"path": ROOT}}},
+            {"name": "dep", "inputDrvs": {}, "inputSrcs": [],
+             "outputs": {"out": {"path": dep}}}
+        ]))
+        .unwrap();
+        let mut walker = Walker::from_derivations(&drvs).unwrap();
+        walker.memo.insert(
+            dep.into(),
+            MemoEntry {
+                synthetic_ca_path: StorePath::from_absolute_path(synthetic.as_bytes()).unwrap(),
+            },
+        );
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), format!("{dep} {SOURCE} {ROOT}")).unwrap();
+        let actual = walker.compute_pass1(ROOT, file.path()).unwrap();
+        let rewrites = HashMap::from([("0".repeat(32), "z".repeat(32))]);
+        let expected = rewrite_to_ca_pass1(
+            file.path(),
+            "result",
+            &rewrites,
+            &"2".repeat(32),
+            &[SOURCE.into(), synthetic.into()],
+        )
+        .unwrap();
+        let original_order = rewrite_to_ca_pass1(
+            file.path(),
+            "result",
+            &rewrites,
+            &"2".repeat(32),
+            &[synthetic.into(), SOURCE.into()],
+        )
+        .unwrap();
+        assert_eq!(actual, expected);
+        assert_ne!(actual, original_order);
+    }
 
     #[test]
     fn bootstrap_stdenv_path_difference_is_explained_by_source_references() {
-        // Corrected-Nix small experiment: final NAR and castore agree, but the
-        // signer supplies only the bootstrap output reference, omitting sources.
-        // This characterizes the path discrepancy, not a source-normalization fix.
-        let hash = nixbase32::decode(
-            "1i0sksjsmwjiikfjy1bb14w6fbgchjgvykzmn6gwzc6khjhyac8w",
-        )
-        .unwrap();
+        // Original regression: final NAR and castore agreed, but omitting source
+        // references produced the wrong path. Keep the native bootstrap oracle.
+        let hash =
+            nixbase32::decode("1i0sksjsmwjiikfjy1bb14w6fbgchjgvykzmn6gwzc6khjhyac8w").unwrap();
         let content = CAHash::Nar(NixHash::Sha256(hash.try_into().unwrap()));
         let name = "bootstrap-stage0-stdenv-linux";
         let bootstrap = "/nix/store/akqphqb3rn9zvv8dbnsw9rmi2899w7f0-bootstrap-tools";

@@ -9,6 +9,8 @@ pub struct DrvJson {
     pub name: String,
     #[serde(rename = "inputDrvs")]
     pub input_drvs: BTreeMap<String, InputDrvRef>,
+    #[serde(rename = "inputSrcs")]
+    pub input_srcs: Vec<String>,
     pub outputs: BTreeMap<String, OutputRef>,
 }
 
@@ -38,4 +40,17 @@ pub fn classify(outputs: &BTreeMap<String, OutputRef>) -> (bool, bool) {
     let is_fixed_output = has_hash || (has_path && has_method);
     let is_content_addressed = !has_path && !has_hash;
     (is_fixed_output, is_content_addressed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_input_srcs_is_rejected() {
+        let error =
+            serde_json::from_str::<DrvJson>(r#"{"name":"example","inputDrvs":{},"outputs":{}}"#)
+                .unwrap_err();
+        assert!(error.to_string().contains("missing field `inputSrcs`"));
+    }
 }

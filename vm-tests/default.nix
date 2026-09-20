@@ -162,6 +162,91 @@ let
   };
 in
   smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // equivalenceSigns // {
+    small-equivalence-outputs = pkgs.runCommand "laut-small-equivalence-outputs" {
+      nativeBuildInputs = [ pkgs.python3 pkgs.difftastic ];
+    } ''
+      python3 -B - <<'PY'
+      import importlib.util
+      import json
+      import os
+      from pathlib import Path
+      import sys
+
+      sys.path.insert(0, "${experimentTestSource}")
+      spec = importlib.util.spec_from_file_location(
+          "compare_experiments", "${experimentTestSource}/compare-experiments.py"
+      )
+      comparator = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(comparator)
+      ia = Path("${equivalenceSigns.small-equivalence-ia-sign}")
+      ca = Path("${equivalenceSigns.small-equivalence-ca-sign}")
+      rebuilt = {
+          "bootstrap-tools",
+          "bootstrap-stage0-stdenv-linux",
+          "bootstrap-stage0-glibc-bootstrapFiles",
+          "bootstrap-stage0-binutils-wrapper-",
+      }
+      boundaries = {"busybox", "bootstrap-tools.tar.xz"}
+      reports = {}
+      for builder in ("builderA", "builderB"):
+          # The comparator's exit code also rejects input/recipe differences.
+          # Keep those differences and blocked attribution, but gate outputs only.
+          report, _ = comparator.compare(
+              ia / "experiment" / builder / "laut-experiment",
+              ca / "experiment" / builder / "laut-experiment",
+              ia / "cache", ca / "cache",
+          )
+          destination = Path(os.environ["out"]) / builder
+          destination.mkdir(parents=True)
+          comparator.write_preimages(report, destination)
+          (destination / "report.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n"
+          )
+          reports[builder] = report
+          print(f"{builder}: comparator status={report['status']}; "
+                f"counts={report.get('counts', {})}", flush=True)
+
+      for builder, report in reports.items():
+          assert report["version"] == 1, builder
+          assert report["status"] in {"failed", "diagnostic-agreement"}, builder
+          assert "unsupported" not in report, builder
+          assert not report.get("invalid_reason"), builder
+          assert not report.get("configuration_differences"), builder
+          assert report["scope"] == "ia-ca", builder
+          assert report["signed_claims"] == "diagnostic", builder
+          assert not report["errors"], (builder, report["errors"])
+          assert not report["correspondence"], builder
+          assert report["unpaired"] == {"left": [], "right": []}, builder
+          nodes = {node["name"]: node for node in report["nodes"]}
+          assert len(report["nodes"]) == 6, builder
+          assert nodes.keys() == rebuilt | boundaries, (builder, nodes.keys())
+          for name, node in nodes.items():
+              context = (builder, name)
+              assert node["correspondence"] == "rooted-unique", context
+              assert node["status"] in {"evidence-agrees", "divergent", "blocked"}, context
+              assert not node.get("source_errors"), context
+              for output in node["outputs"].values():
+                  assert all("error" not in output[side] for side in ("left", "right")), context
+              if name in boundaries:
+                  assert node["synthetic_identity"] == "excluded-fixed-output-boundary", context
+                  assert node["normalized_inputs"] == "excluded-fixed-output-boundary", context
+                  continue
+              requested = set(node["requested_outputs"])
+              assert requested, context
+              assert node["normalized_inputs"] in {"equal", "divergent"}, context
+              assert node["signed_evidence"].keys() == {"left", "right"}, context
+              for evidence in node["signed_evidence"].values():
+                  assert "error" not in evidence, (context, evidence)
+                  assert evidence["outputs"].keys() == requested, context
+                  assert evidence["resolved_input"] and evidence["aterm"], context
+              assert node["signed_outputs"].keys() == requested, context
+              assert all(output["status"] == "equal" and not output["differences"]
+                         for output in node["signed_outputs"].values()), context
+              assert node["synthetic_identity"] == "equal", context
+          print(f"{builder}: all four rebuilt nodes' signed output identities agree. "
+                "Full equivalence and signature authentication are NOT established.")
+      PY
+    '';
     experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
       nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
     } ''
