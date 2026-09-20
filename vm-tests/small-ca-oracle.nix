@@ -12,6 +12,7 @@ let
         args = [ "-ec" script ];
       };
       dep = mk "oracle-dependency-input" "printf dependency > $out";
+      depTwo = mk "oracle-second-input" "printf second > $out";
       scripts = {
         plain = "printf plain > $out";
         self-once = "printf '%s' $h > $out";
@@ -19,7 +20,7 @@ let
         zero-and-self = "{ ''${shell}/bin/dd if=/dev/zero bs=32 count=1; printf -- '--%s' $h; } > $out";
         chunked = "{ ''${shell}/bin/dd if=/dev/zero bs=65519 count=1; printf '%s' $h; ''${shell}/bin/dd if=/dev/zero bs=65521 count=1; printf '%s' $h; } > $out";
         symlink = "''${shell}/bin/mkdir $out; printf data > $out/target; ''${shell}/bin/ln -s $out/target $out/link";
-        dependency = "printf '%s' ''${dep} > $out";
+        dependency = "printf '%s:%s' ''${dep} ''${depTwo} > $out";
       };
     in mk "oracle-''${case}" ("h=$(''${shell}/bin/basename $out | ''${shell}/bin/cut -c1-32); " + scripts.''${case})
   '';

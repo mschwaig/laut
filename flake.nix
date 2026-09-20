@@ -41,20 +41,35 @@
       '';
 
       scope = pkgs.callPackage ./default.nix { nixpkgs = null; };
+      # Patch the component scope so the CLI and its libraries share the fix.
+      # Keep this Nix revision's own dependency set (not the infra nixpkgs).
+      seededPkgs = import nix-seeded.inputs.nixpkgs {
+        inherit system;
+        overlays = [ nix-seeded.overlays.internal ];
+      };
+      seededPatch = ./nix/rewriting-sink-positions.patch;
+      seededComponents = seededPkgs.nixComponents2.appendPatches [ seededPatch ];
+      nixSeededPackage = seededComponents.nix-cli;
+      nixSeededPatches = [ {
+        name = "rewriting-sink-positions.patch";
+        sha256 = builtins.hashFile "sha256" seededPatch;
+      } ];
     in {
       packages.${system} = {
         inherit nix nix-vsbom test-drv-json;
         inherit (scope) laut laut-sign-only;
-        nix-seeded = nix-seeded.packages.${system}.nix-cli;
+        nix-seeded = nixSeededPackage;
         rekor-test-tools = pkgs.callPackage ./nix/rekor-test-tools.nix { };
         default = scope.laut;
       };
 
 
       checks.${system} = (import ./vm-tests {
-          inherit pkgs nixpkgs-under-test nix-seeded;
+          inherit pkgs nixpkgs-under-test nix-seeded nixSeededPackage nixSeededPatches;
           inherit (scope) laut;
-        });
+        }) // {
+          nix-seeded-store = seededComponents.nix-store-tests.tests.run;
+        };
 
       devShell.${system} = pkgs.mkShell {
         shellHook = ''

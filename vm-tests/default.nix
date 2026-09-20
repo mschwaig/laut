@@ -9,6 +9,8 @@
   # building from inside.
   nixpkgs-under-test,
   nix-seeded,
+  nixSeededPackage,
+  nixSeededPatches,
   scope ? pkgs.callPackage ../default.nix { },
   laut ? scope.laut,
   laut-sign-only ? scope.laut-sign-only,
@@ -69,7 +71,7 @@ let
   # Each experiment is an independent sign run, not a composition of checks.
   makeEquivalenceSign = { id, addressing, seed ? "" }:
     let
-      nixPackage = nix-seeded.packages.${system}.nix-cli;
+      nixPackage = nixSeededPackage;
     in import ./test-template.nix (fullArgs // {
       testName = "${id}-sign";
       testScriptFile = ./sign-script.py;
@@ -81,6 +83,7 @@ let
         target = lib.concatStringsSep "." smallPackageToBuild;
         nixPackage = toString nixPackage;
         nixRevision = nix-seeded.rev;
+        nixPatches = nixSeededPatches;
         nixpkgs = {
           source = toString nixpkgs-under-test;
           revision = nixpkgs-under-test.rev;
@@ -169,8 +172,9 @@ in
     small-sigstore-sign = sigstore.sign;
     small-ca-oracle = import ./small-ca-oracle.nix {
       inherit pkgs system;
-      nixPackage = nix-seeded.packages.${system}.nix-cli;
+      nixPackage = nixSeededPackage;
       nixRevision = nix-seeded.rev;
+      patches = nixSeededPatches;
       probe = caIdentityProbe;
     };
     small-sigstore-verify = sigstore.verify;

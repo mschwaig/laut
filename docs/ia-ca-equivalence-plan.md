@@ -261,9 +261,15 @@ report green.
   the complete IA/native NARs become identical by replacing the self hash alone,
   and the zero-masked hash exactly matches native CA's declared address. See the
   runbook for byte counts, hashes, immutable artifacts, and reproduction details.
-- Next decision: correct/re-pin the experimental Nix with a tiny self-reference
-  oracle, and control the recipe environment via a common-source experiment
-  patch. Do not weaken laut's hashing or erase environment fields to match these
-  observations. Source/FOD seed normalization and signature authentication remain
-  separate unresolved work. No production hashing, trust, or mixed-regime policy
-  changed during this investigation slice; no VM rebuilds were needed.
+- Native oracle: a tiny seven-case CA-only VM reproduces the missing-position
+  failure independently of bootstrap recipes. The experimental Nix now carries a
+  reviewable local backport on the same base revision; all 730 Nix store tests and
+  all oracle comparisons pass. The oracle calls laut's existing hashing helpers,
+  including a two-external-reference ordering/duplication control. Exact artifacts
+  and patch provenance are in the runbook. No laut hashing, trust admission,
+  mixed-regime restriction, host daemon, or sibling checkout was changed.
+- Next: rerun the small controlled signing matrix with the corrected Nix, then
+  control recipe environment differences via a common-source experiment patch.
+  Do not erase environment fields to force agreement. Source/FOD seed normalization
+  and signature authentication remain separate unresolved work; tiny oracle
+  agreement does not establish whole-bootstrap equivalence.

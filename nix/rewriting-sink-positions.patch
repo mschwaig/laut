@@ -1,0 +1,199 @@
+Subject: [PATCH] Restore sorted rewrite positions for HashModuloSink
+
+Base: 40ab933003b7f0bc9fd9270fd95aca2d2dc34c24
+Backports the focused production changes from:
+  f546f4b8356ccceb21e2aff355daae1b7a7b3ee7
+    HashModuloSink: Hash the positions of self-references again
+  7523932a1d23c35395cf241703f30b7e19604add
+    RewritingSink: Use std::set for matches and add a chunking test
+
+Collect absolute match offsets in the existing rewrite implementation and
+keep them sorted and unique before HashModuloSink hashes their suffix.
+Use deterministic regressions for hash preimages, original byte counts,
+partially zeroed self-references, and noninteracting streaming rewrites.
+
+diff --git a/src/libstore/include/nix/store/references.hh b/src/libstore/include/nix/store/references.hh
+--- a/src/libstore/include/nix/store/references.hh
++++ b/src/libstore/include/nix/store/references.hh
+@@ -3,6 +3,8 @@
+ 
+ #include "nix/util/hash.hh"
+ 
++#include <set>
++
+ namespace nix {
+ 
+ class RefScanSink : public Sink
+@@ -41,7 +43,7 @@ public:
+     Sink & nextSink;
+     uint64_t pos = 0;
+ 
+-    std::vector<uint64_t> matches;
++    std::set<uint64_t> matches;
+ 
+     RewritingSink(const std::string & from, const std::string & to, Sink & nextSink);
+     RewritingSink(const StringMap & rewrites, Sink & nextSink);
+diff --git a/src/libstore/references.cc b/src/libstore/references.cc
+--- a/src/libstore/references.cc
++++ b/src/libstore/references.cc
+@@ -78,7 +78,7 @@ void RewritingSink::operator()(std::string_view data)
+     std::string s(prev);
+     s.append(data);
+ 
+-    s = rewriteStrings(s, rewrites);
++    s = rewriteStrings(s, rewrites, &matches, pos);
+ 
+     prev = s.size() < maxRewriteSize ? s
+            : maxRewriteSize == 0     ? ""
+@@ -103,6 +103,7 @@ void RewritingSink::flush()
+ 
+ HashModuloSink::HashModuloSink(HashAlgorithm ha, const std::string & modulus)
+     : hashSink(ha)
++    // Zero out self-references (the "modulus").
+     , rewritingSink(modulus, std::string(modulus.size(), 0), hashSink)
+ {
+ }
+diff --git a/src/libutil/include/nix/util/util.hh b/src/libutil/include/nix/util/util.hh
+--- a/src/libutil/include/nix/util/util.hh
++++ b/src/libutil/include/nix/util/util.hh
+@@ -9,6 +9,7 @@
+ #include <filesystem>
+ #include <functional>
+ #include <map>
++#include <set>
+ #include <sstream>
+ #include <bit>
+ #include <optional>
+@@ -83,7 +84,12 @@ std::string trim(std::string_view s, std::string_view whitespace = " \n\r\t");
+  */
+ std::string replaceStrings(std::string s, std::string_view from, std::string_view to);
+ 
+-std::string rewriteStrings(std::string s, const StringMap & rewrites);
++/**
++ * Replace all occurrences of the keys in `rewrites` with their corresponding values. Optionally returns the positions
++ * of the matches in `matches`.
++ */
++std::string rewriteStrings(
++    std::string s, const StringMap & rewrites, std::set<uint64_t> * matches = nullptr, uint64_t offsetShift = 0);
+ 
+ /**
+  * Parse a string into an integer.
+diff --git a/src/libutil/util.cc b/src/libutil/util.cc
+--- a/src/libutil/util.cc
++++ b/src/libutil/util.cc
+@@ -85,14 +85,18 @@ std::string replaceStrings(std::string res, std::string_view from, std::string_view to)
+     return res;
+ }
+ 
+-std::string rewriteStrings(std::string s, const StringMap & rewrites)
++std::string
++rewriteStrings(std::string s, const StringMap & rewrites, std::set<uint64_t> * matches, uint64_t offsetShift)
+ {
+     for (auto & i : rewrites) {
+         if (i.first == i.second)
+             continue;
+         size_t j = 0;
+-        while ((j = s.find(i.first, j)) != s.npos)
++        while ((j = s.find(i.first, j)) != s.npos) {
++            if (matches)
++                matches->insert(j + offsetShift);
+             s.replace(j, i.first.size(), i.second);
++        }
+     }
+     return s;
+ }
+diff --git a/src/libstore-tests/references.cc b/src/libstore-tests/references.cc
+--- a/src/libstore-tests/references.cc
++++ b/src/libstore-tests/references.cc
+@@ -4,6 +4,11 @@
+ 
+ #include <gtest/gtest.h>
+ 
++#include <cstdint>
++#include <set>
++#include <string>
++#include <string_view>
++
+ namespace nix {
+ 
+ struct RewriteParams
+@@ -43,6 +48,79 @@ INSTANTIATE_TEST_CASE_P(
+         RewriteParams{"foooo", "bazoo", {{"fou", "bar"}, {"foo", "baz"}}},
+         RewriteParams{"foooo", "foooo", {}}));
+ 
++TEST(references, rewritingSinkPositionsAndChunking)
++{
++    // Keys and replacements do not interact; map order differs from stream order.
++    const StringMap rewrites{{"aa", "AA"}, {"zzzz", "ZZZZ"}};
++    const std::string input = "zzzz-aa-zzzz-aa";
++    const std::string expected = "ZZZZ-AA-ZZZZ-AA";
++    const std::set<uint64_t> positions{0, 5, 8, 13};
++    const std::string_view data(input);
++
++    auto check = [&](RewritingSink & sink, const StringSink & output) {
++        // All complete matches, including those in the retained tail, are recorded before flush.
++        EXPECT_EQ(sink.matches, positions);
++        EXPECT_EQ(sink.pos + sink.prev.size(), input.size());
++        for (int flushCount = 0; flushCount < 2; ++flushCount) {
++            sink.flush();
++            EXPECT_EQ(output.s, expected);
++            EXPECT_EQ(sink.matches, positions);
++            EXPECT_EQ(sink.pos, input.size());
++            EXPECT_TRUE(sink.prev.empty());
++        }
++    };
++
++    // Includes a single nonempty call and empty leading/trailing chunks.
++    for (size_t split = 0; split <= input.size(); ++split) {
++        SCOPED_TRACE(split);
++        StringSink output;
++        RewritingSink sink(rewrites, output);
++        sink(data.substr(0, split));
++        sink(data.substr(split));
++        check(sink, output);
++    }
++
++    // Includes byte-at-a-time input and a single whole-buffer call.
++    for (size_t chunkSize = 1; chunkSize <= input.size(); ++chunkSize) {
++        SCOPED_TRACE(chunkSize);
++        StringSink output;
++        RewritingSink sink(rewrites, output);
++        for (size_t offset = 0; offset < input.size(); offset += chunkSize)
++            sink(data.substr(offset, chunkSize));
++        check(sink, output);
++    }
++}
++
++TEST(references, hashModuloPositionsAndByteCount)
++{
++    const std::string input = "xabc--abc";
++    const std::string partiallyZeroed = std::string("x") + std::string(3, '\0') + "--abc";
++    const std::string normalized = std::string("x") + std::string(3, '\0') + "--" + std::string(3, '\0');
++    const auto expected = hashString(HashAlgorithm::SHA256, normalized + "|1|6");
++    const auto expectedPartiallyZeroed = hashString(HashAlgorithm::SHA256, normalized + "|6");
++
++    for (size_t chunkSize = 1; chunkSize <= input.size(); ++chunkSize) {
++        SCOPED_TRACE(chunkSize);
++        HashModuloSink sink(HashAlgorithm::SHA256, "abc");
++        HashModuloSink zeroedSink(HashAlgorithm::SHA256, "abc");
++        for (size_t offset = 0; offset < input.size(); offset += chunkSize) {
++            sink(std::string_view(input).substr(offset, chunkSize));
++            zeroedSink(std::string_view(partiallyZeroed).substr(offset, chunkSize));
++        }
++
++        const auto result = sink.finish();
++        const auto zeroedResult = zeroedSink.finish();
++        EXPECT_EQ(result.hash, expected);
++        EXPECT_EQ(zeroedResult.hash, expectedPartiallyZeroed);
++        EXPECT_NE(result.hash, zeroedResult.hash);
++        // Position suffixes affect the hash, not the reported original stream length.
++        EXPECT_EQ(result.numBytesDigested, input.size());
++        EXPECT_EQ(zeroedResult.numBytesDigested, partiallyZeroed.size());
++        EXPECT_EQ(sink.rewritingSink.matches, (std::set<uint64_t>{1, 6}));
++        EXPECT_EQ(zeroedSink.rewritingSink.matches, (std::set<uint64_t>{6}));
++    }
++}
++
+ TEST(references, scan)
+ {
+     std::string hash1 = "dc04vv14dak1c1r48qa0m23vr9jy8sm0";

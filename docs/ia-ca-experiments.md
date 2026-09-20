@@ -25,6 +25,9 @@ inside a test disable workload substitution and retain separate contents caches.
 
 All four configurations use Nix revision
 `40ab933003b7f0bc9fd9270fd95aca2d2dc34c24`, including the empty-seed baselines.
+Current definitions additionally apply the self-reference position correction
+documented under **Tiny Native CA Oracle** below; the initial ledger's artifacts
+remain unpatched. Manifests record the base revision, package path, and patch hash.
 Its package uses its own locked nixpkgs input: laut's infrastructure pin has
 libcurl 8.14.1, below this Nix revision's 8.17.0 minimum. Neither laut's existing
 infrastructure pin nor the package-under-test pin was updated.
@@ -370,9 +373,9 @@ was introduced.
 
 ## Remaining Work
 
-- Reproduce and correct the pinned Nix self-reference position regression in a
-  tiny native-CA oracle before selecting a revised experimental Nix pin. Preserve
-  the old observations; do not add a laut hash-version fallback.
+- Rebuild the controlled small signing matrix with the corrected experimental Nix
+  package. Preserve the unpatched observations and compare only matching controls;
+  the tiny native-CA oracle now validates the position correction.
 - Establish common builder-visible recipe attributes for an additional controlled
   IA/CA experiment, with a reviewable common-source patch rather than silently
   inserting or removing environment fields in normalized ATerms.
@@ -426,3 +429,57 @@ derivation above). Failed VM disks remain under
 store outputs. Successful runs export `ca-oracle/report.json`, exact NARs, original
 ATerms, probe results, and command/stdout/stderr sidecars. The example's three
 tests and all 116 offline experiment tests pass at this baseline.
+
+### Position Correction
+
+The correction is a reviewable local backport on the unchanged remote base pin,
+not an undocumented sibling-checkout change. `nix/rewriting-sink-positions.patch`
+backports the focused production changes from the locally available Nix commits
+`f546f4b8356ccceb21e2aff355daae1b7a7b3ee7` and
+`7523932a1d23c35395cf241703f30b7e19604add`, with deterministic C++ regressions.
+The originating regression is `3ebe1341abe1b0ad59bd4925517af18d9200f818`.
+This records local history provenance, not a claim that the proposed fix is merged
+upstream. Patch SHA-256:
+`d58a056d75310eb219fbfc6f520c96ef1fbb25354174452409ff741f146fc9e3`.
+
+Position tracking instruments the existing rewrite operation, records absolute
+stream offsets, and keeps them sorted and unique. Tests cover every split and
+chunk size of a noninteracting multikey fixture, repeated flushes, exact hash
+suffixes, original byte counts, and partially zeroed references. General semantics
+of interacting rewrite maps were not redesigned. No legacy-hash admission or
+compatibility branch was introduced.
+
+The flake uses the pinned Nix component scope's `appendPatches`, rebuilding the
+CLI and libraries consistently with Nix's own dependency package set. Both the
+oracle and all four experiment definitions use that package; experiment manifests
+now include `nixPatches`. Changing only the CLI source would not fix its separately
+built libraries. The host daemon and sibling checkout remain unchanged.
+
+```sh
+nix build .#nix-seeded .#checks.x86_64-linux.nix-seeded-store \
+  .#checks.x86_64-linux.small-ca-oracle \
+  --no-link --print-out-paths --keep-failed --max-jobs 1 --cores 2
+```
+
+The corrected package is
+`/nix/store/qhnjjw1mndgv6jpifj57brfhnwx7k4v6-nix-2.35.0pre20260612_40ab933+1`.
+All 730 Nix store tests pass (one pre-existing test remains disabled), including
+the new regressions. Test output:
+`/nix/store/a8npxlafpa742ryn4cd9k3inz9wjz2xw-nix-store-tests-run`.
+
+All seven native-CA oracle cases pass every comparison after the correction, and
+the two partially-zeroed fixtures now have different CA content hashes. The
+two-self hash is `sha256-MBG8rhye+ylPap20hFJodVAer0vNOvN1cTMBZIjAGsE=`; the
+zero-plus-self hash is `sha256-ZoHVu2A0SQ1I571oK0SHepT0N+J2OcNQLcwpjC44xgM=`.
+The reviewed oracle extends its dependency control to two external native CA
+references and checks reordered/duplicated probe arguments. The probe sorts and
+deduplicates references to match Nix's set semantics. Final oracle output:
+`/nix/store/8ssfiw10nj8xq04hm7kh2q6c7613ga34-vm-test-run-laut-small-ca-oracle`.
+The earlier corrected seven-case run, before the two-reference extension, is
+`/nix/store/pqlb8bsnfpjxr57f40bdd9plwi0xrasp-vm-test-run-laut-small-ca-oracle`.
+
+`cargo test --workspace --all-targets` passes 98 tests, including the three probe
+tests. The final offline experiment-tools output (116 tests plus lint) is
+`/nix/store/jqzcv8bqw9gvwqvv69kb09b0v884sf07-laut-experiment-tools-tests`.
+This establishes native/synthetic idempotence for the tiny fixtures, not signed
+bootstrap equivalence, seeded normalization, or authenticated provenance.

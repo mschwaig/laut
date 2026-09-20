@@ -110,8 +110,16 @@ def main():
                 (path in references) == bool(count)
             )
             result["checks"]["external_reference_count"] = (
-                len(external) == (1 if case == "dependency" else 0)
+                len(external) == (2 if case == "dependency" else 0)
             )
+            if external:
+                reordered = json.loads(run(
+                    "probe-reordered.json", "ca_identity_probe", path,
+                    *reversed(external), external[0],
+                ))
+                result["checks"]["reference_order_and_duplicates"] = (
+                    probe == reordered
+                )
             report["cases"][case] = result
         except (OSError, ValueError, KeyError, TypeError) as error:
             report["errors"].append(str(error))

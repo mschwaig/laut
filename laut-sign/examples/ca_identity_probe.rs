@@ -24,6 +24,8 @@ fn probe(mut args: impl Iterator<Item = OsString>) -> Result<Value, Box<dyn Erro
         }
         references.push(reference.to_absolute_path());
     }
+    references.sort();
+    references.dedup();
 
     let path = Path::new(&output);
     let self_hash = nixbase32::encode(native.digest());
