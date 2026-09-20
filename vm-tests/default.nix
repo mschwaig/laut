@@ -138,8 +138,10 @@ let
     fileset = lib.fileset.unions [
       ./experiment.py
       ./seed-inputs.py
+      ./compare-experiments.py
       ./test_experiment.py
       ./test_seed_inputs.py
+      ./test_compare_experiments.py
     ];
   };
 in
@@ -147,7 +149,7 @@ in
     experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
       nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
     } ''
-      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py
+      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py ${experimentTestSource}/compare-experiments.py
       python3 -B -m unittest discover -s ${experimentTestSource} -p 'test_*.py' -v
       touch "$out"
     '';

@@ -70,6 +70,43 @@ before raising the error. `--keep-failed` retains those diagnostics in Nix's
 failed build directory; a failed build does not produce a valid test output.
 Missing evidence remains an error, not empty-equals-empty agreement.
 
+## Compare Observations
+
+The initial report tool pairs the rooted recipe graphs and compares **recorded
+Nix metadata**, without hashing contents or authenticating signatures. It reports
+dependency-first and stops attributing new local divergences above a failing
+dependency. Same-name ambiguities remain explicit failures.
+
+```sh
+python3 -B vm-tests/compare-experiments.py \
+  --left result-ia/experiment/builderA/laut-experiment \
+  --right result-ia/experiment/builderB/laut-experiment \
+  --output /tmp/laut-ia-repeat
+
+python3 -B vm-tests/compare-experiments.py \
+  --left result-ia/experiment/builderA/laut-experiment \
+  --right result-seed-a/experiment/builderA/laut-experiment \
+  --output /tmp/laut-cross-seed
+```
+
+For repeat builds, it compares actual output paths, NAR hashes/sizes, and
+registered references. For cross-seed checks, one side must be an empty-seed
+baseline; the other side supplies Nix's recorded unseeded metadata. Preloaded
+FODs use the exported boundary mappings. Compare both seeds separately against
+the same baseline, rather than treating seed A as canonical for seed B.
+
+The report is `report.json` in the output directory. Exit codes:
+
+- `0`: the selected baseline metadata checks agree, not full equivalence.
+- `1`: invalid configuration, missing/ambiguous evidence, or divergence.
+- `2`: the comparison is unsupported. IA versus CA currently returns this
+  status rather than comparing an ordinary IA NAR with rewritten CA content.
+
+Copied runs sharing a run ID and self-comparisons are rejected. Distinct run IDs
+do not themselves prove that builders were independent. Normalized input hashes,
+source-content comparison, synthetic CA identities, and signature authentication
+remain untested by this report; those limitations are also explicit in its JSON.
+
 ## Initial Ledger
 
 2026-09-20, x86_64-linux, nixpkgs under test
@@ -89,6 +126,14 @@ Missing evidence remains an error, not empty-equals-empty agreement.
 - The collector/preparation check passes 38 offline tests, including missing
   observations, unresolved CA outputs, separate hook invocations, flat versus
   NAR FOD preparation, and lost initial CA metadata.
+- The report tool adds 33 offline tests for pairing, blocked dependents, missing
+  metadata, invalid experiment controls, self-comparison, and unsupported IA/CA
+  comparisons. `experiment-tools` now runs all 71 tests.
+- Each initial configuration's builder-A/builder-B repeat report agrees at all
+  six nodes. Unseeded IA versus seed A also agrees at all six nodes using Nix's
+  unseeded metadata and the FOD boundary mappings. Four nodes are fresh build
+  observations; two are preloaded inputs. This establishes no synthetic/native
+  CA equivalence yet.
 
 Initial captured test outputs, before subsequent hook-failure diagnostic
 improvements:
