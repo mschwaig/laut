@@ -72,8 +72,8 @@ Missing evidence remains an error, not empty-equals-empty agreement.
 
 ## Compare Observations
 
-The initial report tool pairs the rooted recipe graphs and compares **recorded
-Nix metadata**, without hashing contents or authenticating signatures. It reports
+The report tool pairs the rooted recipe graphs and, by default, compares
+**recorded Nix metadata**, without hashing contents or authenticating signatures. It reports
 dependency-first and stops attributing new local divergences above a failing
 dependency. Same-name ambiguities remain explicit failures.
 
@@ -100,12 +100,56 @@ The report is `report.json` in the output directory. Exit codes:
 - `0`: the selected baseline metadata checks agree, not full equivalence.
 - `1`: invalid configuration, missing/ambiguous evidence, or divergence.
 - `2`: the comparison is unsupported. IA versus CA currently returns this
-  status rather than comparing an ordinary IA NAR with rewritten CA content.
+  status unless both caches are supplied, rather than comparing an ordinary IA
+  NAR with rewritten CA content.
 
 Copied runs sharing a run ID and self-comparisons are rejected. Distinct run IDs
-do not themselves prove that builders were independent. Normalized input hashes,
-source-content comparison, synthetic CA identities, and signature authentication
-remain untested by this report; those limitations are also explicit in its JSON.
+do not themselves prove that builders were independent. Without cache arguments,
+normalized input hashes and synthetic CA identities remain untested.
+
+### Signed-Claim Diagnostics
+
+Supply both cache roots to additionally compare the existing signed claims.
+This supports IA/CA, repeat, and baseline-to-seed comparisons:
+
+```sh
+nix develop -c python3 -B vm-tests/compare-experiments.py \
+  --left result-ia/experiment/builderA/laut-experiment \
+  --right result-ca/experiment/builderA/laut-experiment \
+  --left-cache result-ia/cache --right-cache result-ca/cache \
+  --output /tmp/opencode/laut-signed-ia-ca
+```
+
+The selected builder's public-key fingerprint and bundle hint filter the shared
+cache. Realized outputs join inventory nodes to hook observations, and the debug
+`rdrv_path` joins those hooks to bundles, including CA's resolved hook derivations.
+Missing or ambiguous bundles/hooks fail; names alone never select a signature.
+Reports retain the bundle path, line, SHA-256 of that exact JSONL line, signed
+invocation, hook IDs, and actual named outputs. Hook UUIDs are distinct from signed
+invocation IDs. The current helper requires hooks and subjects to cover exactly
+the requested outputs; extra unrequested outputs are rejected, not guessed.
+
+For each non-FOD pair, the report compares the signed resolved-input `aterm`
+identity and exact normalized ATerm bytes independently, then compares each
+named output's `nix-ca-store-path`, `nix-nar-sha256`, and decoded
+`snix-castore-entry` bytes. It never substitutes Nix's recorded unseeded metadata
+for these identities. FODs remain explicit metadata-only boundaries. Ordinary
+IA and CA NAR metadata is not compared across modes.
+
+Exact preimages are saved under `preimages/<pair-sha256>/{left,right}.aterm`.
+Differing preimages also get `structural.diff` and `difft.stderr`, using the same
+Python grammar override as the verification debug probe. Byte differences still
+fail even if the structural diff reports none. Available preimages survive a
+missing counterpart. Blocked dependents retain diagnostics but cannot extend the
+dependency-closed agreement frontier. Run inside `nix develop` to provide `difft`;
+a failed/missing diff tool is recorded as an error.
+
+Exit zero with caches means **diagnostic agreement of extracted claims**, not
+authentication or full equivalence. Signatures, source contents, correspondence
+between a claimed input hash and its preimage, and output contents are not
+verified/recomputed. Synthetic NAR sizes are not present in the signed identities.
+These limitations remain explicit in JSON; no diagnostic result feeds trust facts
+or relaxes the mixed-addressing restriction.
 
 The existing verification probe (`--debug-preimage-corpus` with
 `--debug-out-dir`) now retains the local ATerm even when its corpus has no

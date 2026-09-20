@@ -1,22 +1,27 @@
-"""Offline, unauthenticated baseline evidence, never a laut equivalence test.
+"""Offline, unauthenticated experiment comparisons, not trust admission.
 
 Run: python3 vm-tests/compare-experiments.py \
     --left STATE --right STATE --output DIR
-Writes DIR/report.json. Exit 0 means only the selected metadata checks agree;
+Add --left-cache CACHE --right-cache CACHE to compare signed claims and exact
+normalized ATerms diagnostically. Requires difft for structural diff artifacts.
+Writes DIR/report.json. Exit 0 means only the selected evidence agrees;
 1 means invalid, missing, ambiguous or divergent evidence; 2 means unsupported.
-No contents, signatures, ATerms or synthetic identities are computed/verified.
-Source inputs are excluded from comparison; normalized identities are untested.
+No contents, signatures, or identity hashes are recomputed/verified.
+Source contents and synthetic NAR sizes remain untested.
 Manifests must have schema_version=1 and a nonempty run_id. Known
 self-comparisons are rejected; distinct IDs do not prove independent builds.
 """
 
 import argparse
 from collections import Counter, defaultdict
+import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 from experiment import derivations, read_json, store_path
+from experiment_bundles import load_bundles, signed_evidence
 
 
 ERRORS = (OSError, ValueError, KeyError, TypeError, AttributeError)
@@ -254,13 +259,17 @@ def output_evidence(data, drv, name, cross_seed):
     return result
 
 
-def compare(left, right):
+def compare(left, right, left_cache=None, right_cache=None):
+    claims = left_cache is not None and right_cache is not None
     report = {
         "version": 1,
         "status": "missing",
         "scope": None,
         "equivalence": "untested",
         "authenticated": False,
+        "signed_claims": "diagnostic" if claims else "untested",
+        "signature_verification": "untested",
+        "synthetic_nar_size": "unavailable-in-signed-identity",
         "directories": {"left": str(left), "right": str(right)},
         "errors": [],
         "collection": {},
@@ -269,6 +278,9 @@ def compare(left, right):
     }
     a, b = load(left, "left", report), load(right, "right", report)
     if a is None or b is None:
+        return report, 1
+    if (left_cache is None) != (right_cache is None):
+        report.update(status="invalid", invalid_reason="both caches required")
         return report, 1
     ma, mb = a["manifest"], b["manifest"]
     report["manifests"] = {"left": ma, "right": mb}
@@ -287,7 +299,7 @@ def compare(left, right):
         return report, 1
     cross_mode = ma["addressing"] != mb["addressing"]
     cross_seed = ma["seed"] != mb["seed"]
-    unsupported = cross_mode or (
+    unsupported = (cross_mode and not claims) or (
         cross_seed and bool(ma["seed"] and mb["seed"])
     )
     report["scope"] = (
@@ -300,6 +312,18 @@ def compare(left, right):
             if cross_mode
             else "cross-seed comparison requires one empty-seed baseline"
         )
+
+    indexes = {}
+    if claims:
+        for side, cache, manifest in (
+            ("left", left_cache, ma), ("right", right_cache, mb)
+        ):
+            try:
+                indexes[side] = load_bundles(cache, manifest)
+            except ERRORS as error:
+                report["errors"].append(
+                    {"side": side, "artifact": str(cache), "error": str(error)}
+                )
 
     def signature(data, path, requested):
         drv = data["drvs"][path]
@@ -430,6 +454,12 @@ def compare(left, right):
                             {"side": side, "path": source, "error": str(error)}
                         )
             for name in node["requested_outputs"]:
+                if cross_mode and not all(
+                    "hash" in data["drvs"][drv]["outputs"][name]
+                    for data, drv in ((a, lp), (b, rp))
+                ):
+                    # Ordinary IA and rewritten CA NARs are distinct layers.
+                    continue
                 output = {"status": "equal"}
                 for side, data, drv in (("left", a, lp), ("right", b, rp)):
                     try:
@@ -458,6 +488,65 @@ def compare(left, right):
                 status = "missing"
             elif "divergent" in states:
                 status = "divergent"
+        if claims and not unsupported and lp not in bad:
+            boundaries = [
+                all("hash" in data["drvs"][drv]["outputs"][name]
+                    for name in node["requested_outputs"])
+                for data, drv in ((a, lp), (b, rp))
+            ]
+            if all(boundaries):
+                node["normalized_inputs"] = "excluded-fixed-output-boundary"
+                node["synthetic_identity"] = "excluded-fixed-output-boundary"
+            elif any(boundaries):
+                node["normalized_inputs"] = "boundary-mismatch"
+                if status == "evidence-agrees":
+                    status = "divergent"
+            else:
+                evidence = node["signed_evidence"] = {}
+                node["signed_outputs"] = {}
+                for side, directory, data, drv in (
+                    ("left", left, a, lp), ("right", right, b, rp)
+                ):
+                    try:
+                        evidence[side] = signed_evidence(
+                            directory, data, drv, indexes[side]
+                        )
+                    except ERRORS as error:
+                        evidence[side] = {"error": str(error)}
+                if any("error" in e for e in evidence.values()):
+                    node["normalized_inputs"] = "missing"
+                    node["synthetic_identity"] = "missing"
+                    if not blocked:
+                        status = "missing"
+                else:
+                    node["input_differences"] = [
+                        k for k in ("resolved_input", "aterm")
+                        if evidence["left"][k] != evidence["right"][k]
+                    ]
+                    node["normalized_inputs"] = (
+                        "divergent" if node["input_differences"] else "equal"
+                    )
+                    for name in node["requested_outputs"]:
+                        lo = evidence["left"]["outputs"][name]
+                        ro = evidence["right"]["outputs"][name]
+                        differences = [k for k in lo if lo[k] != ro[k]]
+                        node["signed_outputs"][name] = {
+                            "status": "divergent" if differences else "equal",
+                            "differences": differences,
+                        }
+                    node["synthetic_identity"] = (
+                        "divergent" if any(
+                            o["differences"]
+                            for o in node["signed_outputs"].values()
+                        ) else "equal"
+                    )
+                    if status == "evidence-agrees" and "divergent" in (
+                        node["normalized_inputs"], node["synthetic_identity"]
+                    ):
+                        status = "divergent"
+                # Retain downstream diagnostics without attributing inherited
+                # differences to a new local cause.
+                node["attribution"] = "blocked" if blocked else "local"
         node["status"] = visited[lp] = status
         report["nodes"].append(node)
 
@@ -478,18 +567,64 @@ def compare(left, right):
     report["status"] = (
         "failed"
         if failed
-        else "unsupported" if unsupported else "baseline-agreement"
+        else "unsupported" if unsupported
+        else "diagnostic-agreement" if claims else "baseline-agreement"
     )
     return report, 1 if failed else 2 if unsupported else 0
+
+
+def write_preimages(report, directory):
+    for node in report["nodes"]:
+        evidence = node.get("signed_evidence", {})
+        if not any("aterm" in e for e in evidence.values()):
+            continue
+        pair = (node["left"] + "\0" + node["right"]).encode()
+        destination = (
+            directory / "preimages" / hashlib.sha256(pair).hexdigest()
+        )
+        destination.mkdir(parents=True, exist_ok=True)
+        artifacts = node["preimage_artifacts"] = {}
+        for side, item in evidence.items():
+            if "aterm" in item:
+                path = destination / (side + ".aterm")
+                path.write_bytes(item["aterm"].encode("utf-8"))
+                artifacts[side] = str(path)
+        if "aterm" not in node.get("input_differences", []):
+            continue
+        try:
+            result = subprocess.run(
+                ["difft", "--color=never", "--display=inline",
+                 "--override=*:Python", artifacts["left"], artifacts["right"]],
+                capture_output=True, check=False,
+            )
+            diff = destination / "structural.diff"
+            diff.write_bytes(result.stdout)
+            (destination / "difft.stderr").write_bytes(result.stderr)
+            artifacts.update(
+                diff=str(diff), difft_exit_status=result.returncode
+            )
+            if result.returncode != 0:
+                raise ValueError(f"difft failed with exit {result.returncode}")
+        except (OSError, ValueError) as error:
+            report["errors"].append(
+                {"artifact": str(destination), "error": str(error)}
+            )
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("left", "right", "output"):
         parser.add_argument("--" + name, required=True, type=Path)
+    for name in ("left-cache", "right-cache"):
+        parser.add_argument("--" + name, type=Path)
     args = parser.parse_args(argv)
-    report, code = compare(args.left, args.right)
+    report, code = compare(
+        args.left, args.right, args.left_cache, args.right_cache
+    )
     args.output.mkdir(parents=True, exist_ok=True)
+    write_preimages(report, args.output)
+    if report["errors"]:
+        report["status"], code = "failed", 1
     destination = args.output / "report.json"
     destination.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(
@@ -504,9 +639,15 @@ def main(argv=None):
     for node in report["nodes"]:
         if node["status"] != "evidence-agrees":
             print(f"  {node['status']}: {node['name']} ({node['left']})")
+            if node.get("input_differences"):
+                print("    inputs: " + ", ".join(node["input_differences"]))
             for name, output in node["outputs"].items():
                 if output["status"] == "divergent":
                     print(f"    {name}: " + ", ".join(output["differences"]))
+            for name, output in node.get("signed_outputs", {}).items():
+                if output["differences"]:
+                    print(f"    signed {name}: "
+                          + ", ".join(output["differences"]))
     if "unsupported" in report:
         print(report["unsupported"])
     if "configuration_differences" in report:
@@ -517,7 +658,7 @@ def main(argv=None):
     if "invalid_reason" in report:
         print(report["invalid_reason"])
     print(
-        "Normalized inputs and synthetic equivalence are NOT established. "
+        "Full equivalence and signature authentication are NOT established. "
         f"Report: {destination}"
     )
     return code

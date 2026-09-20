@@ -10,7 +10,11 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import uuid
+
+from experiment_bundles import BUILD_TYPES
+from test_experiment_bundles import ATERM, BUILDER, HASH, HINT, PUBLIC_KEY, encode
 
 
 spec = importlib.util.spec_from_file_location(
@@ -134,6 +138,77 @@ class CompareTest(unittest.TestCase):
         return comparator.compare(
             self.write("left", left), self.write("right", right)
         )
+
+    def write_signed(self, name, data, claims=None):
+        data = copy.deepcopy(data)
+        data["manifest"]["public_key"] = PUBLIC_KEY
+        for drv in data["inventory"]:
+            out = data["collect"]["output_paths"][drv + "^out"]
+            if not data["paths"][out]["prebuild_valid"]:
+                data["paths"][out]["hook_invocations"] = [Path(drv).stem]
+        directory = self.write(name, data)
+        cache = self.base / (name + "-cache")
+        traces = cache / "traces" / "aterm"
+        traces.mkdir(parents=True)
+        mode = data["manifest"]["addressing"]
+        for drv in data["inventory"]:
+            recipe = data["derivations"]["derivations"][Path(drv).name]
+            if "hash" in recipe["outputs"]["out"]:
+                continue
+            claim = (claims or {}).get(recipe["name"], {})
+            out = data["collect"]["output_paths"][drv + "^out"]
+            rdrv = drv if mode == "ia" else path(recipe["name"] + ".drv", "8")
+            hook = data["paths"][out]["hook_invocations"][0]
+            observation = directory / "observations" / hook
+            observation.mkdir(parents=True)
+            (observation / "status.json").write_text(json.dumps({
+                "invocation": hook, "drv_path": rdrv, "out_paths": [out],
+                "status": "complete", "sign_exit_status": 0, "errors": [],
+            }))
+            resolved = claim.get("resolved_input", HASH)
+            statement = {
+                "_type": "https://in-toto.io/Statement/v1",
+                "predicateType": "https://slsa.dev/provenance/v1",
+                "subject": [{"name": "out", "digest": claim.get("digest", {
+                    "nix-ca-store-path": path(recipe["name"], "1"),
+                    "nix-nar-sha256": "ab" * 32,
+                    "snix-castore-entry": "-_8",
+                })}],
+                "predicate": {
+                    "buildDefinition": {
+                        "buildType": BUILD_TYPES[mode],
+                        "externalParameters": {
+                            "resolvedInput": {"digest": {"aterm": resolved}},
+                            "criticalFeatures": [],
+                        },
+                    },
+                    "runDetails": {
+                        "builder": {"id": BUILDER},
+                        "metadata": {"invocationId": "a" * 32},
+                        "byproducts": [{
+                            "name": "laut-debug-preimage",
+                            "mediaType": "application/json",
+                            "content": encode({
+                                "rdrv_path": rdrv,
+                                "rdrv_aterm_ca_preimage": claim.get("aterm", ATERM),
+                            }),
+                        }],
+                    },
+                },
+            }
+            bundle = {
+                "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+                "verificationMaterial": {"publicKey": {"hint": HINT}},
+                "dsseEnvelope": {
+                    "payloadType": "application/vnd.in-toto+json",
+                    "payload": encode(statement),
+                    # Deliberately unauthenticated, like the helper fixtures.
+                    "signatures": [{"keyid": HINT, "sig": encode(bytes(64))}],
+                },
+            }
+            with (traces / resolved).open("a") as stream:
+                stream.write(json.dumps(bundle) + "\n")
+        return directory, cache
 
     def test_repeat_is_only_metadata_agreement_and_dependency_first(self):
         a = fixture()
@@ -643,6 +718,332 @@ class CompareTest(unittest.TestCase):
             "untested",
         )
         self.assertIn("NOT established", console.getvalue())
+
+    def test_signed_ia_ca_agreement_ignores_ordinary_nar_differences(self):
+        a, b = fixture(), fixture(addressing="ca", digit="1")
+        for info in b["realized-path-info"].values():
+            info.update(narHash="sha256-rewritten-ca", narSize=123)
+        left, left_cache = self.write_signed("left", a)
+        right, right_cache = self.write_signed("right", b)
+        for sides in ((left, right, left_cache, right_cache),
+                      (right, left, right_cache, left_cache)):
+            with self.subTest(left=sides[0]):
+                report, code = comparator.compare(*sides)
+                self.assertEqual(code, 0)
+                self.assertEqual(report["status"], "diagnostic-agreement")
+                self.assertEqual(report["scope"], "ia-ca")
+                self.assertEqual(report["errors"], [])
+                self.assertEqual(report["signed_claims"], "diagnostic")
+                self.assertFalse(report["authenticated"])
+                self.assertEqual(report["signature_verification"], "untested")
+                self.assertEqual(report["equivalence"], "untested")
+                self.assertEqual(report["synthetic_nar_size"],
+                                 "unavailable-in-signed-identity")
+                self.assertEqual(len(report["nodes"]), 2)
+                for node in report["nodes"]:
+                    self.assertEqual(node["status"], "evidence-agrees")
+                    self.assertEqual(node["outputs"], {})
+                    self.assertEqual(node["normalized_inputs"], "equal")
+                    self.assertEqual(node["synthetic_identity"], "equal")
+                    self.assertEqual(node["signed_outputs"]["out"], {
+                        "status": "equal", "differences": [],
+                    })
+                    for side in ("left", "right"):
+                        evidence = node["signed_evidence"][side]
+                        self.assertEqual(evidence["aterm"], ATERM)
+                        self.assertEqual(evidence["resolved_input"], HASH)
+                        self.assertTrue(evidence["outputs"]["out"])
+                        provenance = evidence["provenance"]
+                        self.assertTrue(provenance["hook_observation_ids"])
+                        if provenance["build_type"] == BUILD_TYPES["ca"]:
+                            self.assertNotEqual(provenance["rdrv_path"],
+                                                provenance["inventory_drv"])
+
+    def test_each_signed_output_digest_diverges_independently(self):
+        left, left_cache = self.write_signed("left", fixture(graph={"root": []}))
+        digest = {
+            "nix-ca-store-path": path("root", "1"),
+            "nix-nar-sha256": "ab" * 32,
+            "snix-castore-entry": "-_8",
+        }
+        for field, value in (
+            ("nix-ca-store-path", path("root", "2")),
+            ("nix-nar-sha256", "cd" * 32),
+            ("snix-castore-entry", encode(b"different")),
+        ):
+            with self.subTest(field=field):
+                right, right_cache = self.write_signed(
+                    field, fixture(graph={"root": []}),
+                    {"root": {"digest": {**digest, field: value}}},
+                )
+                report, code = comparator.compare(
+                    left, right, left_cache, right_cache
+                )
+                self.assertEqual(code, 1)
+                self.assertEqual(report["status"], "failed")
+                self.assertEqual(report["errors"], [])
+                node, = report["nodes"]
+                self.assertEqual(node["status"], "divergent")
+                self.assertEqual(node["outputs"]["out"]["status"], "equal")
+                self.assertEqual(node["normalized_inputs"], "equal")
+                self.assertEqual(node["synthetic_identity"], "divergent")
+                self.assertEqual(node["signed_outputs"]["out"], {
+                    "status": "divergent", "differences": [field],
+                })
+
+    def test_exact_aterm_and_resolved_hash_are_compared_independently(self):
+        left, left_cache = self.write_signed("left", fixture(graph={"root": []}))
+        for field, value in (("aterm", ATERM.rstrip("\n")),
+                             ("resolved_input", "2" * 32)):
+            with self.subTest(field=field):
+                right, right_cache = self.write_signed(
+                    field, fixture(graph={"root": []}), {"root": {field: value}},
+                )
+                report, code = comparator.compare(
+                    left, right, left_cache, right_cache
+                )
+                self.assertEqual(code, 1)
+                self.assertEqual(report["errors"], [])
+                node, = report["nodes"]
+                self.assertEqual(node["status"], "divergent")
+                self.assertEqual(node["input_differences"], [field])
+                self.assertEqual(node["normalized_inputs"], "divergent")
+                self.assertEqual(node["synthetic_identity"], "equal")
+                if field == "resolved_input":
+                    with mock.patch.object(comparator.subprocess, "run") as run:
+                        comparator.write_preimages(report, self.base / field)
+                    run.assert_not_called()
+                    for side in ("left", "right"):
+                        self.assertEqual(
+                            Path(node["preimage_artifacts"][side]).read_bytes(),
+                            ATERM.encode(),
+                        )
+
+    def test_blocked_nodes_retain_signed_evidence_and_independent_branch(self):
+        graph = {"root": ["parent", "other"], "parent": ["tool"],
+                 "tool": [], "other": []}
+        left, left_cache = self.write_signed("left", fixture(graph=graph))
+        right, right_cache = self.write_signed(
+            "right", fixture(addressing="ca", digit="1", graph=graph),
+            {name: {"aterm": ATERM + "\n"}
+             for name in ("tool", "parent", "root")},
+        )
+        report, code = comparator.compare(left, right, left_cache, right_cache)
+        self.assertEqual(code, 1)
+        self.assertEqual(report["errors"], [])
+        nodes = {n["name"]: n for n in report["nodes"]}
+        self.assertEqual(nodes["tool"]["status"], "divergent")
+        self.assertEqual(nodes["tool"]["attribution"], "local")
+        self.assertEqual(nodes["other"]["status"], "evidence-agrees")
+        self.assertEqual(nodes["other"]["synthetic_identity"], "equal")
+        for name, dependency in (("parent", "tool"), ("root", "parent")):
+            node = nodes[name]
+            self.assertEqual(node["status"], "blocked")
+            self.assertEqual(node["blocked_by"], [path(dependency + ".drv")])
+            self.assertEqual(node["attribution"], "blocked")
+            self.assertEqual(node["input_differences"], ["aterm"])
+            self.assertEqual(node["normalized_inputs"], "divergent")
+            self.assertEqual(node["signed_outputs"]["out"]["status"], "equal")
+            self.assertEqual(node["signed_evidence"]["left"]["aterm"], ATERM)
+            self.assertEqual(
+                node["signed_evidence"]["right"]["aterm"], ATERM + "\n"
+            )
+
+    def test_signed_comparison_excludes_preloaded_fod_without_bundle(self):
+        a = fixture()
+        drv, out = path("tool.drv"), path("tool")
+        a["derivations"]["derivations"][Path(drv).name]["outputs"]["out"] = {
+            "method": "flat", "hash": "sha256-fixed",
+        }
+        a["paths"][out].update(prebuild_valid=True, hook_invocations=[])
+        left, left_cache = self.write_signed("left", a)
+        right, right_cache = self.write_signed("right", repeat(a))
+        report, code = comparator.compare(left, right, left_cache, right_cache)
+        self.assertEqual(code, 0)
+        self.assertEqual(report["status"], "diagnostic-agreement")
+        boundary, root = report["nodes"]
+        self.assertEqual(boundary["name"], "tool")
+        self.assertEqual(boundary["status"], "evidence-agrees")
+        self.assertNotIn("signed_evidence", boundary)
+        for field in ("normalized_inputs", "synthetic_identity"):
+            self.assertEqual(boundary[field], "excluded-fixed-output-boundary")
+        self.assertEqual(boundary["outputs"]["out"]["status"], "equal")
+        self.assertEqual(root["normalized_inputs"], "equal")
+        self.assertEqual(root["synthetic_identity"], "equal")
+        self.assertEqual(root["blocked_by"], [])
+
+    def test_missing_side_preserves_available_preimage(self):
+        left, left_cache = self.write_signed("left", fixture(graph={"root": []}))
+        right, right_cache = self.write_signed("right", fixture(graph={"root": []}))
+        (right_cache / "traces" / "aterm" / HASH).unlink()
+        for sides, available in (
+            ((left, right, left_cache, right_cache), "left"),
+            ((right, left, right_cache, left_cache), "right"),
+        ):
+            with self.subTest(available=available):
+                report, code = comparator.compare(*sides)
+                self.assertEqual(code, 1)
+                self.assertEqual(report["status"], "failed")
+                node, = report["nodes"]
+                self.assertEqual(node["status"], "missing")
+                self.assertEqual(node["normalized_inputs"], "missing")
+                self.assertEqual(node["synthetic_identity"], "missing")
+                self.assertEqual(node["signed_outputs"], {})
+                missing = "right" if available == "left" else "left"
+                self.assertIn("found 0", node["signed_evidence"][missing]["error"])
+                with mock.patch.object(comparator.subprocess, "run") as run:
+                    comparator.write_preimages(
+                        report, self.base / available / "report"
+                    )
+                run.assert_not_called()
+                artifacts = node["preimage_artifacts"]
+                self.assertEqual(set(artifacts), {available})
+                preimage = Path(artifacts[available])
+                self.assertEqual(preimage.read_bytes(), ATERM.encode())
+                self.assertFalse(
+                    (preimage.parent / (missing + ".aterm")).exists()
+                )
+
+    def test_empty_or_missing_signed_evidence_never_agrees(self):
+        digest = {
+            "nix-ca-store-path": path("root", "1"),
+            "nix-nar-sha256": "ab" * 32,
+            "snix-castore-entry": "-_8",
+        }
+        cases = [("empty-cache", {}), ("empty-aterm", {"aterm": ""}),
+                 ("empty-digests", {"digest": {}})]
+        for field in digest:
+            cases.append(("missing-" + field, {
+                "digest": {k: v for k, v in digest.items() if k != field},
+            }))
+            cases.append(("empty-" + field, {"digest": {**digest, field: ""}}))
+        for label, claim in cases:
+            with self.subTest(case=label):
+                left, left_cache = self.write_signed(
+                    label + "-left", fixture(graph={"root": []}), {"root": claim},
+                )
+                right, right_cache = self.write_signed(
+                    label + "-right", fixture(graph={"root": []}), {"root": claim},
+                )
+                if label == "empty-cache":
+                    for cache in (left_cache, right_cache):
+                        (cache / "traces" / "aterm" / HASH).unlink()
+                report, code = comparator.compare(
+                    left, right, left_cache, right_cache
+                )
+                self.assertEqual(code, 1)
+                self.assertEqual(report["status"], "failed")
+                node, = report["nodes"]
+                self.assertEqual(node["status"], "missing")
+                self.assertEqual(node["normalized_inputs"], "missing")
+                self.assertEqual(node["synthetic_identity"], "missing")
+                for evidence in node["signed_evidence"].values():
+                    self.assertIn("error", evidence)
+
+    def test_cli_cache_options_reject_missing_or_one_sided_cache(self):
+        left, left_cache = self.write_signed("left", fixture(graph={"root": []}))
+        right, right_cache = self.write_signed("right", fixture(graph={"root": []}))
+        missing = self.base / "absent-cache"
+        for index, (lc, rc) in enumerate((
+            (left_cache, None), (None, right_cache),
+            (left_cache, missing), (missing, right_cache),
+        )):
+            with self.subTest(left_cache=lc, right_cache=rc):
+                report, code = comparator.compare(left, right, lc, rc)
+                self.assertEqual(code, 1)
+                if lc is None or rc is None:
+                    self.assertEqual(report["status"], "invalid")
+                    self.assertEqual(
+                        report["invalid_reason"], "both caches required"
+                    )
+                else:
+                    self.assertEqual(report["status"], "failed")
+                    self.assertTrue(report["errors"])
+                output = self.base / ("report-" + str(index))
+                args = ["--left", str(left), "--right", str(right),
+                        "--output", str(output)]
+                for flag, cache in (("--left-cache", lc), ("--right-cache", rc)):
+                    if cache is not None:
+                        args.extend([flag, str(cache)])
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(comparator.main(args), 1)
+                written = json.loads((output / "report.json").read_text())
+                self.assertEqual(written["status"], report["status"])
+
+    def test_cli_caches_write_preimages_and_difft_artifacts_or_errors(self):
+        left, left_cache = self.write_signed("left", fixture(graph={"root": []}))
+        for label, aterm, result in (
+            ("equal", ATERM, None),
+            ("different", ATERM + "\n", (0, b"structural difference\n", b"")),
+            ("failed", ATERM + "\n", (2, b"partial diff\n", b"difft error\n")),
+            ("unavailable", ATERM + "\n", FileNotFoundError("difft not installed")),
+        ):
+            with self.subTest(case=label):
+                right, right_cache = self.write_signed(
+                    label, fixture(graph={"root": []}), {"root": {"aterm": aterm}},
+                )
+                output = self.base / (label + "-report")
+                console = io.StringIO()
+                with mock.patch.object(comparator.subprocess, "run") as run:
+                    if isinstance(result, Exception):
+                        run.side_effect = result
+                    elif result is not None:
+                        run.return_value = comparator.subprocess.CompletedProcess(
+                            [], *result,
+                        )
+                    with contextlib.redirect_stdout(console):
+                        code = comparator.main([
+                            "--left", str(left), "--right", str(right),
+                            "--left-cache", str(left_cache),
+                            "--right-cache", str(right_cache),
+                            "--output", str(output),
+                        ])
+                self.assertEqual(code, 0 if label == "equal" else 1)
+                report = json.loads((output / "report.json").read_text())
+                self.assertEqual(
+                    report["status"],
+                    "diagnostic-agreement" if label == "equal" else "failed",
+                )
+                self.assertIn("NOT established", console.getvalue())
+                node, = report["nodes"]
+                artifacts = node["preimage_artifacts"]
+                for side, expected in (("left", ATERM), ("right", aterm)):
+                    preimage = Path(artifacts[side])
+                    self.assertTrue(preimage.is_relative_to(output / "preimages"))
+                    self.assertEqual(preimage.read_bytes(), expected.encode())
+                if label == "equal":
+                    run.assert_not_called()
+                    self.assertEqual(set(artifacts), {"left", "right"})
+                else:
+                    run.assert_called_once_with(
+                        ["difft", "--color=never", "--display=inline",
+                         "--override=*:Python",
+                         artifacts["left"], artifacts["right"]],
+                        capture_output=True, check=False,
+                    )
+                    if isinstance(result, tuple):
+                        diff = Path(artifacts["diff"])
+                        self.assertEqual(
+                            diff.parent, Path(artifacts["left"]).parent
+                        )
+                        self.assertEqual(diff.read_bytes(), result[1])
+                        self.assertEqual(
+                            (diff.parent / "difft.stderr").read_bytes(), result[2]
+                        )
+                        self.assertEqual(artifacts["difft_exit_status"], result[0])
+                    else:
+                        self.assertNotIn("diff", artifacts)
+                if label in ("failed", "unavailable"):
+                    error, = report["errors"]
+                    self.assertEqual(
+                        error["artifact"], str(Path(artifacts["left"]).parent)
+                    )
+                    self.assertIn(
+                        "exit 2" if label == "failed" else "not installed",
+                        error["error"],
+                    )
+                else:
+                    self.assertEqual(report["errors"], [])
 
 
 if __name__ == "__main__":
