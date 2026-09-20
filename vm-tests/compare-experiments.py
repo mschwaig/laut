@@ -17,6 +17,7 @@ from collections import Counter, defaultdict
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -144,6 +145,14 @@ def load(directory, side, report):
                     f"inventory differs from original JSON: {path}"
                 )
             for name, output in drv["outputs"].items():
+                if "hash" in output and (
+                    output.get("method") not in ("flat", "nar")
+                    or not isinstance(output["hash"], str)
+                    or not re.fullmatch(
+                        r"[a-z0-9]+-[A-Za-z0-9+/]+={0,2}", output["hash"]
+                    )
+                ):
+                    raise ValueError("expected fixed flat/nar SRI identity")
                 if (
                     "path" in output
                     and store_path(output["path"], True)
@@ -454,22 +463,28 @@ def compare(left, right, left_cache=None, right_cache=None):
                             {"side": side, "path": source, "error": str(error)}
                         )
             for name in node["requested_outputs"]:
-                if cross_mode and not all(
+                ordinary_cross_mode = cross_mode and not all(
                     "hash" in data["drvs"][drv]["outputs"][name]
                     for data, drv in ((a, lp), (b, rp))
-                ):
-                    # Ordinary IA and rewritten CA NARs are distinct layers.
-                    continue
+                )
                 output = {"status": "equal"}
                 for side, data, drv in (("left", a, lp), ("right", b, rp)):
                     try:
                         output[side] = output_evidence(
-                            data, drv, name, cross_seed
+                            data, drv, name,
+                            cross_seed and not ordinary_cross_mode,
                         )
                     except ERRORS as error:
                         output[side] = {"error": str(error)}
                         output["status"] = "missing"
-                if output["status"] != "missing":
+                if ordinary_cross_mode:
+                    # Validate associations and availability, but never compare
+                    # ordinary IA and rewritten CA NARs as the same layer.
+                    if output["status"] != "missing":
+                        output["status"] = "not-compared-across-modes"
+                    for side in ("left", "right"):
+                        output[side].pop("compared", None)
+                elif output["status"] != "missing":
                     output["differences"] = [
                         k
                         for k in output["left"]["compared"]

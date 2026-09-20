@@ -212,6 +212,14 @@ class BundlesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "found 0"):
             self.extract()
 
+    def test_ia_matching_hook_and_claim_must_use_inventory_drv(self):
+        self.debug["rdrv_path"] = RESOLVED_DRV
+        self.status["drv_path"] = RESOLVED_DRV
+        self.write_status()
+        self.write_bundles(self.bundle())
+        with self.assertRaisesRegex(ValueError, "IA hook derivation"):
+            self.extract()
+
     def test_missing_hook_ids_or_status(self):
         self.write_bundles(self.bundle())
         self.data["paths"][OUT]["hook_invocations"] = []
@@ -435,6 +443,64 @@ class BundlesTest(unittest.TestCase):
         self.data["required"][DRV] = set()
         with self.assertRaisesRegex(ValueError, "no required outputs"):
             self.extract()
+
+    def test_malformed_optional_resource_fields(self):
+        cases = [
+            (field, value)
+            for field in (
+                "name", "uri", "downloadLocation", "mediaType", "content"
+            )
+            for value in (42, False, [], {})
+        ] + [
+            ("annotations", value) for value in ("", 42, False, [])
+        ] + [("content", "not base64!")]
+        for location in ("resolvedInput", "subject"):
+            for field, value in cases:
+                with self.subTest(location=location, field=field, value=value):
+                    bundle = self.bundle()
+                    statement = copy.deepcopy(self.statement)
+                    build = statement["predicate"]["buildDefinition"]
+                    resource = (
+                        build["externalParameters"]["resolvedInput"]
+                        if location == "resolvedInput"
+                        else statement["subject"][0]
+                    )
+                    resource[field] = value
+                    bundle["dsseEnvelope"]["payload"] = encode(statement)
+                    self.write_bundles(bundle)
+                    with self.assertRaises(ValueError):
+                        self.extract()
+
+    def test_valid_optional_resource_fields(self):
+        build = self.statement["predicate"]["buildDefinition"]
+        resolved = build["externalParameters"]["resolvedInput"]
+        for text, content, annotations in (
+            (None, None, None), ("", "", {}),
+            ("resource", "-_8", {"extra": [None, 42]}),
+        ):
+            with self.subTest(text=text, content=content):
+                resolved["name"] = text
+                for resource in (resolved, self.statement["subject"][0]):
+                    resource.update(
+                        uri=text, downloadLocation=text, mediaType=text,
+                        content=content, annotations=annotations,
+                    )
+                self.write_bundles(self.bundle())
+                self.assertFalse(self.extract()["provenance"]["authenticated"])
+
+    def test_builder_version_is_optional_string_map(self):
+        builder = self.statement["predicate"]["runDetails"]["builder"]
+        for version in (None, {}, {"nixVersion": "2.35", "extra": ""}):
+            with self.subTest(version=version):
+                builder["version"] = version
+                self.write_bundles(self.bundle())
+                self.assertFalse(self.extract()["provenance"]["authenticated"])
+        for version in ("", [], False, {"nixVersion": 42}, {"extra": None}):
+            with self.subTest(version=version):
+                builder["version"] = version
+                self.write_bundles(self.bundle())
+                with self.assertRaisesRegex(ValueError, "builder version"):
+                    self.extract()
 
     def test_duplicate_hook_ids_are_not_collapsed(self):
         self.write_bundles(self.bundle())

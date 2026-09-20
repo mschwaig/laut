@@ -742,7 +742,10 @@ class CompareTest(unittest.TestCase):
                 self.assertEqual(len(report["nodes"]), 2)
                 for node in report["nodes"]:
                     self.assertEqual(node["status"], "evidence-agrees")
-                    self.assertEqual(node["outputs"], {})
+                    self.assertEqual(
+                        node["outputs"]["out"]["status"],
+                        "not-compared-across-modes",
+                    )
                     self.assertEqual(node["normalized_inputs"], "equal")
                     self.assertEqual(node["synthetic_identity"], "equal")
                     self.assertEqual(node["signed_outputs"]["out"], {
@@ -939,6 +942,52 @@ class CompareTest(unittest.TestCase):
                 self.assertEqual(node["synthetic_identity"], "missing")
                 for evidence in node["signed_evidence"].values():
                     self.assertIn("error", evidence)
+
+    def test_cross_mode_still_checks_output_availability_and_association(self):
+        for mode in ("ia", "ca"):
+            for broken in ("optional", "metadata", "declared"):
+                with self.subTest(mode=mode, broken=broken):
+                    a = fixture(addressing=mode, graph={"root": []})
+                    drv, out = path("root.drv"), path("root")
+                    if broken == "optional":
+                        a["paths"][out]["required"] = False
+                    elif broken == "metadata":
+                        del a["realized-path-info"][out]
+                    else:
+                        other = path("other")
+                        a["inventory"][drv]["outputs"]["out"] = other
+                        a["derivations"]["derivations"][Path(drv).name][
+                            "outputs"]["out"]["path"] = Path(other).name
+                    label = mode + "-" + broken
+                    left, lc = self.write_signed(label + "-left", a)
+                    right, rc = self.write_signed(
+                        label + "-right", fixture(
+                            addressing="ca" if mode == "ia" else "ia",
+                            digit="1", graph={"root": []},
+                        ),
+                    )
+                    report, code = comparator.compare(left, right, lc, rc)
+                    self.assertEqual(code, 1)
+                    self.assertEqual(report["nodes"][0]["status"], "missing")
+
+    def test_malformed_fixed_identity_cannot_exempt_signed_evidence(self):
+        for index, descriptor in enumerate((
+            {"hash": None, "method": "nar"},
+            {"hash": "", "method": "nar"},
+            {"hash": [], "method": "nar"},
+            {"hash": "not-an-sri", "method": "nar"},
+            {"hash": "sha256-fixed"},
+        )):
+            with self.subTest(descriptor=descriptor):
+                a = fixture(graph={"root": []})
+                a["derivations"]["derivations"][Path(path("root.drv")).name][
+                    "outputs"]["out"].update(descriptor)
+                left, lc = self.write_signed(f"left-{index}", a)
+                right, rc = self.write_signed(f"right-{index}", repeat(a))
+                report, code = comparator.compare(left, right, lc, rc)
+                self.assertEqual(code, 1)
+                self.assertTrue(report["errors"])
+                self.assertEqual(report["nodes"], [])
 
     def test_cli_cache_options_reject_missing_or_one_sided_cache(self):
         left, left_cache = self.write_signed("left", fixture(graph={"root": []}))

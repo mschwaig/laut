@@ -71,6 +71,17 @@ def _json(raw):
 
 
 def _digests(resource):
+    if not isinstance(resource, dict):
+        raise ValueError("invalid resource descriptor")
+    for name in ("name", "uri", "downloadLocation", "mediaType", "content"):
+        value = resource.get(name)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"invalid resource {name}")
+    annotations = resource.get("annotations")
+    if annotations is not None and not isinstance(annotations, dict):
+        raise ValueError("invalid resource annotations")
+    if resource.get("content"):
+        _decode(resource["content"])
     digests = resource["digest"]
     if not isinstance(digests, dict) or not digests:
         raise ValueError("missing identities")
@@ -133,6 +144,13 @@ def load_bundles(cache: Path, manifest: dict) -> dict:
                         raise ValueError(
                             "builder/key hint does not match manifest"
                         )
+                    versions = run["builder"].get("version")
+                    if versions is not None and (
+                        not isinstance(versions, dict)
+                        or not all(isinstance(v, str)
+                                   for v in versions.values())
+                    ):
+                        raise ValueError("invalid builder version")
                     signatures = envelope["signatures"]
                     if (not isinstance(signatures, list)
                             or len(signatures) != 1):
@@ -281,6 +299,8 @@ def signed_evidence(
         candidates = index["by_drv"].get(rdrv, [])
         if not candidates:
             continue
+        if index["build_type"] == BUILD_TYPES["ia"] and rdrv != drv:
+            raise ValueError("IA hook derivation differs from inventory drv")
         if (status["status"] != "complete"
                 or type(status["sign_exit_status"]) is not int
                 or status["sign_exit_status"] != 0
