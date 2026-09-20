@@ -373,9 +373,10 @@ was introduced.
 
 ## Remaining Work
 
-- Rebuild the controlled small signing matrix with the corrected experimental Nix
-  package. Preserve the unpatched observations and compare only matching controls;
-  the tiny native-CA oracle now validates the position correction.
+- Include explicit source boundaries in synthetic output reference accounting,
+  on both signing and verification sides, without conflating their addressing
+  methods or treating recorded unseeded NARs as synthetic identities. The
+  corrected matrix localizes the stdenv path discrepancy to omitted source refs.
 - Establish common builder-visible recipe attributes for an additional controlled
   IA/CA experiment, with a reviewable common-source patch rather than silently
   inserting or removing environment fields in normalized ATerms.
@@ -483,3 +484,90 @@ tests. The final offline experiment-tools output (116 tests plus lint) is
 `/nix/store/jqzcv8bqw9gvwqvv69kb09b0v884sf07-laut-experiment-tools-tests`.
 This establishes native/synthetic idempotence for the tiny fixtures, not signed
 bootstrap equivalence, seeded normalization, or authenticated provenance.
+
+### Corrected Small Matrix
+
+At `0c66b21`, all four small signing configurations were rebuilt sequentially,
+with two independent builders each. No medium/large VM tests were run, and no
+bootstrap recipe patch was applied. The sole Nix source correction is the patch
+above; the base Nix and nixpkgs revisions remain unchanged.
+
+```sh
+nix build .#checks.x86_64-linux.small-equivalence-ia-sign \
+  .#checks.x86_64-linux.small-equivalence-ia-seed-a-sign \
+  .#checks.x86_64-linux.small-equivalence-ia-seed-b-sign \
+  .#checks.x86_64-linux.small-equivalence-ca-sign \
+  --out-link /tmp/opencode/laut-position-fix-results \
+  --print-out-paths --keep-failed --max-jobs 1
+```
+
+| Configuration | Immutable Test Output |
+| --- | --- |
+| IA | `/nix/store/n3l45bb23mh2jjw0hhrh1z2s1g3fw6il-vm-test-run-laut-small-equivalence-ia-sign` |
+| IA seed A | `/nix/store/44p3p5v121cqw4y7fki8x0ajgck735ic-vm-test-run-laut-small-equivalence-ia-seed-a-sign` |
+| IA seed B | `/nix/store/w7yblrczbhn7awiimvdzhv08qvn65702-vm-test-run-laut-small-equivalence-ia-seed-b-sign` |
+| CA | `/nix/store/yjx0r1sb3qkfp2d1fmscmfg8h8rg54m9-vm-test-run-laut-small-equivalence-ca-sign` |
+
+Result links under `/tmp/opencode/laut-position-fix-results*` retain this matrix.
+Eight signed-claim reports and two metadata-only cross-seed reports were run
+against these matching controls; none combined patched and unpatched artifacts.
+All have six paired nodes, zero collection/schema/correspondence errors, and no
+unpaired nodes. All 16 structural-diff invocations succeeded.
+
+- All four within-configuration builder-A/B reports show diagnostic agreement
+  of all rebuilt input/output claims and exact ATerms, plus FOD boundary metadata.
+- Both metadata-only baseline-to-seed reports still agree at every node, including
+  Nix's recorded-unseeded path, NAR hash/size, references, and FOD mappings.
+- Both signed baseline-to-seed reports still diverge first at `bootstrap-tools`,
+  with three dependents blocked. All four rebuilt nodes' signed output identities
+  differ; the earliest ATerm retains seeded FOD/source addresses as before.
+- Both IA/CA builder pairs still diverge first in the `bootstrap-tools` recipe's
+  explicit CA hash-environment fields. Its signed output identities now agree.
+
+The per-output IA/CA diagnostics are identical on builders A and B:
+
+| Rebuilt Node | CA Store Path | Final NAR SHA-256 | Castore Entry | Dependency Status |
+| --- | --- | --- | --- | --- |
+| `bootstrap-tools` | Equal | Equal | Equal | Recipe divergent |
+| `bootstrap-stage0-stdenv-linux` | Different | Equal | Equal | Blocked |
+| `bootstrap-stage0-glibc-bootstrapFiles` | Equal | Equal | Equal | Blocked |
+| `bootstrap-stage0-binutils-wrapper-` | Equal | Equal | Equal | Blocked |
+
+Native `bootstrap-tools` now has the synthetic path
+`/nix/store/akqphqb3rn9zvv8dbnsw9rmi2899w7f0-bootstrap-tools`, confirming the
+position correction on the real workload. Exact input identities still differ
+at all rebuilt nodes. Matching downstream output claims does not bypass the
+recipe failure or extend the dependency-closed equivalence frontier.
+
+The remaining stdenv path-only discrepancy is independently characterized using
+the existing `nix_compat::store_path::build_ca_path`, not a second hash routine:
+
+- Both final NAR digests are
+  `sha256:1i0sksjsmwjiikfjy1bb14w6fbgchjgvykzmn6gwzc6khjhyac8w` (60,064 bytes),
+  and neither output is self-referencing.
+- Supplying only the resolved `bootstrap-tools` output reference yields laut's
+  `ckbi3dpd7gr7fcs48wq2fvdwy7rnqv0k-bootstrap-stage0-stdenv-linux`.
+- Adding the 14 source-script references recorded by native Nix yields exactly
+  `yfkmixcmvq3lnijhjn3sfdbyiwz6dsp1-bootstrap-stage0-stdenv-linux`.
+- `sign_ia_outputs` currently constructs scan candidates from recursive derivation
+  **outputs**, omitting input sources. Consequently these references do not reach
+  `Walker::compute_pass1` even though their unchanged bytes survive in the NAR.
+
+The new Rust test
+`bootstrap_stdenv_path_difference_is_explained_by_source_references` pins both
+observed paths and the full reference list. It characterizes the omission; no
+source-boundary normalization or scanner change has been made yet. The node
+remains reported as blocked, not as a newly independent local failure.
+
+Reports are `/tmp/opencode/laut-corrected-{ia,seed-a,seed-b,ca}-repeat/`,
+`/tmp/opencode/laut-corrected-cross-seed-{a,b}/`,
+`/tmp/opencode/laut-corrected-ia-ca/`,
+`/tmp/opencode/laut-corrected-ia-ca-builder-b/`, and
+`/tmp/opencode/laut-corrected-metadata-cross-seed-{a,b}/`.
+Signature authentication and full source-content comparison remain untested.
+
+After adding the source-reference characterization, both
+`nix develop -c cargo test --workspace --all-targets` and
+`nix develop -c cargo test --workspace --all-targets --no-default-features`
+pass 99 tests. That final Rust change is test/comment-only; the signing matrix
+above remains explicitly identified by its build revision and immutable outputs.

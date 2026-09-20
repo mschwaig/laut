@@ -268,8 +268,14 @@ report green.
   including a two-external-reference ordering/duplication control. Exact artifacts
   and patch provenance are in the runbook. No laut hashing, trust admission,
   mixed-regime restriction, host daemon, or sibling checkout was changed.
-- Next: rerun the small controlled signing matrix with the corrected Nix, then
-  control recipe environment differences via a common-source experiment patch.
-  Do not erase environment fields to force agreement. Source/FOD seed normalization
-  and signature authentication remain separate unresolved work; tiny oracle
-  agreement does not establish whole-bootstrap equivalence.
+- Corrected matrix: all four small signing configurations rebuilt at `0c66b21`.
+  Repeats and recorded-unseeded metadata agree. IA/CA output claims now agree
+  completely at three rebuilt nodes; stdenv differs only in its path. Its 14
+  omitted source references exactly explain that remaining path discrepancy,
+  captured in a Rust characterization test. The bootstrap-tools recipe difference
+  still blocks dependency-closed equivalence; cross-seed synthetic claims still
+  differ. No medium/large local VM tests were run.
+- Next: control recipe environment differences via a common-source experiment
+  patch and include source boundaries in synthetic output reference accounting
+  on both sides. Do not erase environment fields to force agreement. Source/FOD
+  seed normalization and signature authentication remain separate unresolved work.
