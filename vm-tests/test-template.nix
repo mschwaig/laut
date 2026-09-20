@@ -8,6 +8,9 @@
   cacheStoreUrl ? "http://cache:${builtins.toString cachePort}",
   packageToBuild,
   addressing,
+  nixPackage ? pkgs.nix,
+  # null for ordinary tests; otherwise the complete /etc/laut-experiment.json.
+  experiment ? null,
   verifierExtraConfig ? {},
   isMemoryConstrained ? false,
   needsExtraTime ? false,
@@ -19,11 +22,10 @@
 let
   fullArgs = {
     inherit cacheStoreUrl cachePort verifierExtraConfig;
+    inherit nixPackage experiment;
   } // args;
   # `pkgs` is the infra Nix evaluator (rolling). We use its nixpkgs path to
-  # locate the test-runner library, and its `nix` binary to drive the test
-  # itself from inside the VM (writers / wrappers also come from here in
-  # builder.nix and verifier.nix).
+  # locate the test-runner library; only builders use the selected nixPackage.
   testLib = import (pkgs.path + "/nixos/lib/testing-python.nix") { inherit system; };
   packageToBuildStr = lib.concatStringsSep "." packageToBuild;
   test =  testLib.runTest ({
@@ -42,12 +44,10 @@ let
         builderA = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderA_key.public;
           builderPrivateKey = ../testkeys/builderA_key.private;
-          nixPackage = pkgs.nix;
         });
         builderB = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
-          nixPackage = pkgs.nix;
         });
       } else {
         verifier = import ./machines/verifier.nix (fullArgs);
@@ -62,6 +62,8 @@ let
         builderA_pub = "${../testkeys/builderA_key.public}"
         builderB_pub = "${../testkeys/builderB_key.public}"
         binaryCacheData = "${binaryCacheData}"
+        experimentEnabled = ${if experiment != null then "True" else "False"}
+        storePathSeed = ${builtins.toJSON (if experiment == null then "" else experiment.seed)}
 
         ${builtins.readFile testScriptFile}
       '';

@@ -8,6 +8,7 @@
   # from this so their FOD outputs agree, regardless of which the VM ends up
   # building from inside.
   nixpkgs-under-test,
+  nix-seeded,
   scope ? pkgs.callPackage ../default.nix { },
   laut ? scope.laut,
   laut-sign-only ? scope.laut-sign-only,
@@ -65,6 +66,37 @@ let
   smallPackageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   mediumPackageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   largePackageToBuild = [ "hello" ];
+  # Each experiment is an independent sign run, not a composition of checks.
+  makeEquivalenceSign = { id, addressing, seed ? "" }:
+    let
+      nixPackage = nix-seeded.packages.${system}.nix-cli;
+    in import ./test-template.nix (fullArgs // {
+      testName = "${id}-sign";
+      testScriptFile = ./sign-script.py;
+      packageToBuild = smallPackageToBuild;
+      inherit addressing nixPackage;
+      # This manifest is also passed verbatim to builders as `experiment`.
+      experiment = {
+        inherit id addressing seed system;
+        target = lib.concatStringsSep "." smallPackageToBuild;
+        nixPackage = toString nixPackage;
+        nixRevision = nix-seeded.rev;
+        nixpkgs = {
+          source = toString nixpkgs-under-test;
+          revision = nixpkgs-under-test.rev;
+        };
+        laut-sign-only = toString laut-sign-only;
+      };
+    });
+  equivalenceSigns = lib.listToAttrs (map (variant: {
+    name = "${variant.id}-sign";
+    value = makeEquivalenceSign variant;
+  }) [
+    { id = "small-equivalence-ia"; addressing = "ia"; }
+    { id = "small-equivalence-ia-seed-a"; addressing = "ia"; seed = "seed-a"; }
+    { id = "small-equivalence-ia-seed-b"; addressing = "ia"; seed = "seed-b"; }
+    { id = "small-equivalence-ca"; addressing = "ca"; }
+  ]);
   smallCaSet = makeTestSet {
     name = "small"; addressing = "ca";
     packageToBuild = smallPackageToBuild;
@@ -101,8 +133,24 @@ let
   };
   smallCaSign = smallCaSet."small-ca-sign";
   sigstore = import ./small-sigstore.nix { inherit pkgs system laut laut-sign-only; };
+  experimentTestSource = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      ./experiment.py
+      ./seed-inputs.py
+      ./test_experiment.py
+      ./test_seed_inputs.py
+    ];
+  };
 in
-  smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // {
+  smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // equivalenceSigns // {
+    experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
+      nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
+    } ''
+      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py
+      python3 -B -m unittest discover -s ${experimentTestSource} -p 'test_*.py' -v
+      touch "$out"
+    '';
     small-sigstore-sign = sigstore.sign;
     small-sigstore-verify = sigstore.verify;
     # Exercises the hash-divergence debug probe end-to-end: reuses the

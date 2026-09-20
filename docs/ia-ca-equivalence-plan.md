@@ -1,8 +1,9 @@
 # Synthetic IA / Native CA Equivalence Investigation
 
-Status: investigation plan, 2026-09-20. No experiments have been run for this
-plan yet. Update this document as the support tooling and evidence develop;
-the approach below is not a fixed sequence of implementation steps.
+Status: investigation in progress, 2026-09-20. The first small signing experiments
+now export reusable observations. Commands and results live in the
+[experiment runbook](ia-ca-experiments.md). The approach below is not a fixed
+sequence of implementation steps.
 
 ## Goal and Boundaries
 
@@ -24,6 +25,9 @@ agreement alone is not an independent check against native CA behavior.
   results to guide hashing fixes. Preserve focused regression cases as we go.
 - Keep cross-mode comparisons diagnostic. They must not make IA evidence
   admissible as CA evidence or change the existing trust semantics.
+- Do not preserve compatibility with interim signature or experiment formats.
+  We are developing a first version; update producers, consumers, and fixtures
+  together instead of accumulating compatibility branches.
 - Treat fixed-output derivations (FODs) and source inputs as explicit boundaries,
   not as ordinary floating CA outputs whose addressing scheme can be replaced.
 
@@ -218,10 +222,10 @@ test entry points and reproduction commands here when implemented.
 
 ## Decision Points and Current State
 
-The first deliverable is this document, committed separately. Next, establish
-the isolated build variants and an inspectable baseline report before changing
-hashing behavior. The unresolved early questions are seeded source/FOD
-normalization and reliable correspondence between bootstrap graph nodes.
+The plan was committed first. Isolated build variants and artifact collection
+are the first implementation slice, before changing hashing behavior. Seeded
+FOD preparation preserves declared addressing methods and exports correspondence;
+using that correspondence in synthetic hashing remains separate work.
 
 If the real bootstrap is too expensive or opaque to diagnose, reduce the issue
 to tiny derivations that exercise the same references, validate the tooling and
@@ -235,4 +239,7 @@ report green.
 
 - Planning: repository tooling and local seeding interfaces inspected; separate
   signing-side VM tests agreed; nixpkgs checkout availability confirmed.
-- Implementation: no new harness, seeded build, or equivalence result yet.
+- Implementation: one ATerm-based derivation reader, a pinned seeded Nix package,
+  and four independent small signing configurations with per-builder artifacts.
+  Initial unseeded IA, native CA, and seeded IA signing runs succeeded. These
+  are observations, not yet a demonstration of synthetic/native CA equivalence.

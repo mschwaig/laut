@@ -13,6 +13,7 @@
   builderPrivateKey,
   cacheStoreUrl,
   nixPackage ? pkgs.nix,
+  experiment ? null,
   ...
 }:
 
@@ -48,9 +49,22 @@ let
     pkgsIA.pkg-config-unwrapped.src
   ];
 
-  prefetchedSources =
-    map (drv: drv.out.outPath) autoDiscoveredFods
-    ++ map (drv: drv.out.outPath) supplementaryFods;
+  prefetchedFods = autoDiscoveredFods ++ supplementaryFods;
+  prefetchedSources = map (drv: drv.out.outPath) prefetchedFods;
+  # NixOS's initial store registration does not retain content addresses.
+  # Keep the declared addressing information alongside the preloaded contents.
+  prefetchedManifest = map (drv: {
+    path = drv.out.outPath;
+    ca = {
+      method = if (drv.outputHashMode or "flat") == "recursive" then "nar" else "flat";
+      hash = builtins.convertHash ({
+        hash = drv.outputHash;
+        toHashFormat = "sri";
+      } // lib.optionalAttrs (drv.outputHashAlgo != null && drv.outputHashAlgo != "") {
+        hashAlgo = drv.outputHashAlgo;
+      });
+    };
+  }) prefetchedFods;
 in {
   virtualisation.memorySize = 1024 * 6;
   virtualisation.cores = 4;  # Reduced from 6 to lower peak memory usage during parallel GCC builds
@@ -100,10 +114,14 @@ in {
         emptyRegistry = builtins.toFile "empty-flake-registry.json" ''{"flakes":[],"version":2}''; # TODO: check if I should remove this
       in
       ''
-        experimental-features = nix-command flakes ca-derivations
+        experimental-features = nix-command flakes ca-derivations${lib.optionalString (experiment != null) " store-path-seeding"}
         flake-registry = ${emptyRegistry}
       '';
-    settings = {
+    settings = lib.optionalAttrs (experiment != null) {
+      store-path-seed = experiment.seed;
+      eval-cache = false;
+      substituters = [ ];
+    } // {
       trusted-substituters = [ ];
       post-build-hook = pkgs.writeShellScript "copy-to-cache" ''
         set -eux
@@ -120,10 +138,21 @@ in {
         [ -n "$DRV_PATH" ]
 
         echo Pushing "$OUT_PATHS" to ${cacheStoreUrl}
-        printf "%s" "$OUT_PATHS" | xargs nix copy --to "${cacheStoreUrl}" --no-require-sigs
-        printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${cacheStoreUrl}" --secret-key-files /etc/nix/private-key
+        upload_errors=()
+        printf "%s" "$OUT_PATHS" | xargs nix copy --to "${cacheStoreUrl}" --no-require-sigs || upload_errors+=("content upload exited $?")
+        printf "%s" "$DRV_PATH"^'*' | xargs nix copy --to "${cacheStoreUrl}" --secret-key-files /etc/nix/private-key || upload_errors+=("realization upload exited $?")
 
-        laut sign-and-upload --include-preimage "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${cacheStoreUrl}"
+        sign_status=0
+        laut sign-and-upload --include-preimage "$DRV_PATH" --secret-key-file /etc/nix/private-key --to "${cacheStoreUrl}" || sign_status=$?
+        ${lib.optionalString (experiment != null) ''
+          record_args=(--sign-status "$sign_status")
+          for error in "''${upload_errors[@]}"; do
+            record_args+=(--optional-failure "$error")
+          done
+          laut-experiment record "''${record_args[@]}"
+        ''}
+        test "''${#upload_errors[@]}" -eq 0
+        exit "$sign_status"
       '';
     };
   };
@@ -132,11 +161,17 @@ in {
     etc = {
       "nix/public-key".source = builderPublicKey;
       "nix/private-key".source = builderPrivateKey;
+    } // lib.optionalAttrs (experiment != null) {
+      "laut-experiment.json".text = builtins.toJSON experiment;
+      "laut-prefetched-sources.json".text = builtins.toJSON prefetchedManifest;
     };
     systemPackages = [
       nixPackage
       pkgs.git
       laut-sign-only
+    ] ++ lib.optionals (experiment != null) [
+      (pkgs.writers.writePython3Bin "laut-experiment" { } (builtins.readFile ../experiment.py))
+      (pkgs.writers.writePython3Bin "laut-seed-inputs" { } (builtins.readFile ../seed-inputs.py))
     ];
   };
 }
