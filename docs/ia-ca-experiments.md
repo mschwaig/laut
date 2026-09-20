@@ -107,6 +107,11 @@ do not themselves prove that builders were independent. Normalized input hashes,
 source-content comparison, synthetic CA identities, and signature authentication
 remain untested by this report; those limitations are also explicit in its JSON.
 
+The existing verification probe (`--debug-preimage-corpus` with
+`--debug-out-dir`) now retains the local ATerm even when its corpus has no
+same-name candidate, and prints the saved path. This does not change signature
+admission or the probe's failure-triggered activation.
+
 ## Initial Ledger
 
 2026-09-20, x86_64-linux, nixpkgs under test
@@ -129,6 +134,9 @@ remain untested by this report; those limitations are also explicit in its JSON.
 - The report tool adds 33 offline tests for pairing, blocked dependents, missing
   metadata, invalid experiment controls, self-comparison, and unsupported IA/CA
   comparisons. `experiment-tools` now runs all 71 tests.
+- The debug-probe integration suite passes all 11 tests, including the corrected
+  no-candidate artifact assertion. The verification-only change leaves the
+  sign-only derivation unchanged.
 - Each initial configuration's builder-A/builder-B repeat report agrees at all
   six nodes. Unseeded IA versus seed A also agrees at all six nodes using Nix's
   unseeded metadata and the FOD boundary mappings. Four nodes are fresh build

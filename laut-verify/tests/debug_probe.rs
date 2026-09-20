@@ -133,11 +133,12 @@ fn difft_probe_writes_local_preimage_even_with_no_candidates() {
         aterm_bytes: "Derive(local)",
     };
     probe.on_signature_miss(&witness);
-    // With an empty index the probe should not write artifacts — there's
-    // nothing to diff against. (We treat zero candidates as a logged event
-    // with no on-disk output to avoid littering the out-dir.)
     let udrv_dir = out.path().join("abc-no-match.drv");
-    assert!(!udrv_dir.exists(), "no candidates → no artifacts");
+    assert_eq!(
+        fs::read_to_string(udrv_dir.join("ctxyz")).unwrap(),
+        witness.aterm_bytes
+    );
+    assert_eq!(fs::read_dir(udrv_dir).unwrap().count(), 1);
 }
 
 #[test]

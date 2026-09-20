@@ -310,15 +310,6 @@ impl DifftProbe {
 
 impl DebugProbe for DifftProbe {
     fn on_signature_miss(&self, local: &LocalWitness<'_>) {
-        let candidates = self.index.lookup(Identity::DrvName, local.udrv_name);
-        if candidates.is_empty() {
-            eprintln!(
-                "[laut debug] no signed preimage candidates for drv_name {:?} (local ct_input_hash {})",
-                local.udrv_name, local.ct_input_hash
-            );
-            return;
-        }
-
         let udrv_dir = self.out_dir.join(
             Path::new(local.udrv_drv_path)
                 .file_name()
@@ -335,6 +326,15 @@ impl DebugProbe for DifftProbe {
         let local_file = udrv_dir.join(local.ct_input_hash);
         if let Err(e) = fs::write(&local_file, local.aterm_bytes.as_bytes()) {
             eprintln!("[laut debug] failed to write local preimage: {}", e);
+            return;
+        }
+
+        let candidates = self.index.lookup(Identity::DrvName, local.udrv_name);
+        if candidates.is_empty() {
+            eprintln!(
+                "[laut debug] no preimage candidates for drv_name {:?}; local preimage in {}",
+                local.udrv_name, local_file.display()
+            );
             return;
         }
 
