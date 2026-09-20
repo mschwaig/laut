@@ -139,9 +139,11 @@ let
       ./experiment.py
       ./seed-inputs.py
       ./compare-experiments.py
+      ./experiment_bundles.py
       ./test_experiment.py
       ./test_seed_inputs.py
       ./test_compare_experiments.py
+      ./test_experiment_bundles.py
     ];
   };
 in
@@ -149,7 +151,7 @@ in
     experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
       nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
     } ''
-      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py ${experimentTestSource}/compare-experiments.py
+      flake8 ${experimentTestSource}/experiment.py ${experimentTestSource}/seed-inputs.py ${experimentTestSource}/compare-experiments.py ${experimentTestSource}/experiment_bundles.py
       python3 -B -m unittest discover -s ${experimentTestSource} -p 'test_*.py' -v
       touch "$out"
     '';
