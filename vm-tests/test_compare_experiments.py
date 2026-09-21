@@ -121,6 +121,28 @@ def repeat(data):
     return data
 
 
+def nonleaf_fod(fetcher="fetcher", shared=False):
+    data = fixture(graph={
+        "root": ["tool", fetcher] if shared else ["tool"],
+        "tool": [fetcher], fetcher: ["compiler"], "compiler": [],
+    })
+    for name in ("tool", fetcher):
+        drv = path(name + ".drv")
+        source = path(name + "-source")
+        data["inventory"][drv]["input_sources"] = [source]
+        data["derivations"]["derivations"][Path(drv).name]["inputs"]["srcs"] = [
+            Path(source).name]
+    data["derivations"]["derivations"][Path(path("tool.drv")).name]["outputs"][
+        "out"] = {"method": "flat", "hash": "sha256-fixed"}
+    data["paths"][path("tool")].update(prebuild_valid=True, hook_invocations=[])
+    data["realized-path-info"][path("tool")]["references"] = []
+    for name in (fetcher, "compiler"):
+        del data["collect"]["output_paths"][path(name + ".drv") + "^out"]
+        del data["paths"][path(name)]
+        del data["realized-path-info"][path(name)]
+    return data
+
+
 class CompareTest(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -143,6 +165,8 @@ class CompareTest(unittest.TestCase):
         data = copy.deepcopy(data)
         data["manifest"]["public_key"] = PUBLIC_KEY
         for drv in data["inventory"]:
+            if drv + "^out" not in data["collect"]["output_paths"]:
+                continue
             out = data["collect"]["output_paths"][drv + "^out"]
             if not data["paths"][out]["prebuild_valid"]:
                 data["paths"][out]["hook_invocations"] = [Path(drv).stem]
@@ -152,6 +176,8 @@ class CompareTest(unittest.TestCase):
         traces.mkdir(parents=True)
         mode = data["manifest"]["addressing"]
         for drv in data["inventory"]:
+            if drv + "^out" not in data["collect"]["output_paths"]:
+                continue
             recipe = data["derivations"]["derivations"][Path(drv).name]
             if "hash" in recipe["outputs"]["out"]:
                 continue
@@ -165,6 +191,41 @@ class CompareTest(unittest.TestCase):
                 "invocation": hook, "drv_path": rdrv, "out_paths": [out],
                 "status": "complete", "sign_exit_status": 0, "errors": [],
             }))
+            if mode == "ca":
+                original = data["inventory"][drv]
+                sources = sorted(set(original["input_sources"]) | {
+                    data["collect"]["output_paths"][dep + "^" + name]
+                    for dep, requested in original["input_derivations"].items()
+                    for name in requested
+                })
+                outputs = {name: None for name in recipe["outputs"]}
+                (observation / "inventory.json").write_text(json.dumps({
+                    "drv_path": rdrv, "outputs": outputs,
+                    "input_sources": sources, "input_derivations": {},
+                }))
+                (observation / "derivation.json").write_text(json.dumps({
+                    "version": 4, "derivations": {Path(rdrv).name: {
+                        "version": 4, "name": recipe["name"],
+                        "inputs": {
+                            "srcs": [Path(p).name for p in sources], "drvs": {},
+                        },
+                        "outputs": {
+                            name: {"hashAlgo": "sha256", "method": "nar"}
+                            for name in outputs
+                        },
+                        "system": "system", "builder": "builder",
+                        "args": [], "env": {},
+                    }},
+                }))
+                (observation / "derivation.aterm").write_text(ATERM.replace(
+                    '("out","","r:sha256","")',
+                    ','.join(f'({json.dumps(name)},"","r:sha256","")'
+                             for name in outputs),
+                ).replace(
+                    '],[],[],"system"',
+                    '],[],[' + ','.join(json.dumps(p) for p in sources)
+                    + '],"system"',
+                ))
             resolved = claim.get("resolved_input", HASH)
             statement = {
                 "_type": "https://in-toto.io/Statement/v1",
@@ -646,6 +707,79 @@ class CompareTest(unittest.TestCase):
                 )
                 self.assertEqual(code, 1)
                 self.assertEqual(report["nodes"][0]["status"], "missing")
+
+    def test_nonleaf_fods_pair_as_terminals_despite_different_recipe_closures(self):
+        a, b = nonleaf_fod(), nonleaf_fod(fetcher="other-fetcher")
+        left, lc = self.write_signed("left", a)
+        right, rc = self.write_signed("right", b)
+        for caches in ((), (lc, rc)):
+            with self.subTest(signed=bool(caches)):
+                report, code = comparator.compare(left, right, *caches)
+                self.assertEqual(code, 0, report["errors"])
+                self.assertEqual(report["unpaired"], {"left": [], "right": []})
+                self.assertEqual(report["excluded_recipe_derivations"], {
+                    "left": sorted([path("fetcher.drv"), path("compiler.drv")]),
+                    "right": sorted([path("other-fetcher.drv"), path("compiler.drv")]),
+                })
+                boundary, root = report["nodes"]
+                self.assertEqual(boundary["name"], "tool")
+                self.assertEqual(boundary["boundary"], "fixed-output")
+                self.assertEqual(boundary["dependencies"], [])
+                self.assertEqual(boundary["source_errors"], [])
+                self.assertEqual(boundary["outputs"]["out"]["status"], "equal")
+                self.assertEqual(root["status"], "evidence-agrees")
+                self.assertNotIn("signed_evidence", boundary)
+                if caches:
+                    self.assertEqual(boundary["normalized_inputs"],
+                                     "excluded-fixed-output-boundary")
+
+    def test_nonleaf_fod_does_not_hide_missing_boundary_metadata_or_refs(self):
+        a = nonleaf_fod()
+        left = self.write("left", a)
+        for missing in ("output", "reference"):
+            with self.subTest(missing=missing):
+                b = repeat(a)
+                if missing == "output":
+                    del b["realized-path-info"][path("tool")]
+                else:
+                    b["realized-path-info"][path("tool")]["references"] = [
+                        Path(path("fetcher")).name]
+                report, code = comparator.compare(left, self.write(missing, b))
+                self.assertEqual(code, 1)
+                self.assertTrue(report["errors"])
+
+    def test_fod_recipe_shared_by_ordinary_branch_is_not_excluded(self):
+        a = nonleaf_fod(shared=True)
+        # The missing ordinary source must still fail schema validation.
+        report, code = self.compare(a, repeat(a))
+        self.assertEqual(code, 1)
+        self.assertTrue(any("fetcher-source" in e["error"]
+                            for e in report["errors"]))
+        drv = path("fetcher.drv")
+        a["inventory"][drv]["input_sources"] = []
+        a["derivations"]["derivations"][Path(drv).name]["inputs"]["srcs"] = []
+        report, code = comparator.compare(
+            self.write("left-no-source", a), self.write("right-no-source", repeat(a)))
+        self.assertEqual(code, 1)
+        self.assertEqual(report["excluded_recipe_derivations"],
+                         {"left": [], "right": []})
+        self.assertEqual({n["name"] for n in report["nodes"]},
+                         {"root", "tool", "fetcher", "compiler"})
+        self.assertEqual(report["nodes"][-1]["status"], "blocked")
+
+    def test_fod_and_ordinary_recipe_cannot_agree_on_metadata_alone(self):
+        a = nonleaf_fod()
+        b = repeat(a)
+        drv = path("tool.drv")
+        b["derivations"]["derivations"][Path(drv).name]["outputs"]["out"] = {
+            "path": Path(path("tool")).name}
+        b["derivations"]["derivations"][Path(drv).name]["inputs"] = {
+            "drvs": {}, "srcs": []}
+        b["inventory"][drv].update(input_derivations={}, input_sources=[])
+        report, code = self.compare(a, b)
+        self.assertEqual(code, 1)
+        self.assertEqual(report["nodes"][0]["status"], "boundary-mismatch")
+        self.assertEqual(report["nodes"][-1]["status"], "blocked")
 
     def test_preloaded_fod_without_mapping_is_missing_not_actual_fallback(
         self,

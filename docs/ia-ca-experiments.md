@@ -8,7 +8,9 @@ development interfaces, without backward-compatibility guarantees.
 
 Each variant is a separate signing-side VM test, with two independent builders
 using the same configuration. Consumers use their outputs separately; no cache
-composition is needed. Only the existing small bootstrap target is used.
+composition is needed. The harness supports the existing small and medium
+bootstrap targets and the large `hello` target. Start with small; medium and
+large runs require agreement and should run sequentially.
 
 ```sh
 nix build .#nix-seeded --no-link
@@ -129,8 +131,12 @@ cache. Realized outputs join inventory nodes to hook observations, and the debug
 Missing or ambiguous bundles/hooks fail; names alone never select a signature.
 Reports retain the bundle path, line, SHA-256 of that exact JSONL line, signed
 invocation, hook IDs, and actual named outputs. Hook UUIDs are distinct from signed
-invocation IDs. The current helper requires hooks and subjects to cover exactly
-the requested outputs; extra unrequested outputs are rejected, not guessed.
+invocation IDs. Multi-output hooks must cover the complete recorded output-name
+and path mapping before their claims are projected onto requested outputs.
+CA candidates must also have the original recipe's sources plus its realized
+dependency outputs as their resolved inputs. This distinguishes recipes that
+produce identical outputs; it is not recipe authentication. Missing linkage,
+repeated matching hooks, and duplicate matching bundles remain errors.
 
 For each non-FOD pair, the report compares the signed resolved-input `aterm`
 identity and exact normalized ATerm bytes independently, then compares each
@@ -658,3 +664,165 @@ Validation at `dc47dd5`: 105 Rust tests pass under both
 `nix develop -c cargo test --workspace --all-targets --no-default-features`.
 The 116-test offline experiment check plus lint passes unchanged. Both full and
 sign-only laut packages built as prerequisites of the VM checks.
+
+## Medium And Large Expansion
+
+2026-09-21, authorized medium-then-large expansion from `885cde2`, with the
+uncommitted harness changes described here. Production hashing remains at
+`dc47dd5`; no Rust, compatibility-library, Nix, or nixpkgs changes were made.
+Both sizes use the same pins and self-reference-position patch as the corrected
+small baseline, empty store-path seed, x86_64-linux, two independent builders,
+and disabled workload substitution. Each builder has four vCPUs and 6 GiB RAM.
+VM tests ran sequentially with `--max-jobs 1 --cores 4`.
+
+### Harness Changes
+
+- `makeEquivalenceSign` now exposes all four configurations for each size.
+  Only unseeded IA and CA were run in this expansion; seed A/B remain untested.
+- Required collection and pairing stop at FOD boundaries. Full recursive JSON
+  and ATerms remain available, but fetcher-only recipe dependencies need not be
+  built. Reports explicitly list excluded recipe derivations. Dependencies also
+  reached through ordinary branches still require evidence.
+- Multi-output bundle joining validates complete observed output mappings before
+  selecting requested outputs. Resolved input-source sets distinguish CA recipes
+  sharing output paths, without choosing by name or deduplicating observations.
+- The output-equality checks cover both builders and both within-mode repeats.
+  They pin inventories to 6/154/250 nodes and 4/77/157 ordinary nodes for
+  small/medium/large. Known output divergences are not accepted as a baseline.
+
+The first medium CA attempt was interrupted by the caller's one-hour timeout
+while still building. The restarted run completed with the driver's existing
+eight-hour allowance. An initial comparison-wrapper indentation error was fixed
+without rebuilding the completed workloads. Early report failures from
+multi-output coverage and shared CA outputs were resolved by replaying those
+same artifacts, not by accepting missing evidence.
+
+The final narrow collector regression fix prevents observations belonging only
+to excluded FOD recipes from promoting those recipe inputs back into required
+evidence. It was added after the medium/large builds; those outputs retain their
+original collector. Their complete exported evidence passes the final comparator.
+The final collector was exercised by fresh small IA and CA VM runs.
+
+### Commands And Artifacts
+
+For new runs, build medium first, inspect the reports, then build large:
+
+```sh
+nix build .#checks.x86_64-linux.medium-equivalence-ia-sign \
+  .#checks.x86_64-linux.medium-equivalence-ca-sign \
+  --out-link /tmp/opencode/laut-medium-sign \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths
+nix build .#checks.x86_64-linux.large-equivalence-ia-sign \
+  .#checks.x86_64-linux.large-equivalence-ca-sign \
+  --out-link /tmp/opencode/laut-large-sign \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths
+```
+
+The medium signing outputs were originally built as prerequisites of
+`medium-equivalence-outputs`, then rooted separately. Retained links above point
+to these immutable observations; current definitions include the later collector
+fix, so rebuilding the attributes is a new observation, not a report replay.
+
+| Configuration | Immutable Test Output |
+| --- | --- |
+| Medium IA | `/nix/store/vn4v9q2fkdnbl7illdvipygfbcvr76ng-vm-test-run-laut-medium-equivalence-ia-sign` |
+| Medium CA | `/nix/store/k90r3rjsdym8nji1hvh976zj5dzmzvb7-vm-test-run-laut-medium-equivalence-ca-sign` |
+| Large IA | `/nix/store/f298lm02djxzh90pxx5p6svp1ygp46fm-vm-test-run-laut-large-equivalence-ia-sign` |
+| Large CA | `/nix/store/xc3px0hwdc98d6ngha4wxs6bylqzwf5z-vm-test-run-laut-large-equivalence-ca-sign` |
+
+To replay, set `IA` and `CA` to the immutable paths in the table:
+
+```sh
+nix develop -c python3 -B vm-tests/compare-experiments.py \
+  --left "$IA/experiment/builderA/laut-experiment" \
+  --right "$CA/experiment/builderA/laut-experiment" \
+  --left-cache "$IA/cache" --right-cache "$CA/cache" \
+  --output /tmp/opencode/laut-replay-ia-ca-A
+```
+
+Use builder B on both sides for the other cross-mode report. For repeats, use
+one configuration's builder A and builder B directories and the same cache on
+both sides. Reports from the final comparator are under
+`/tmp/opencode/laut-{medium,large}-strict-ca-{ia-repeat,ca-repeat,ia-ca-A,ia-ca-B}/`.
+Repeat comparisons exit 0; all four cross-mode comparisons exit 1.
+
+### Results
+
+Both signing configurations completed on both builders for both sizes. Every
+final report has complete requested signed evidence, zero collection/schema or
+join errors, and no ambiguous, unmatched, or unpaired nodes.
+
+| Diagnostic | Medium | Large |
+| --- | --- | --- |
+| Paired derivations | 154 | 250 |
+| Ordinary rebuilt derivations | 77 | 157 |
+| Metadata-only FOD boundaries | 77 | 93 |
+| Ordinary nodes with equal output identities | 63 | 82 |
+| Ordinary nodes with divergent output identities | 14 | 75 |
+| Equal requested signed outputs | 83 | 109 |
+| Divergent requested signed outputs | 17 | 98 |
+| IA builder A/B repeat | All 154 nodes agree | All 250 nodes agree |
+| CA builder A/B repeat | All 154 nodes agree | All 250 nodes agree |
+
+The cross-mode classifications and claimed identity values are identical for
+builders A and B. Every divergent output differs in all three signed identities.
+All 154 medium nodes also occur in large, with unchanged signed-output claims.
+The ordinary nodes' normalized inputs differ in both sizes. The full comparator
+still attributes the first recipe divergence to `bootstrap-tools` and marks
+76/156 dependents blocked; those recipe statuses must not be mistaken for an
+output-divergence frontier.
+
+### Earliest Output Difference
+
+Ignoring recipe-only blocking, the first output-divergent nodes are the same two
+Bash recipes in medium and large:
+
+| Requested Output | IA Derivation Basename | CA Derivation Basename |
+| --- | --- | --- |
+| `dev` | `qs1f2paqcg1nhyy9zi5clgp3annjvzv9-bash-5.2p37.drv` | `lc94hqi462wdwvjx60yaw8cirh7jkqcj-bash-5.2p37.drv` |
+| `out` | `q9nx0s2c61r3cr70a5b7ghffdnfwwcfx-bash-5.2p37.drv` | `fsf5qqamqy47bn3xs474hza6l409568h-bash-5.2p37.drv` |
+
+They have no output-divergent graph ancestors. After substituting native CA
+self/dependency store hashes, each Bash `out` still differs in 37 ELF files:
+`bin/bash` and 36 loadable builtins. The remaining bytes are exclusively GNU
+build-ID descriptors. For the first recipe's sibling `out`, the executable IDs
+are `f48d6b3975ba06902f09699d03f0e7bab0310c7d` (IA) and
+`d96b1140aeb013b1d8ef588099bbed74e45133b2` (CA). Its `dev` NAR becomes byte-identical
+after substituting its self-reference and four sibling-`out` references.
+
+This is consistent with link-time build IDs hashing address-dependent inputs;
+later path rewriting cannot normalize an opaque digest. The exact linker input
+responsible has not yet been isolated. Do not strip build IDs in the signer to
+manufacture equality. A focused common-recipe experiment controlling build IDs
+would test this explanation while preserving the native-CA oracle.
+
+The first libtool and autoreconf-hook outputs become byte-identical under native
+reference substitutions. The large root `hello` also becomes byte-identical
+after replacing its self hash and two glibc references (234,680-byte NAR, 47
+files), but its signed synthetic/native identities still differ:
+
+- Synthetic: `/nix/store/01m3g4wj6zff2pf6n7bqq5zl8r69rbcw-hello-2.12.1`.
+- Native: `/nix/store/yk602gypn5ivi4jannfaxcf3wzh897q6-hello-2.12.1`.
+
+Large introduces no new earliest graph-frontier mismatch. That does **not** prove
+all downstream differences are inherited: 70 divergent nodes / 93 requested
+outputs remain without a byte-level diagnosis. There may be additional local
+causes behind the Bash frontier. The detailed local ledger is
+`/tmp/opencode/laut-large-research-ledger.json`; content diagnostics are
+`/tmp/opencode/laut-{medium,large}-*-content.json`.
+
+### Validation And Limits
+
+The final `experiment-tools` check passes lint and all 142 offline tests.
+Fresh `small-equivalence-outputs` passes with both repeats and all four rebuilt
+nodes' output identities equal on both builders:
+`/nix/store/sdgv6bqighcgfnzi7zggfvsc6v689bsq-laut-small-equivalence-outputs`.
+Medium/large diagnostic reports are deliberately red for real output differences;
+the output-equality assertions remain strict. No production hashing fix was made.
+
+These are extracted signed-claim comparisons, supplemented by targeted NAR
+inspection, not signature authentication or complete source/content verification.
+Ordinary medium/large verification checks and seeded variants were not run.
+The mixed-addressing restriction, signature admission, and trust semantics are
+unchanged. The larger tests therefore answer the original question negatively:
+not all synthetic IA/native CA differences are accounted for yet.

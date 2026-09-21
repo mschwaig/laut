@@ -23,6 +23,8 @@ RESOLVED_DRV = f"/nix/store/{HASH}-recipe.drv"
 OUT = f"/nix/store/{'2' * 32}-recipe"
 DEV = f"/nix/store/{'3' * 32}-recipe-dev"
 SYNTHETIC = f"/nix/store/{'4' * 32}-recipe"
+DEPENDENCY = f"/nix/store/{'5' * 32}-dependency.drv"
+OTHER_DRV = f"/nix/store/{'6' * 32}-recipe.drv"
 ATERM = 'Derive([("out","","r:sha256","")],[],[],"system","builder",[],[])\n'
 
 
@@ -75,12 +77,35 @@ class BundlesTest(unittest.TestCase):
             "status": "complete", "sign_exit_status": 0, "errors": [],
         }
         self.write_status()
+        self.write_output_metadata({"out": OUT})
 
     def write_status(self, status=None):
         status = self.status if status is None else status
         directory = self.directory / "observations" / status["invocation"]
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "status.json").write_text(json.dumps(status))
+
+    def write_output_metadata(self, outputs, status=None):
+        status = self.status if status is None else status
+        directory = self.directory / "observations" / status["invocation"]
+        declared = {name: path if self.manifest["addressing"] == "ia" else None
+                    for name, path in outputs.items()}
+        inventory = {"drv_path": status["drv_path"], "outputs": declared}
+        self.data["inventory"] = {DRV: {
+            "outputs": declared, "input_sources": [], "input_derivations": {},
+        }}
+        (directory / "inventory.json").write_text(json.dumps(inventory))
+        if self.manifest["addressing"] == "ca":
+            self.write_resolved_recipe(
+                status["invocation"], status["drv_path"], [], outputs=declared)
+        (directory / "output-path-info.json").write_text(json.dumps({
+            "version": 2, "storeDir": "/nix/store", "info": {
+                Path(path).name: {
+                    "version": 2, "storeDir": "/nix/store", "references": [],
+                    "narHash": "sha256-fixture", "narSize": 1,
+                } for path in outputs.values()
+            },
+        }))
 
     def bundle(self):
         self.statement["predicate"]["runDetails"]["byproducts"] = [{
@@ -116,6 +141,186 @@ class BundlesTest(unittest.TestCase):
         self.debug["rdrv_path"] = RESOLVED_DRV
         self.status["drv_path"] = RESOLVED_DRV
         self.write_status()
+        self.write_output_metadata({"out": OUT})
+
+    def write_resolved_recipe(self, hook, rdrv, sources, deps=None,
+                              outputs=None):
+        directory = self.directory / "observations" / hook
+        outputs = {"out": None} if outputs is None else outputs
+        inputs = {
+            "srcs": [Path(p).name for p in sources],
+            "drvs": {Path(p).name: {"outputs": names, "dynamicOutputs": {}}
+                     for p, names in (deps or {}).items()},
+        }
+        (directory / "derivation.json").write_text(json.dumps({
+            "version": 4, "derivations": {Path(rdrv).name: {
+                "version": 4, "name": "recipe", "inputs": inputs,
+                "outputs": {name: {"hashAlgo": "sha256", "method": "nar"}
+                            for name in outputs},
+                "system": "system", "builder": "builder",
+                "args": [], "env": {},
+            }},
+        }))
+        (directory / "derivation.aterm").write_text(ATERM.replace(
+            '("out","","r:sha256","")',
+            ','.join(f'({json.dumps(name)},"","r:sha256","")'
+                     for name in outputs),
+        ).replace(
+            '],[],[],"system"',
+            '],[],[' + ','.join(json.dumps(p) for p in sources) + '],"system"',
+        ))
+        (directory / "inventory.json").write_text(json.dumps({
+            "drv_path": rdrv, "outputs": outputs,
+            "input_sources": sources, "input_derivations": deps or {},
+        }))
+
+    def shared_ca_output(self):
+        self.use_ca()
+        self.data["inventory"][DRV] = {
+            "outputs": {"out": None}, "input_sources": [SYNTHETIC],
+            "input_derivations": {DEPENDENCY: ["dev"]},
+        }
+        self.data["collect"]["output_paths"].update({
+            DEPENDENCY + "^dev": DEV, DEPENDENCY + "^out": OUT,
+        })
+        self.write_resolved_recipe("hook-1", RESOLVED_DRV, [SYNTHETIC, DEV])
+        selected = self.bundle()
+        self.data["paths"][OUT]["hook_invocations"].append("hook-2")
+        self.write_status({**self.status, "invocation": "hook-2",
+                           "drv_path": OTHER_DRV})
+        self.write_resolved_recipe("hook-2", OTHER_DRV, [SYNTHETIC, OUT])
+        self.debug["rdrv_path"] = OTHER_DRV
+        metadata = self.statement["predicate"]["runDetails"]["metadata"]
+        metadata["invocationId"] = "b" * 32
+        other = self.bundle()
+        self.write_bundles(other, selected)
+        return selected, other
+
+    def test_ca_shared_output_is_linked_by_original_dependency_inputs(self):
+        selected, _ = self.shared_ca_output()
+        result = self.extract()
+        provenance = result["provenance"]
+        self.assertEqual(provenance["rdrv_path"], RESOLVED_DRV)
+        self.assertEqual(provenance["hook_observation_ids"], ["hook-1"])
+        self.assertEqual(provenance["expected_hook_observation_ids"],
+                         ["hook-1", "hook-2"])
+        self.assertEqual(provenance["line"], 2)
+        self.assertEqual(provenance["sha256"], hashlib.sha256(
+            json.dumps(selected).encode() + b"\n").hexdigest())
+        self.assertEqual(provenance["recipe_linkage"], {
+            "expected_input_sources": sorted([SYNTHETIC, DEV]),
+            "hook_input_sources": {
+                "hook-1": sorted([SYNTHETIC, DEV]),
+                "hook-2": sorted([SYNTHETIC, OUT]),
+            },
+        })
+        self.assertFalse(provenance["authenticated"])
+        # Same named recipes and identical outputs, but a different requested
+        # dependency realization must select the other recipe, not the first.
+        self.data["inventory"][DRV]["input_derivations"][DEPENDENCY] = ["out"]
+        self.assertEqual(self.extract()["provenance"]["hook_observation_ids"],
+                         ["hook-2"])
+
+    def test_ca_rejects_wrong_recipe_when_correct_bundle_is_absent(self):
+        _, other = self.shared_ca_output()
+        for hooks in (["hook-1", "hook-2"], ["hook-2"]):
+            with self.subTest(hooks=hooks):
+                self.data["paths"][OUT]["hook_invocations"] = hooks
+                self.write_bundles(other)
+                with self.assertRaisesRegex(ValueError, "found 0"):
+                    self.extract()
+
+    def test_ca_singleton_retains_validated_input_linkage(self):
+        selected, _ = self.shared_ca_output()
+        self.write_bundles(selected)
+        provenance = self.extract()["provenance"]
+        self.assertEqual(provenance["hook_observation_ids"], ["hook-1"])
+        self.assertEqual(provenance["recipe_linkage"], {
+            "expected_input_sources": sorted([SYNTHETIC, DEV]),
+            "hook_input_sources": {"hook-1": sorted([SYNTHETIC, DEV])},
+        })
+
+    def test_ca_singleton_requires_recipe_sidecars(self):
+        for filename in (
+            "inventory.json", "derivation.json", "derivation.aterm"
+        ):
+            with self.subTest(missing=filename):
+                self.use_ca()
+                self.write_bundles(self.bundle())
+                observation = self.directory / "observations" / "hook-1"
+                (observation / filename).unlink()
+                with self.assertRaises(FileNotFoundError):
+                    self.extract()
+
+    def test_ca_linkage_requires_exact_inputs_and_complete_realizations(self):
+        self.shared_ca_output()
+        for sources in ([DEV], [SYNTHETIC, DEV, OUT], [SYNTHETIC]):
+            with self.subTest(sources=sources):
+                self.write_resolved_recipe("hook-1", RESOLVED_DRV, sources)
+                with self.assertRaisesRegex(ValueError, "found 0"):
+                    self.extract()
+        del self.data["collect"]["output_paths"][DEPENDENCY + "^dev"]
+        with self.assertRaises(KeyError):
+            self.extract()
+
+    def test_ca_same_inputs_do_not_identify_a_unique_recipe(self):
+        self.shared_ca_output()
+        self.write_resolved_recipe("hook-2", OTHER_DRV, [DEV, SYNTHETIC])
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            self.extract()
+
+    def test_ca_linkage_never_collapses_copied_or_repeated_bundles(self):
+        selected, other = self.shared_ca_output()
+        for invocation in ("a" * 32, "c" * 32):
+            with self.subTest(invocation=invocation):
+                repeated = copy.deepcopy(selected)
+                statement = json.loads(base64.b64decode(
+                    repeated["dsseEnvelope"]["payload"]))
+                metadata = statement["predicate"]["runDetails"]["metadata"]
+                metadata["invocationId"] = invocation
+                repeated["dsseEnvelope"]["payload"] = encode(statement)
+                self.write_bundles(other, selected, repeated)
+                with self.assertRaisesRegex(ValueError, "found 2"):
+                    self.extract()
+
+    def test_ca_single_recipe_still_rejects_duplicate_bundles(self):
+        self.use_ca()
+        bundle = self.bundle()
+        self.write_bundles(bundle, bundle)
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            self.extract()
+
+    def test_ca_linkage_never_collapses_repeated_hook_observations(self):
+        self.shared_ca_output()
+        self.data["paths"][OUT]["hook_invocations"].append("hook-3")
+        self.write_status({**self.status, "invocation": "hook-3"})
+        self.write_resolved_recipe("hook-3", RESOLVED_DRV, [SYNTHETIC, DEV])
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            self.extract()
+
+    def test_ca_linkage_fails_closed_on_missing_or_inconsistent_recipes(self):
+        self.shared_ca_output()
+        directory = self.directory / "observations" / "hook-2"
+        for filename in (
+            "inventory.json", "derivation.json", "derivation.aterm"
+        ):
+            with self.subTest(missing=filename):
+                self.write_resolved_recipe(
+                    "hook-2", OTHER_DRV, [SYNTHETIC, OUT])
+                (directory / filename).unlink()
+                with self.assertRaises(FileNotFoundError):
+                    self.extract()
+        self.write_resolved_recipe("hook-2", OTHER_DRV, [SYNTHETIC, OUT])
+        inventory = directory / "inventory.json"
+        entry = json.loads(inventory.read_text())
+        entry["input_sources"] = [SYNTHETIC, DEV]
+        inventory.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, "differs from raw recipe"):
+            self.extract()
+        self.write_resolved_recipe("hook-2", OTHER_DRV, [SYNTHETIC, OUT],
+                                   {DEPENDENCY: ["out"]})
+        with self.assertRaisesRegex(ValueError, "still has input derivations"):
+            self.extract()
 
     def test_ia_exact_claims_and_provenance_without_authentication(self):
         raw = self.write_bundles(self.bundle())
@@ -255,6 +460,122 @@ class BundlesTest(unittest.TestCase):
                 self.write_status({**self.status, "out_paths": paths})
                 with self.assertRaisesRegex(ValueError, "OUT_PATHS"):
                     self.extract()
+
+    def multioutput(self, mode):
+        if mode == "ca":
+            self.use_ca()
+        self.status["out_paths"] = [DEV, OUT]
+        self.write_status()
+        self.write_output_metadata({"out": OUT, "dev": DEV})
+        self.statement["subject"].append({
+            "name": "dev", "digest": {
+                **self.statement["subject"][0]["digest"],
+                "nix-ca-store-path": DEV if mode == "ca" else RESOLVED_DRV,
+            },
+        })
+
+    def test_complete_multioutput_hook_projects_required_outputs(self):
+        for mode in ("ia", "ca"):
+            with self.subTest(mode=mode):
+                self.statement["subject"] = self.statement["subject"][:1]
+                self.multioutput(mode)
+                raw = self.write_bundles(self.bundle())
+                index = load_bundles(self.cache, self.manifest)
+                before = copy.deepcopy(index)
+                result = signed_evidence(self.directory, self.data, DRV, index)
+                self.assertEqual(set(result["outputs"]), {"out"})
+                self.assertEqual(result["provenance"]["realized_outputs"],
+                                 {"out": OUT})
+                self.assertEqual(result["provenance"]["sha256"],
+                                 hashlib.sha256(raw).hexdigest())
+                self.assertEqual(index, before)
+                self.assertNotIn(
+                    DRV + "^dev", self.data["collect"]["output_paths"])
+
+    def test_multioutput_rejects_unknown_or_missing_subjects(self):
+        self.multioutput("ia")
+        subjects = copy.deepcopy(self.statement["subject"])
+        for names in (("out",), ("dev",), ("out", "unknown"),
+                      ("out", "dev", "unknown")):
+            with self.subTest(names=names):
+                self.statement["subject"] = [
+                    {**subjects[0], "name": name} for name in names
+                ]
+                self.write_bundles(self.bundle())
+                with self.assertRaisesRegex(ValueError, "subject"):
+                    self.extract()
+
+    def test_multioutput_rejects_invalid_inventory_and_snapshot(self):
+        self.multioutput("ia")
+        self.write_bundles(self.bundle())
+        directory = self.directory / "observations" / "hook-1"
+        cases = (
+            ("inventory.json", {"drv_path": RESOLVED_DRV,
+                                "outputs": {"out": OUT, "dev": DEV}}),
+            ("inventory.json", {"drv_path": DRV,
+                                "outputs": {"out": OUT, "unknown": DEV}}),
+            ("inventory.json", {"drv_path": DRV,
+                                "outputs": {"out": DEV, "dev": OUT}}),
+            ("inventory.json", {"drv_path": DRV,
+                                "outputs": {"out": OUT, "dev": OUT}}),
+            ("inventory.json", {"drv_path": DRV,
+                                "outputs": {"out": OUT, "dev": None}}),
+            ("output-path-info.json", {"version": 2, "storeDir": "/nix/store",
+                                       "info": {Path(OUT).name: None}}),
+            ("output-path-info.json", {"version": 2, "storeDir": "/nix/store",
+                                       "info": {Path(OUT).name: None,
+                                                Path(DEV).name: None}}),
+        )
+        for filename, value in cases:
+            with self.subTest(filename=filename, value=value):
+                self.write_output_metadata({"out": OUT, "dev": DEV})
+                (directory / filename).write_text(json.dumps(value))
+                with self.assertRaises(ValueError):
+                    self.extract()
+        for filename in ("inventory.json", "output-path-info.json"):
+            with self.subTest(missing=filename):
+                self.write_output_metadata({"out": OUT, "dev": DEV})
+                (directory / filename).unlink()
+                with self.assertRaises(FileNotFoundError):
+                    self.extract()
+
+    def test_multioutput_rejects_missing_required_or_unobserved_outputs(self):
+        self.multioutput("ia")
+        self.write_bundles(self.bundle())
+        for paths in ([DEV], [OUT], [OUT, DEV, SYNTHETIC], [OUT, DEV, DEV]):
+            with self.subTest(paths=paths):
+                self.write_status({**self.status, "out_paths": paths})
+                with self.assertRaises(ValueError):
+                    self.extract()
+
+    def test_multioutput_ca_validates_extra_paths_before_projection(self):
+        self.multioutput("ca")
+        for extra in (OUT, SYNTHETIC):
+            with self.subTest(extra=extra):
+                digest = self.statement["subject"][1]["digest"]
+                digest["nix-ca-store-path"] = extra
+                self.write_bundles(self.bundle())
+                with self.assertRaisesRegex(ValueError, "output mapping"):
+                    self.extract()
+        self.statement["subject"][0]["digest"]["nix-ca-store-path"] = DEV
+        self.statement["subject"][1]["digest"]["nix-ca-store-path"] = OUT
+        self.write_bundles(self.bundle())
+        with self.assertRaisesRegex(ValueError, "output mapping"):
+            self.extract()
+
+    def test_multioutput_still_rejects_ambiguous_bundles_and_hooks(self):
+        self.multioutput("ia")
+        bundle = self.bundle()
+        self.write_bundles(bundle, bundle)
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            self.extract()
+        self.write_bundles(bundle)
+        self.data["paths"][OUT]["hook_invocations"].append("hook-2")
+        status = {**self.status, "invocation": "hook-2"}
+        self.write_status(status)
+        self.write_output_metadata({"out": OUT, "dev": DEV}, status)
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            self.extract()
 
     def test_named_subject_coverage(self):
         subject = copy.deepcopy(self.statement["subject"][0])

@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 import re
 
+from experiment import derivations, inventory_entry, path_info
+
 
 BUILD_TYPES = {
     mode: (
@@ -260,12 +262,15 @@ def signed_evidence(
     """Join a comparator node to exactly one bundle and one hook observation.
 
     `data` is comparator-loaded data, including required[drv] output names,
-    collect.output_paths, and paths. The hook's OUT_PATHS and signed subject
-    names must exactly cover those required outputs. This currently rejects
-    legitimate multioutput hooks that also produce unrequested outputs;
-    supporting those hooks is outside this helper's current scope.
-    Unmatched hooks can be no-ops; two matching hooks or JSONL entries are
-    ambiguous, even if equal.
+    collect.output_paths, and paths. Hooks producing extra outputs require a
+    complete inventory/output snapshot join before projecting required outputs.
+    IA paths come from the hook inventory, not synthetic signed CA identities;
+    CA paths come from the named subjects and must cover the observed paths.
+    Unmatched hooks can be no-ops. Every CA candidate must have resolved inputs
+    matching the original recipe's sources plus its collected dependency
+    outputs. This is a necessary input-linkage check, not recipe/hash
+    authentication. Multiple surviving hooks or JSONL entries remain ambiguous,
+    even if equal.
     Provenance SHA256 covers the exact JSONL line bytes, including its newline.
     Hook UUIDs and signed invocation IDs are distinct identifiers.
     """
@@ -311,24 +316,88 @@ def signed_evidence(
         if (not isinstance(out_paths, list)
                 or not all(isinstance(p, str) for p in out_paths)
                 or len(out_paths) != len(set(out_paths))
-                or set(out_paths) != set(realized.values())):
+                or not set(realized.values()) <= set(out_paths)):
             raise ValueError(
-                f"hook OUT_PATHS differs from required outputs: {hook}"
+                f"hook OUT_PATHS missing or invalid required outputs: {hook}"
             )
+        declared = realized
+        if set(out_paths) != set(realized.values()):
+            observation = status_path.parent
+            inventory = _json((observation / "inventory.json").read_bytes())
+            declared = inventory["outputs"]
+            if (inventory["drv_path"] != rdrv
+                    or not isinstance(declared, dict)
+                    or declared.keys()
+                    != data["inventory"][drv]["outputs"].keys()
+                    or not realized.keys() <= declared.keys()):
+                raise ValueError("hook output inventory differs from graph")
+            info = path_info(
+                (observation / "output-path-info.json").read_bytes())
+            if (info.keys() != set(out_paths)
+                    or any(value is None for value in info.values())):
+                raise ValueError("hook output snapshot differs from OUT_PATHS")
         for evidence in candidates:
             outputs = evidence["outputs"]
-            if outputs.keys() != realized.keys():
+            if outputs.keys() != declared.keys():
                 raise ValueError(
-                    "signed subjects differ from required output names"
+                    "signed subjects differ from hook output names"
                 )
-            if index["build_type"] == BUILD_TYPES["ca"] and any(
-                outputs[name]["nix-ca-store-path"] != path
-                for name, path in realized.items()
-            ):
+            produced = declared
+            if index["build_type"] == BUILD_TYPES["ca"]:
+                produced = {name: output["nix-ca-store-path"]
+                            for name, output in outputs.items()}
+                if any(path is not None and produced[name] != path
+                       for name, path in declared.items()):
+                    raise ValueError(
+                        "signed CA output differs from realized output"
+                    )
+            for path in produced.values():
+                _match(STORE_PATH, path)
+            if (len(set(produced.values())) != len(produced)
+                    or set(produced.values()) != set(out_paths)
+                    or any(produced[name] != path
+                           for name, path in realized.items())):
                 raise ValueError(
-                    "signed CA output differs from realized output"
+                    "hook output mapping differs from "
+                    "OUT_PATHS/required outputs"
                 )
             matches.append((hook, evidence))
+    linkage = {}
+    if index["build_type"] == BUILD_TYPES["ca"]:
+        original = data["inventory"][drv]
+        sources = set(original["input_sources"])
+        sources.update(
+            _match(STORE_PATH,
+                   data["collect"]["output_paths"][dep + "^" + name])
+            for dep, requested in original["input_derivations"].items()
+            for name in requested
+        )
+        hook_sources = {}
+        for hook, evidence in matches:
+            if hook in hook_sources:
+                continue
+            observation = directory / "observations" / hook
+            entry = _json((observation / "inventory.json").read_bytes())
+            recipes = derivations(
+                (observation / "derivation.json").read_bytes())
+            rdrv = evidence["provenance"]["rdrv_path"]
+            raw = (observation / "derivation.aterm").read_bytes()
+            if (set(recipes) != {rdrv}
+                    or inventory_entry(rdrv, recipes[rdrv], raw) != entry):
+                raise ValueError(
+                    f"hook inventory differs from raw recipe: {hook}")
+            if entry["input_derivations"]:
+                raise ValueError(
+                    f"CA hook recipe still has input derivations: {hook}")
+            hook_sources[hook] = sorted(entry["input_sources"])
+        # Input sets only exclude incompatible recipes. Never deduplicate
+        # observations/bundles with equal recipes, claims, or invocation IDs.
+        matches = [(hook, evidence) for hook, evidence in matches
+                   if set(hook_sources[hook]) == sources]
+        linkage = {"recipe_linkage": {
+            "expected_input_sources": sorted(sources),
+            "hook_input_sources": hook_sources,
+        }}
     if len(matches) != 1:
         raise ValueError(
             f"expected one bundle/hook match for {drv}, found {len(matches)}"
@@ -336,8 +405,9 @@ def signed_evidence(
     hook, evidence = matches[0]
     return {
         **evidence,
+        "outputs": {name: evidence["outputs"][name] for name in names},
         "provenance": {
-            **evidence["provenance"], "inventory_drv": drv,
+            **evidence["provenance"], **linkage, "inventory_drv": drv,
             "hook_observation_ids": [hook],
             "expected_hook_observation_ids": sorted(expected_hooks),
             "hook_status_path": str(

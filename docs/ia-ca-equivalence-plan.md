@@ -1,7 +1,8 @@
 # Synthetic IA / Native CA Equivalence Investigation
 
-Status: investigation in progress, 2026-09-20. Signed-claim and exact-ATerm
-comparisons now localize the first small-graph divergences. Commands and results
+Status: investigation in progress, 2026-09-21. Medium and large unseeded IA/CA
+experiments completed; stable repeats expose a Bash build-ID output divergence
+beyond the corrected small graph. Commands and results
 live in the [experiment runbook](ia-ca-experiments.md). The approach below is not
 a fixed sequence of implementation steps.
 
@@ -20,7 +21,8 @@ agreement alone is not an independent check against native CA behavior.
 - Keep the restriction against mixed IA/CA non-fixed-output dependency trees.
 - Start with the existing small bootstrap closure in `vm-tests/default.nix`:
   seven repetitions of `stdenv.__bootPackages`, followed by `binutils`.
-- Do not run medium or large VM tests locally without agreement.
+- Do not run medium or large VM tests locally without agreement. The initial
+  medium-then-large expansion was authorized and completed; see the runbook.
 - Build, maintain, and commit the experimental support before relying on its
   results to guide hashing fixes. Preserve focused regression cases as we go.
 - Keep cross-mode comparisons diagnostic. They must not make IA evidence
@@ -232,7 +234,7 @@ to tiny derivations that exercise the same references, validate the tooling and
 fix there, and return to the bootstrap. Such fixtures supplement rather than
 replace the intended real-closure result.
 
-Ask before broadening the addressing scope, launching medium/large local builds,
+Ask before broadening the addressing scope, launching additional unagreed builds,
 or making a major change in direction. Record unexpected blockers and revised
 assumptions here; do not silently weaken the equivalence criterion to make the
 report green.
@@ -283,7 +285,17 @@ report green.
   Small IA/CA verification VMs pass, as do 105 Rust tests in both feature modes.
   The only remaining exact ATerm differences are the two explicit CA hash-env
   attributes at each rebuilt node; no source/dependency/path differences remain.
-- Next: control recipe environment differences via a common-source experiment
-  patch. Do not erase environment fields to force agreement. Source/FOD seed
+- Medium/large expansion: both unseeded configurations completed on two builders
+  per size, with complete comparisons across 154/250 nodes. Within-mode repeats
+  agree; cross-mode output identities diverge at 14/75 of 77/157 ordinary nodes.
+  Both sizes first diverge at Bash: after native-path substitution, its output
+  still differs in GNU build-ID descriptors. Large introduces no earlier graph
+  frontier, but additional local differences downstream have not been ruled out.
+  The harness now handles non-leaf FOD boundaries, multi-output hooks, and CA
+  recipes sharing output paths. All 142 offline tests and fresh small output
+  equality/repeat checks pass. No production hashing change was made.
+- Next: isolate address-dependent GNU build IDs with a common-recipe experiment,
+  and control recipe environment differences via a common-source patch. Do not
+  erase content or environment fields to force agreement. Source/FOD seed
   normalization, cross-subtree opaque source/output contexts, and authentication
   of the diagnostic experiment claims remain separate unresolved work.

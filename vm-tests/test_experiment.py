@@ -240,6 +240,135 @@ class ExperimentTest(unittest.TestCase):
         self.assertTrue(item["prebuild_valid"])
         self.assertEqual(item["hook_invocations"], [])
 
+    def nonleaf_fod(self):
+        fetcher, compiler = path("fetcher.drv"), path("compiler.drv")
+        self.nix.drvs[DEP] = drv(
+            {"out": {"hash": "sha256-real", "method": "flat"}},
+            [path("fetch-script")], {fetcher: ["out"]})
+        self.nix.aterms[DEP] = aterm({"out": TOOL})
+        self.nix.drvs[fetcher] = drv(
+            {"out": {"path": Path(path("fetcher")).name}},
+            [path("fetcher-source")], {compiler: ["out"]})
+        self.nix.aterms[fetcher] = aterm({"out": path("fetcher")})
+        self.nix.drvs[compiler] = drv(
+            {"out": {"hashAlgo": "sha256", "method": "nar"}})
+        self.nix.aterms[compiler] = aterm({"out": None})
+        return fetcher, compiler
+
+    def test_nonleaf_fod_keeps_raw_inventory_without_requiring_recipe_closure(self):
+        fetcher, compiler = self.nonleaf_fod()
+        self.assertEqual(self.begin(), 0)
+        self.nix.valid[OUT] = metadata()
+        self.assertEqual(self.record(), 0)
+        self.assertEqual(self.cli("collect"), 0)
+        self.assertEqual(set(self.read("inventory.json")), set(self.nix.drvs))
+        for drv_path, raw in self.nix.aterms.items():
+            self.assertEqual(
+                (self.state / "aterms" / Path(drv_path).name).read_bytes(), raw)
+        report = self.read("collect.json")
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["fixed_output_boundaries"], [DEP])
+        self.assertEqual(report["excluded_recipe_derivations"],
+                         sorted([fetcher, compiler]))
+        self.assertEqual(report["output_paths"],
+                         {ROOT + "^out": OUT, DEP + "^out": TOOL})
+        self.assertEqual(set(self.read("paths.json")), {OUT, TOOL, SOURCE})
+        queries = [p for call in self.nix.calls if call[0] == "path-info"
+                   and "--all" not in call for p in call[call.index("2") + 1:]]
+        self.assertEqual(set(queries), {OUT, TOOL, SOURCE})
+
+    def test_fod_recipe_dependency_shared_with_ordinary_branch_is_required(self):
+        fetcher, compiler = self.nonleaf_fod()
+        self.nix.drvs[ROOT]["inputs"]["drvs"][Path(fetcher).name] = {
+            "outputs": ["out"], "dynamicOutputs": {}}
+        self.assertEqual(self.begin(), 0)
+        self.nix.valid[OUT] = metadata()
+        self.assertEqual(self.record(), 0)
+        self.nix.valid[path("fetcher")] = metadata()
+        self.assertEqual(self.record(drv_path=fetcher,
+                                     outputs=path("fetcher")), 0)
+        self.assertEqual(self.cli("collect"), 1)
+        report = self.read("collect.json")
+        self.assertEqual(report["excluded_recipe_derivations"], [])
+        self.assertEqual(report["unresolved_outputs"], [compiler + "^out"])
+        paths = self.read("paths.json")
+        self.assertTrue(paths[path("fetcher")]["required"])
+        self.assertTrue(paths[path("fetcher-source")]["required"])
+        self.assertNotIn(path("fetch-script"), paths)
+
+    def test_excluded_recipe_hook_keeps_outputs_without_promoting_inputs(self):
+        fetcher, compiler = self.nonleaf_fod()
+        self.assertEqual(self.begin(), 0)
+        self.nix.valid[OUT] = metadata()
+        self.assertEqual(self.record(), 0)
+        self.nix.valid[path("fetcher")] = metadata([REFERENCE])
+        self.assertEqual(self.record(drv_path=fetcher,
+                                     outputs=path("fetcher")), 0)
+        self.assertEqual(self.cli("collect"), 0)
+        report = self.read("collect.json")
+        self.assertEqual(report["errors"], [])
+        self.assertEqual(report["excluded_recipe_derivations"],
+                         sorted([fetcher, compiler]))
+        self.assertEqual(report["output_paths"],
+                         {ROOT + "^out": OUT, DEP + "^out": TOOL})
+        paths = self.read("paths.json")
+        self.assertEqual(set(paths), {OUT, TOOL, SOURCE,
+                                      path("fetcher"), REFERENCE})
+        item = paths[path("fetcher")]
+        self.assertEqual(set(item["roles"]), {"hook-output", "declared-output"})
+        self.assertTrue(item["required"])
+        invocation, = item["hook_invocations"]
+        observation = self.state / "observations" / invocation
+        self.assertEqual(experiment.read_json(observation / "inventory.json"),
+                         self.read("inventory.json")[fetcher])
+        self.assertEqual((observation / "derivation.aterm").read_bytes(),
+                         self.nix.aterms[fetcher])
+        self.assertEqual(paths[REFERENCE]["roles"], ["registered-reference"])
+        queries = {p for call in self.nix.calls if call[0] == "path-info"
+                   and "--all" not in call for p in call[call.index("2") + 1:]}
+        self.assertEqual(queries, set(paths))
+        exported = {p for call in self.nix.calls
+                    if call[0] == "copy" for p in call[4:]}
+        self.assertEqual(exported, set(paths))
+
+    def test_ca_consumer_of_nonleaf_fod_uses_only_its_own_realization(self):
+        self.nonleaf_fod()
+        self.ca_root(extra_sources=[REFERENCE])
+        self.nix.resolutions[ROOT + "^out"] = OUT
+        self.assertEqual(self.cli("collect"), 0)
+        self.assertEqual(self.read("collect.json")["output_paths"],
+                         {ROOT + "^out": OUT, DEP + "^out": TOOL})
+        self.assertEqual(set(self.read("paths.json")),
+                         {OUT, TOOL, SOURCE, REFERENCE})
+        self.assertEqual(self.read("paths.json")[REFERENCE]["roles"],
+                         ["input-source"])
+
+    def test_nonleaf_fod_output_and_runtime_references_remain_required(self):
+        self.nonleaf_fod()
+        self.assertEqual(self.begin(), 0)
+        self.nix.valid[OUT] = metadata()
+        self.assertEqual(self.record(), 0)
+        self.nix.valid[TOOL] = metadata([path("fetcher")])
+        self.assertEqual(self.cli("collect"), 1)
+        self.assertTrue(self.read("paths.json")[path("fetcher")]["required"])
+        del self.nix.valid[TOOL]
+        self.assertEqual(self.cli("collect"), 1)
+        self.assertTrue(self.read("paths.json")[TOOL]["required"])
+        self.assertEqual(self.read("paths.json")[TOOL]["collection_status"],
+                         "missing")
+
+    def test_fod_root_is_a_terminal_with_required_output(self):
+        self.nonleaf_fod()
+        self.nix.drvs[ROOT]["outputs"]["out"] = {
+            "hash": "sha256-real", "method": "nar"}
+        self.nix.valid[OUT] = metadata()
+        self.assertEqual(self.begin(), 0)
+        self.assertEqual(self.cli("collect"), 0)
+        self.assertEqual(set(self.read("paths.json")), {OUT})
+        report = self.read("collect.json")
+        self.assertEqual(report["fixed_output_boundaries"], [ROOT])
+        self.assertEqual(report["output_paths"], {ROOT + "^out": OUT})
+
     def test_newly_valid_output_without_hook_is_classified_as_missing_evidence(
             self):
         self.assertEqual(self.begin(), 0)
@@ -279,13 +408,14 @@ class ExperimentTest(unittest.TestCase):
         self.assertTrue(any(e["artifact"].startswith(
             "observation:") for e in errors))
 
-    def ca_root(self):
+    def ca_root(self, extra_sources=()):
         self.nix.drvs[ROOT]["outputs"] = {
             "out": {"hashAlgo": "sha256", "method": "nar"}}
         self.nix.aterms[ROOT] = aterm({"out": None})
         self.assertEqual(self.begin(), 0)
         self.nix.drvs[RESOLVED] = drv(
-            {"out": {"hashAlgo": "sha256", "method": "nar"}}, [TOOL, SOURCE])
+            {"out": {"hashAlgo": "sha256", "method": "nar"}},
+            [TOOL, SOURCE, *extra_sources])
         self.nix.aterms[RESOLVED] = aterm({"out": None})
         self.nix.valid[OUT] = metadata()
         self.assertEqual(self.record(drv_path=RESOLVED), 0)

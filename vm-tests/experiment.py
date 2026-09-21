@@ -10,6 +10,8 @@ ca-derivations enabled. No daemon queries: local-store metadata includes the
 experimental unseeded fields. Run as the builder's privileged hook user.
 Begin must precede the build; collect must follow all hooks, before any GC.
 Newly valid required outputs need hook records; preloaded outputs do not.
+The full raw recipe inventory is retained, but required evidence stops at FODs;
+their recipe inputs are excluded unless reached through an ordinary branch.
 Export the entire state directory, including failed/incomplete sidecars.
 The contents cache is STATE/HOSTNAME/contents. Only the public key is read.
 No config/key directories, environment dumps, hashes, or trust rules are added.
@@ -178,6 +180,27 @@ def inventory_entry(path, drv, raw):
                               for p, node in drv["inputs"]["drvs"].items()}}
 
 
+def fixed_output(drv):
+    return all("hash" in output for output in drv["outputs"].values())
+
+
+def required_graph(drvs, root):
+    """Requested outputs in the rooted graph, with FOD recipes as terminals."""
+    required = {root: set(drvs[root]["outputs"])}
+    pending = [root]
+    for path in pending:
+        drv = drvs[path]
+        if fixed_output(drv):
+            continue
+        for name, node in drv["inputs"]["drvs"].items():
+            dependency = store_path(name, True)
+            if dependency not in required:
+                required[dependency] = set()
+                pending.append(dependency)
+            required[dependency].update(node["outputs"])
+    return required
+
+
 def begin(args, report):
     root_drv = store_path(args.root_drv)
     if not root_drv.endswith(".drv"):
@@ -304,7 +327,15 @@ def collect(args, report):
         if observation and observation not in item["hook_invocations"]:
             item["hook_invocations"].append(observation)
 
-    entries = list(inventory.values())
+    required_outputs = required_graph(drvs, manifest["root_drv"])
+    report.update(
+        fixed_output_boundaries=sorted(
+            path for path in required_outputs if fixed_output(drvs[path])),
+        excluded_recipe_derivations=sorted(
+            drvs.keys() - required_outputs.keys()))
+    entries = [inventory[path] for path in required_outputs]
+    boundaries = set(report["fixed_output_boundaries"])
+    excluded_recipes = set(report["excluded_recipe_derivations"])
     for directory in sorted((state / "observations").glob("*")):
         def load_observation():
             observation = read_json(directory / "status.json")
@@ -318,6 +349,8 @@ def collect(args, report):
                     drv_path, drvs[drv_path], raw) != entry:
                 raise ValueError("hook inventory differs from raw artifacts")
             entries.append(entry)
+            if fixed_output(drvs[drv_path]):
+                boundaries.add(drv_path)
             info = path_info(
                 (directory / "output-path-info.json").read_bytes())
             if not info or set(info) != set(observation["out_paths"]):
@@ -328,14 +361,15 @@ def collect(args, report):
                 add(path, "hook-output", observation=directory.name)
         attempt(report, f"observation:{directory.name}", load_observation)
 
-    required_outputs = {path: set() for path in inventory}
-    required_outputs[manifest["root_drv"]].update(
-        inventory[manifest["root_drv"]]["outputs"])
     for entry in entries:
-        for path in entry["input_sources"]:
-            add(path, "input-source")
-        for dependency, names in entry["input_derivations"].items():
-            required_outputs.setdefault(dependency, set()).update(names)
+        # Hooks preserve outputs but cannot reopen excluded original recipes.
+        # Unknown hooks may be resolved CA drvs; keep their input handling.
+        if (entry["drv_path"] not in boundaries
+                and entry["drv_path"] not in excluded_recipes):
+            for path in entry["input_sources"]:
+                add(path, "input-source")
+            for dependency, names in entry["input_derivations"].items():
+                required_outputs.setdefault(dependency, set()).update(names)
         for name, path in entry["outputs"].items():
             if path:
                 add(path, "declared-output", required=False)
@@ -345,7 +379,7 @@ def collect(args, report):
     root_outputs = set()
     unresolved = []
     output_paths = {}
-    by_path = {entry["drv_path"]: entry for entry in entries}
+    by_path = {**inventory, **{entry["drv_path"]: entry for entry in entries}}
     for drv_path, names in sorted(required_outputs.items()):
         for name in sorted(names):
             label = f"{drv_path}^{name}"

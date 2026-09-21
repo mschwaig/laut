@@ -69,18 +69,19 @@ let
   mediumPackageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   largePackageToBuild = [ "hello" ];
   # Each experiment is an independent sign run, not a composition of checks.
-  makeEquivalenceSign = { id, addressing, seed ? "" }:
+  makeEquivalenceSign = { id, addressing, seed ? "", size, packageToBuild }:
     let
       nixPackage = nixSeededPackage;
     in import ./test-template.nix (fullArgs // {
       testName = "${id}-sign";
       testScriptFile = ./sign-script.py;
-      packageToBuild = smallPackageToBuild;
-      inherit addressing nixPackage;
+      inherit addressing nixPackage packageToBuild;
+      fodScanPackage = if size == "medium" then largePackageToBuild else packageToBuild;
+      needsExtraTime = size != "small";
       # This manifest is also passed verbatim to builders as `experiment`.
       experiment = {
         inherit id addressing seed system;
-        target = lib.concatStringsSep "." smallPackageToBuild;
+        target = lib.concatStringsSep "." packageToBuild;
         nixPackage = toString nixPackage;
         nixRevision = nix-seeded.rev;
         nixPatches = nixSeededPatches;
@@ -94,12 +95,18 @@ let
   equivalenceSigns = lib.listToAttrs (map (variant: {
     name = "${variant.id}-sign";
     value = makeEquivalenceSign variant;
+  }) (lib.concatMap (workload: map (variant: workload // variant // {
+    id = "${workload.size}-equivalence-${variant.id}";
   }) [
-    { id = "small-equivalence-ia"; addressing = "ia"; }
-    { id = "small-equivalence-ia-seed-a"; addressing = "ia"; seed = "seed-a"; }
-    { id = "small-equivalence-ia-seed-b"; addressing = "ia"; seed = "seed-b"; }
-    { id = "small-equivalence-ca"; addressing = "ca"; }
-  ]);
+    { id = "ia"; addressing = "ia"; }
+    { id = "ia-seed-a"; addressing = "ia"; seed = "seed-a"; }
+    { id = "ia-seed-b"; addressing = "ia"; seed = "seed-b"; }
+    { id = "ca"; addressing = "ca"; }
+  ]) [
+    { size = "small"; packageToBuild = smallPackageToBuild; }
+    { size = "medium"; packageToBuild = mediumPackageToBuild; }
+    { size = "large"; packageToBuild = largePackageToBuild; }
+  ]));
   smallCaSet = makeTestSet {
     name = "small"; addressing = "ca";
     packageToBuild = smallPackageToBuild;
@@ -161,8 +168,10 @@ let
     ];
   };
 in
-  smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // equivalenceSigns // {
-    small-equivalence-outputs = pkgs.runCommand "laut-small-equivalence-outputs" {
+  smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // equivalenceSigns //
+  lib.listToAttrs (map (size: {
+    name = "${size}-equivalence-outputs";
+    value = pkgs.runCommand "laut-${size}-equivalence-outputs" {
       nativeBuildInputs = [ pkgs.python3 pkgs.difftastic ];
     } ''
       python3 -B - <<'PY'
@@ -178,8 +187,8 @@ in
       )
       comparator = importlib.util.module_from_spec(spec)
       spec.loader.exec_module(comparator)
-      ia = Path("${equivalenceSigns.small-equivalence-ia-sign}")
-      ca = Path("${equivalenceSigns.small-equivalence-ca-sign}")
+      ia = Path("${equivalenceSigns."${size}-equivalence-ia-sign"}")
+      ca = Path("${equivalenceSigns."${size}-equivalence-ca-sign"}")
       rebuilt = {
           "bootstrap-tools",
           "bootstrap-stage0-stdenv-linux",
@@ -206,6 +215,23 @@ in
           print(f"{builder}: comparator status={report['status']}; "
                 f"counts={report.get('counts', {})}", flush=True)
 
+      for mode, run in (("ia", ia), ("ca", ca)):
+          report, code = comparator.compare(
+              run / "experiment" / "builderA" / "laut-experiment",
+              run / "experiment" / "builderB" / "laut-experiment",
+              run / "cache", run / "cache",
+          )
+          destination = Path(os.environ["out"]) / f"{mode}-repeat"
+          destination.mkdir()
+          comparator.write_preimages(report, destination)
+          (destination / "report.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n"
+          )
+          assert code == 0, (mode, report.get("counts"), report.get("errors"))
+
+      expected_nodes, expected_rebuilt = {
+          "small": (6, 4), "medium": (154, 77), "large": (250, 157),
+      }["${size}"]
       for builder, report in reports.items():
           assert report["version"] == 1, builder
           assert report["status"] in {"failed", "diagnostic-agreement"}, builder
@@ -217,20 +243,22 @@ in
           assert not report["errors"], (builder, report["errors"])
           assert not report["correspondence"], builder
           assert report["unpaired"] == {"left": [], "right": []}, builder
-          nodes = {node["name"]: node for node in report["nodes"]}
-          assert len(report["nodes"]) == 6, builder
-          assert nodes.keys() == rebuilt | boundaries, (builder, nodes.keys())
-          for name, node in nodes.items():
-              context = (builder, name)
+          assert len(report["nodes"]) == expected_nodes, builder
+          if "${size}" == "small":
+              assert {node["name"] for node in report["nodes"]} == rebuilt | boundaries, builder
+          rebuilt_count = 0
+          for node in report["nodes"]:
+              context = (builder, node["name"])
               assert node["correspondence"] == "rooted-unique", context
               assert node["status"] in {"evidence-agrees", "divergent", "blocked"}, context
               assert not node.get("source_errors"), context
               for output in node["outputs"].values():
                   assert all("error" not in output[side] for side in ("left", "right")), context
-              if name in boundaries:
+              if node["boundary"] == "fixed-output":
                   assert node["synthetic_identity"] == "excluded-fixed-output-boundary", context
                   assert node["normalized_inputs"] == "excluded-fixed-output-boundary", context
                   continue
+              rebuilt_count += 1
               requested = set(node["requested_outputs"])
               assert requested, context
               assert node["normalized_inputs"] in {"equal", "divergent"}, context
@@ -243,10 +271,12 @@ in
               assert all(output["status"] == "equal" and not output["differences"]
                          for output in node["signed_outputs"].values()), context
               assert node["synthetic_identity"] == "equal", context
-          print(f"{builder}: all four rebuilt nodes' signed output identities agree. "
+          assert rebuilt_count == expected_rebuilt, (builder, rebuilt_count)
+          print(f"{builder}: all {rebuilt_count} rebuilt nodes' signed output identities agree. "
                 "Full equivalence and signature authentication are NOT established.")
       PY
     '';
+  }) [ "small" "medium" "large" ]) // {
     experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
       nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
     } ''

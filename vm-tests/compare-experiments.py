@@ -8,6 +8,8 @@ Writes DIR/report.json. Exit 0 means only the selected evidence agrees;
 1 means invalid, missing, ambiguous or divergent evidence; 2 means unsupported.
 No contents, signatures, or identity hashes are recomputed/verified.
 Source contents and synthetic NAR sizes remain untested.
+FODs are terminal metadata boundaries; their recipe closures remain inventoried
+but are not paired unless also reachable through an ordinary branch.
 Manifests must have schema_version=1 and a nonempty run_id. Known
 self-comparisons are rejected; distinct IDs do not prove independent builds.
 """
@@ -21,7 +23,9 @@ import re
 import subprocess
 import sys
 
-from experiment import derivations, read_json, store_path
+from experiment import (
+    derivations, fixed_output, read_json, required_graph, store_path,
+)
 from experiment_bundles import load_bundles, signed_evidence
 
 
@@ -122,10 +126,7 @@ def load(directory, side, report):
         inventory = data["inventory"]
         if drvs.keys() != inventory.keys() or manifest["root_drv"] not in drvs:
             raise ValueError("incomplete original graph inventory")
-        required = {p: set() for p in drvs}
-        required[manifest["root_drv"]].update(
-            drvs[manifest["root_drv"]]["outputs"]
-        )
+        required = required_graph(drvs, manifest["root_drv"])
         for path, drv in drvs.items():
             if not isinstance(drv["name"], str) or not drv["name"]:
                 raise ValueError("missing original recipe name")
@@ -169,7 +170,8 @@ def load(directory, side, report):
                     or not set(names) <= drvs[dep]["outputs"].keys()
                 ):
                     raise ValueError(f"invalid requested outputs: {dep}")
-                required[dep].update(names)
+            if path not in required or fixed_output(drv):
+                continue
             for source in sources:
                 if not data["paths"][source]["required"]:
                     raise ValueError(
@@ -358,6 +360,12 @@ def compare(left, right, left_cache=None, right_cache=None):
     # earlier candidate. A globally unique name alone never establishes a pair.
     for lp in pending:
         rp = pairs[lp]
+        boundaries = [fixed_output(data["drvs"][parent])
+                      for data, parent in ((a, lp), (b, rp))]
+        if any(boundaries):
+            if not all(boundaries):
+                bad[lp] = "boundary-mismatch"
+            continue
         groups = []
         for data, parent in ((a, lp), (b, rp)):
             group = defaultdict(list)
@@ -406,8 +414,12 @@ def compare(left, right, left_cache=None, right_cache=None):
                     }
                 )
     report["unpaired"] = {
-        "left": sorted(a["drvs"].keys() - pairs.keys()),
-        "right": sorted(b["drvs"].keys() - reverse.keys()),
+        "left": sorted(a["required"].keys() - pairs.keys()),
+        "right": sorted(b["required"].keys() - reverse.keys()),
+    }
+    report["excluded_recipe_derivations"] = {
+        side: sorted(data["drvs"].keys() - data["required"].keys())
+        for side, data in (("left", a), ("right", b))
     }
 
     visited, active = {}, set()
@@ -444,6 +456,9 @@ def compare(left, right, left_cache=None, right_cache=None):
             },
             "source_comparison": "excluded",
             "outputs": {},
+            "boundary": ("fixed-output" if all(
+                fixed_output(data["drvs"][drv])
+                for data, drv in ((a, lp), (b, rp))) else None),
         }
         status = bad.get(lp, "blocked" if blocked else "evidence-agrees")
         if unsupported:
@@ -455,6 +470,8 @@ def compare(left, right, left_cache=None, right_cache=None):
         elif status == "evidence-agrees":
             node["source_errors"] = []
             for side, data, drv in (("left", a, lp), ("right", b, rp)):
+                if fixed_output(data["drvs"][drv]):
+                    continue
                 for source in data["inventory"][drv]["input_sources"]:
                     try:
                         actual(data, source)
@@ -504,18 +521,9 @@ def compare(left, right, left_cache=None, right_cache=None):
             elif "divergent" in states:
                 status = "divergent"
         if claims and not unsupported and lp not in bad:
-            boundaries = [
-                all("hash" in data["drvs"][drv]["outputs"][name]
-                    for name in node["requested_outputs"])
-                for data, drv in ((a, lp), (b, rp))
-            ]
-            if all(boundaries):
+            if node["boundary"] == "fixed-output":
                 node["normalized_inputs"] = "excluded-fixed-output-boundary"
                 node["synthetic_identity"] = "excluded-fixed-output-boundary"
-            elif any(boundaries):
-                node["normalized_inputs"] = "boundary-mismatch"
-                if status == "evidence-agrees":
-                    status = "divergent"
             else:
                 evidence = node["signed_evidence"] = {}
                 node["signed_outputs"] = {}
@@ -575,7 +583,8 @@ def compare(left, right, left_cache=None, right_cache=None):
         or report["correspondence"]
         or any(report["unpaired"].values())
         or any(
-            n["status"] in {"missing", "divergent", "ambiguous", "unmatched"}
+            n["status"] in {"missing", "divergent", "ambiguous", "unmatched",
+                            "boundary-mismatch"}
             for n in report["nodes"]
         )
     )
