@@ -1,0 +1,16 @@
+diff --git a/pkgs/build-support/bintools-wrapper/ld-wrapper.sh b/pkgs/build-support/bintools-wrapper/ld-wrapper.sh
+--- a/pkgs/build-support/bintools-wrapper/ld-wrapper.sh
++++ b/pkgs/build-support/bintools-wrapper/ld-wrapper.sh
+@@ -231,8 +231,4 @@ fi
+-# Only add --build-id if this is a final link. FIXME: should build gcc
+-# with --enable-linker-build-id instead?
+-#
+-# Note: `lld` interprets `--build-id` to mean `--build-id=fast`; GNU ld defaults
+-# to SHA1.
+-if [ "$NIX_SET_BUILD_ID_@suffixSalt@" = 1 ] && ! (( "$relocatable" )); then
+-    extraAfter+=(--build-id="${NIX_BUILD_ID_STYLE:-sha1}")
+-fi
++# Controlled IA/CA experiment: link-time IDs hash addresses that Nix rewrites
++# later. Disable their generation in both modes, including explicit requests.
++# This deliberately sacrifices build-ID-based separate debug information.
++extraAfter+=(--build-id=none)

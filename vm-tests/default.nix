@@ -68,11 +68,23 @@ let
   smallPackageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   mediumPackageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   largePackageToBuild = [ "hello" ];
+  experimentPatch = ../nix/experiment-disable-build-ids.patch;
+  experimentNixpkgs = pkgs.applyPatches {
+    name = "nixpkgs-laut-no-build-ids";
+    src = nixpkgs-under-test;
+    patches = [ experimentPatch ];
+  };
   # Each experiment is an independent sign run, not a composition of checks.
   makeEquivalenceSign = { id, addressing, seed ? "", size, packageToBuild }:
     let
       nixPackage = nixSeededPackage;
     in import ./test-template.nix (fullArgs // {
+      nixpkgs-under-test = experimentNixpkgs;
+      pkgsIA = import experimentNixpkgs { inherit system; };
+      pkgsCA = import experimentNixpkgs {
+        inherit system;
+        config.contentAddressedByDefault = true;
+      };
       testName = "${id}-sign";
       testScriptFile = ./sign-script.py;
       inherit addressing nixPackage packageToBuild;
@@ -86,8 +98,12 @@ let
         nixRevision = nix-seeded.rev;
         nixPatches = nixSeededPatches;
         nixpkgs = {
-          source = toString nixpkgs-under-test;
+          source = toString experimentNixpkgs;
           revision = nixpkgs-under-test.rev;
+          patches = [ {
+            name = "experiment-disable-build-ids.patch";
+            sha256 = builtins.hashFile "sha256" experimentPatch;
+          } ];
         };
         laut-sign-only = toString laut-sign-only;
       };
@@ -277,6 +293,11 @@ in
       PY
     '';
   }) [ "small" "medium" "large" ]) // {
+    experiment-build-id = import ./build-id.nix {
+      inherit pkgs;
+      unpatchedSource = nixpkgs-under-test;
+      patchedSource = experimentNixpkgs;
+    };
     experiment-tools = pkgs.runCommand "laut-experiment-tools-tests" {
       nativeBuildInputs = [ pkgs.python3 pkgs.python3Packages.flake8 ];
     } ''

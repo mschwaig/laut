@@ -30,6 +30,9 @@ All four configurations use Nix revision
 Current definitions additionally apply the self-reference position correction
 documented under **Tiny Native CA Oracle** below; the initial ledger's artifacts
 remain unpatched. Manifests record the base revision, package path, and patch hash.
+The current experiment package source also disables linker build IDs as described
+under **Build-ID Suppression Experiment** below. Earlier immutable results retain
+their original, unpatched package source.
 Its package uses its own locked nixpkgs input: laut's infrastructure pin has
 libcurl 8.14.1, below this Nix revision's 8.17.0 minimum. Neither laut's existing
 infrastructure pin nor the package-under-test pin was updated.
@@ -826,3 +829,42 @@ Ordinary medium/large verification checks and seeded variants were not run.
 The mixed-addressing restriction, signature admission, and trust semantics are
 unchanged. The larger tests therefore answer the original question negatively:
 not all synthetic IA/native CA differences are accounted for yet.
+
+## Build-ID Suppression Experiment
+
+Following the medium/large Bash diagnosis, the agreed next experiment disables
+build IDs rather than inventing a relocation-stable generator. This is a
+diagnostic producer-side change, not a production hashing fix.
+
+`nix/experiment-disable-build-ids.patch` replaces the pinned linker wrapper's
+conditional SHA1 build-ID generation with a trailing `--build-id=none`. It
+overrides explicit build-ID requests and applies to response-file and relocatable
+links too. It does not remove notes from already-built binaries or affect linker
+invocations that bypass this wrapper. Preloaded bootstrap binaries are unchanged.
+
+All equivalence configurations use one patched copy of the pinned nixpkgs source,
+including the early bootstrap wrappers, host-side FOD discovery, and in-VM
+evaluation. Their manifests record the source path, original revision, and patch
+name/hash. Ordinary signing/verification checks and infrastructure nixpkgs retain
+their existing source. Nix, laut, the compiler random seed, and recipe hash-env
+attributes are unchanged. The pinned separate-debug-info hook skips extraction
+for binaries without a 40-digit ID, so build-ID-based debug lookup is deliberately
+sacrificed. This experiment must not be described as preserving debug support.
+
+Before rebuilding the workloads, the non-VM `experiment-build-id` check exercises
+the original and patched wrapper scripts against the same infrastructure
+toolchain. It demonstrates different SHA1 IDs for two RPATH addresses, absence of
+IDs with the patch, complete ELF equality after the explicit address substitution,
+and retained differences when code changes. It tests automatic and explicit ID
+requests, ordinary and response-file invocation, and relocatable links.
+
+```sh
+nix build .#checks.x86_64-linux.experiment-build-id \
+  .#checks.x86_64-linux.experiment-tools \
+  --no-link --print-out-paths --max-jobs 1 --cores 4
+```
+
+Both checks pass, including all 142 offline experiment tests. The patch and test
+are committed before fresh medium, then large, runs. Output equality remains
+strict; source changes mean fresh observations, not a reinterpretation of the old
+signed claims. Results are recorded below after the runs complete.
