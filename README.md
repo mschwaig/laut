@@ -212,5 +212,23 @@ Here is a list of technical terms we use in this project with their definitions:
   <dd>A builder or INTERMEDIARY, producing signatuers. While addressing this problem is out of scope for laut, signing intermediaries introduce transitive trust relationships that are difficult to revoke, which is why we think groups of builders should be organized around data structures like signed lists or transparency logs instead.</dd>
 </dl>
 
+### Funding
+
+[<img src="https://nlnet.nl/logo/banner.svg" alt="NLnet foundation logo" width="20%" />](https://nlnet.nl)
+[<img src="https://nlnet.nl/image/logos/NGI0CommonsFund_tag.svg" alt="NGI Zero Commons Fund logo" width="20%" />](https://nlnet.nl/commonsfund)
+
+This project was funded through the [NGI0 Commons Fund](https://nlnet.nl/commonsfund),
+a fund established by [NLnet](https://nlnet.nl) with financial support from the
+European Commission's [Next Generation Internet](https://ngi.eu) programme, under
+the aegis of [DG Communications Networks, Content and Technology](https://commission.europa.eu/about-european-commission/departments-and-executive-agencies/communications-networks-content-and-technology_en)
+under grant agreement No 101135429. Additional funding is made available by the
+Swiss State Secretariat for Education, Research and Innovation (SERI).
+
+### AI usage disclosure
+
+From the beginning of the project, before it received funding from NLnet, I used AI tools extensively to write code and implement my ideas.
+For the grant-funded work beginning in September 2026, we are doing our best to disclose our use of AI tools at the Git commit level.
+This is part of our effort to comply with version 1.1 of [NLnet's policy on the use of Generative AI](https://nlnet.nl/foundation/policies/generativeAI/).
+
 [^1]: according to https://en.langenscheidt.com/german-english/laut 📖
 [^2]: set of trusted builders with additional constraining criteria, including consensus
