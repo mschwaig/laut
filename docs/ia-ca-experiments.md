@@ -867,4 +867,171 @@ nix build .#checks.x86_64-linux.experiment-build-id \
 Both checks pass, including all 142 offline experiment tests. The patch and test
 are committed before fresh medium, then large, runs. Output equality remains
 strict; source changes mean fresh observations, not a reinterpretation of the old
-signed claims. Results are recorded below after the runs complete.
+signed claims.
+
+### Medium Results Without Build IDs
+
+2026-09-22, implementation committed as `b3b6cd4` before the runs. The first CA
+attempt was interrupted after its workload completed: artifact export/shutdown
+stalled alongside large guest-clock jumps. The unchanged retry completed both
+CA and IA tests, each in about 67 minutes; its artifact exports took seconds.
+This is not a hashing failure or an extra successful repeat observation.
+
+```sh
+nix build .#checks.x86_64-linux.medium-equivalence-ia-sign \
+  .#checks.x86_64-linux.medium-equivalence-ca-sign \
+  --out-link /tmp/opencode/laut-no-build-id-medium-sign \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths -L
+nix build .#checks.x86_64-linux.medium-equivalence-outputs \
+  --out-link /tmp/opencode/laut-no-build-id-medium-outputs \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths -L
+```
+
+| Configuration | Immutable Test Output |
+| --- | --- |
+| Medium IA, no build IDs | `/nix/store/5h7irhz80nam9rz5ad12yrpwk9fxrbra-vm-test-run-laut-medium-equivalence-ia-sign` |
+| Medium CA, no build IDs | `/nix/store/vqmj2jqdzq5n73pf2w2560habjgzrx58-vm-test-run-laut-medium-equivalence-ca-sign` |
+
+The common patched source is
+`/nix/store/6dz7xcd3pg54gghqr09wrgp7v08prlaa-nixpkgs-laut-no-build-ids`;
+the manifest's patch SHA-256 is
+`d8fc2f4fba8e88c1dddfed1214a68452d5c596b5e915883db2b7d4164d0ee42b`.
+Base revisions, platform, seeds, resources, substitution settings, and laut are
+unchanged from the preceding medium/large baseline.
+
+Both within-mode repeats agree at all 154 nodes. Both cross-mode comparisons
+have complete evidence, zero collection/schema/join/correspondence errors, and
+no unpaired nodes. The fixed inventory still has 77 ordinary nodes and 77 FOD
+boundaries. Ordinary output agreement improves from 63 to **69 of 77 nodes**;
+divergences fall from 14 to **8 nodes**, or from 17 to **10 of 100 requested
+signed output records**. A/B classifications and claims agree. The output gate
+correctly fails at `xgcc-14.2.1.20250322`, not at Bash.
+
+All three Bash recipe pairs and their four requested output records now agree.
+Targeted content checks additionally cover `out` and `dev` for all three recipe
+pairs, including unrequested siblings selected through complete hook evidence.
+All six NAR pairs become byte-identical under explicit self/dependency path
+substitution. Each rebuilt Bash `out` contains 37 ELF entries without GNU build-ID
+sections. Prebuilt bootstrap Bash still carries its original ID; it was unpacked
+from a preloaded tarball, not relinked by the patched wrapper.
+
+The sole earliest output-divergent graph node is now `xgcc^out`:
+
+- IA recipe: `/nix/store/pmrh5d6lfb8f2dp63nv6dz28y6g7mmyf-xgcc-14.2.1.20250322.drv`.
+- CA recipe: `/nix/store/h711ymzj4cs67f9g8hzaziqv88drgqfn-xgcc-14.2.1.20250322.drv`.
+- Actual IA output: `/nix/store/mn3vx8kidhl60k44jq8q6l292zia235a-xgcc-14.2.1.20250322`.
+- Native CA output: `/nix/store/ihrql7vs1qqc9jvxa0xspxk3j2wl2hr4-xgcc-14.2.1.20250322`.
+
+After path substitution, its 150,969,352-byte NAR differs in exactly 32 bytes:
+the 16-byte `executable_checksum` objects in `cc1` and `cc1plus`. ELF symbols and
+section offsets identify these objects in `.rodata`; no residual instruction
+bytes or GNU build-ID sections differ. The remaining requested xgcc outputs
+(`info`, `libgcc`, `man`, `lib`) agree, with path substitution needed for `lib`.
+
+GCC's `genchecksum` computes MD5 over build inputs and emits these objects for
+precompiled-header compatibility checking. This is a separate opaque checksum,
+not a GNU linker ID. The exact differing checksum inputs have not been recovered;
+address dependence is plausible, and an indirect compiler-random-seed contribution
+has not been excluded. The auxiliary checksum output contains regenerated checksum
+objects, not their input files, and must not be mistaken for the installed values.
+
+The seven later output-divergent nodes are the stage2 GCC wrapper, stage2 stdenv,
+libtool, autoreconf-hook, glibc (`bin`, `dev`, `out`), patched binutils, and its root
+wrapper. They all have divergent xgcc ancestry; their individual byte differences
+have not all been classified. No additional fix is mixed into this experiment.
+Recipe comparison still reports `bootstrap-tools` divergent and 76 blocked
+dependents, beginning with the unchanged CA hash-env attributes.
+
+Reports and diffs are under
+`/tmp/opencode/laut-no-build-id-medium-{ia-ca-A,ia-ca-B,ia-repeat,ca-repeat}/`.
+Targeted diagnostics are `laut-no-build-id-medium-{ledger,content,xgcc-source}.json`
+and `laut-no-build-id-medium-summary.md` in `/tmp/opencode/`. The independent
+CA Bash audit is `laut-medium-no-build-id-audit.json` in the same directory.
+Logs are `laut-no-build-id-medium-retry.log` and
+`laut-no-build-id-medium-outputs.log`. These remain diagnostic claims and targeted
+content checks, not signature authentication or full equivalence.
+
+### Large Results Without Build IDs
+
+After inspecting medium, the same committed `b3b6cd4` configuration was run for
+large. IA completed in 10,077 seconds and CA in 8,545 seconds, including collection,
+export, and shutdown. There was no recurrence of the interrupted medium export
+stall. Both builders in each mode rebuilt independently, with the signing tests
+still run sequentially.
+
+```sh
+nix build .#checks.x86_64-linux.large-equivalence-ia-sign \
+  .#checks.x86_64-linux.large-equivalence-ca-sign \
+  --out-link /tmp/opencode/laut-no-build-id-large-sign \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths -L
+nix build .#checks.x86_64-linux.large-equivalence-outputs \
+  --out-link /tmp/opencode/laut-no-build-id-large-outputs \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths -L
+```
+
+| Configuration | Immutable Test Output |
+| --- | --- |
+| Large IA, no build IDs | `/nix/store/8am6lidhqspm53q53m090m08vrf0j9h9-vm-test-run-laut-large-equivalence-ia-sign` |
+| Large CA, no build IDs | `/nix/store/51pynavih8hygbjn40wfmfmnjn89sl0v-vm-test-run-laut-large-equivalence-ca-sign` |
+
+All four reports have 250 paired nodes (157 ordinary and 93 FOD boundaries),
+complete collections and requested signed evidence, zero schema or correspondence
+errors, and no unpaired nodes. Both within-mode repeats agree at every node,
+including all 207 requested signed outputs and 300 recorded actual outputs.
+Cross-mode results are identical for A and B:
+
+| Cross-Mode Output Diagnostic | Original Large | No-Build-ID Large |
+| --- | --- | --- |
+| Ordinary nodes with equal identities | 82 | 88 |
+| Ordinary nodes with divergent identities | 75 | 69 |
+| Equal requested signed output records | 109 | 116 |
+| Divergent requested signed output records | 98 | 91 |
+
+The output gate remains red at xgcc. The sole earliest output-divergent graph
+node is the same `xgcc^out` as medium; all 68 later divergent nodes have xgcc
+ancestry. All 154 medium nodes remain present with unchanged compared identities,
+including all 100 requested ordinary claim objects in both modes on both builders.
+Large adds 61 output-divergent nodes / 81 records but no additional independent
+output-divergence frontier. Additional local causes downstream are not ruled out.
+
+All five inspected xgcc NARs in each mode are byte-identical to the corresponding
+medium observations. The same two 16-byte PCH checksum differences remain in
+`cc1` and `cc1plus`; the inspected xgcc output contains no GNU build-ID sections.
+
+The root `hello` has different signed output identities:
+
+- Synthetic IA: `/nix/store/lscnndjsnq0ibnxxxznlk5lpvgy40382-hello-2.12.1`.
+- Native CA: `/nix/store/mdadgcgw3jjs0k79w55b3ic37ld14dr5-hello-2.12.1`.
+
+Nevertheless its 234,680-byte NAR (47 regular/symlink entries) becomes exactly
+byte-identical after substituting two glibc hash occurrences and one self hash.
+There is no residual hello-local content difference, and `bin/hello` has no GNU
+build-ID section. This does not establish that every intermediate discrepancy is
+inherited: targeted byte inspection here covers xgcc and hello, not all 69
+divergent nodes. Recipe comparison separately remains at 93 agreeing FOD boundaries,
+one divergent `bootstrap-tools` recipe, and 156 blocked ordinary dependents.
+
+Reports are under
+`/tmp/opencode/laut-no-build-id-large-{ia-ca-A,ia-ca-B,ia-repeat,ca-repeat}/`.
+The corresponding `laut-no-build-id-large-{ledger,content}.json` and
+`laut-no-build-id-large-summary.md` are in `/tmp/opencode/`; logs are
+`laut-no-build-id-large.log` and `laut-no-build-id-large-outputs.log` there.
+All repeat reports exit 0; cross-mode reports and medium/large output gates exit 1.
+
+Final validation also passed fresh small IA/CA output equality and repeats,
+the focused linker check, and the 142-test offline suite with lint:
+
+```sh
+nix build .#checks.x86_64-linux.small-equivalence-outputs \
+  .#checks.x86_64-linux.experiment-build-id \
+  .#checks.x86_64-linux.experiment-tools \
+  --out-link /tmp/opencode/laut-no-build-id-regression \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths
+```
+
+The small comparison output is
+`/nix/store/k7q3d7b4811avb5ny2jsp4j85c8wln1l-laut-small-equivalence-outputs`;
+the linker check is `/nix/store/37kcxmz47ka4y783wyihx24p0kcqczcv-laut-build-id`.
+No Rust hashing changes were made, seeded variants and ordinary verification
+checks were not rerun, and signature authentication remains outside these reports.
+The next unresolved content boundary is GCC's PCH checksum, not GNU build IDs.

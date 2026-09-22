@@ -1,8 +1,8 @@
 # Synthetic IA / Native CA Equivalence Investigation
 
-Status: investigation in progress, 2026-09-21. Medium and large unseeded IA/CA
-experiments completed; stable repeats expose a Bash build-ID output divergence
-beyond the corrected small graph. Commands and results
+Status: investigation in progress, 2026-09-22. Medium and large unseeded IA/CA
+experiments reran with linker build IDs disabled; Bash now agrees and the first
+remaining output difference is GCC's internal PCH checksum. Commands and results
 live in the [experiment runbook](ia-ca-experiments.md). The approach below is not
 a fixed sequence of implementation steps.
 
@@ -294,8 +294,17 @@ report green.
   The harness now handles non-leaf FOD boundaries, multi-output hooks, and CA
   recipes sharing output paths. All 142 offline tests and fresh small output
   equality/repeat checks pass. No production hashing change was made.
-- Next: isolate address-dependent GNU build IDs with a common-recipe experiment,
-  and control recipe environment differences via a common-source patch. Do not
-  erase content or environment fields to force agreement. Source/FOD seed
+- Build-ID suppression: `b3b6cd4` disables linker IDs in a common experiment-only
+  nixpkgs source patch, deliberately sacrificing build-ID-based debug extraction.
+  Medium and large signing reruns and all repeats complete. Output divergences
+  fall from 14 to 8 medium nodes and from 75 to 69 large nodes. Bash agrees; xgcc
+  is now the sole earliest output-divergent graph node in both sizes. Its residual
+  differences are the two 16-byte `executable_checksum` objects used for PCH
+  compatibility, not linker IDs. Small output equality and the focused linker
+  regression pass; medium/large output gates remain strictly red. Large introduces
+  no earlier independent frontier, but downstream local differences may remain.
+- Next: isolate the differing inputs to GCC's PCH checksum, and control recipe
+  environment differences via a common-source patch. Do not erase content or
+  environment fields in laut to force agreement. Source/FOD seed
   normalization, cross-subtree opaque source/output contexts, and authentication
   of the diagnostic experiment claims remain separate unresolved work.
