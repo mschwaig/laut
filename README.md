@@ -24,12 +24,18 @@ from whichever cache a result happened to pass through. This lets you pick who
 you trust independently from everyone else and change your mind about it over
 time.
 
+See **[Format Design Principles](docs/design.md)** for the original goals:
+independent producer and consumer evolution, evidence that can gradually replace
+trust with verification, and coexisting input/output representations. The
+[provenance profile](docs/slsa-provenance-v1.md) applies those principles to the
+signed format and its admission rules.
+
 The fundamentals are in place, with a few things still needing work (marked ❎):
 * configurable trust model[^2] ✅, ...
 * which can be re-configured over time, ✅ based on ...
 * verifiable provenance data for builders ❎
 * like realizations for CA derivations ✅, and also for IA derivations ✅
-* based on a new proposed signature format on top of JWS ✅, with
+* based on in-toto/SLSA provenance in DSSE-signed Sigstore Bundles, with
 * arbitrary additional ✅ but detachable ❎ metadata
 
 Right now `laut` can resolve the dependencies for and verify a fully
@@ -38,8 +44,8 @@ tests. The implementation is approaching a state where it is ready for its
 first users; until then expect breakage and short iteration times. As a
 project we are also not yet committed to supporting the current shape of the
 signatures long term — the envelope format and a few payload fields may still
-change. More paranoid features (provenance transparency log entries, remote
-attestation, sigstore-style integration) are on the horizon, and the dream is
+change. Optional Rekor v2 transparency proofs are now supported; remote
+attestation and log monitoring remain future work. The dream is
 to get the signatures (or log entries) widely available, e.g. via the NixOS
 Hydra instance.
 
@@ -49,7 +55,7 @@ context.
 
 ### How can I use it
 
-This is a standalone command line tool called `laut`, which has two subcommands.
+This is a standalone command line tool called `laut`.
 
 The first one is
 ```
@@ -59,10 +65,10 @@ laut sign-and-upload --to [HTTP cache URL] --secret-key-file [KEY] [DRV_PATH]
 which signs a derivation with the new signature format and uploads it to the
 `traces/` namespace of the provided HTTP cache. This is meant to run from a
 Nix post-build hook, in the same slot where legacy signatures are normally
-uploaded from nix-based builders. Exit codes: `0` = signed and uploaded,
-`117` = no-op (the hook fired on the unresolved drv, or on a FOD), `1` =
-error. The `$OUT_PATHS` environment variable set by `nix` in the post-build
-hook supplies the output paths.
+uploaded from nix-based builders. Exit codes: `0` = uploaded or nothing to do,
+`1` = error. The `$OUT_PATHS` environment variable set by `nix` in the post-build
+hook supplies the output paths. `laut sign` instead prints one bundle to stdout
+and returns `117` when the invocation is an unresolved CA derivation or a FOD.
 
 The second one is
 ```
@@ -76,17 +82,57 @@ resolves the dependency tree itself, gathers signatures from the configured
 caches, and feeds the resulting facts into a trust-model evaluator that
 decides whether the configured trust model is satisfied.
 
+To publish logged evidence, add an explicit Rekor v2 URL and a local Sigstore
+TrustedRoot JSON file. Existing Nix Ed25519 keyfiles are reused with Ed25519ph:
+
+```sh
+laut sign-and-upload --to https://cache.example \
+  --secret-key-file builder.private \
+  --rekor https://rekor.example --trusted-root log-root.json "$DRV_PATH"
+```
+
+To require inclusion as well as the configured build signatures:
+
+```sh
+laut verify --cache https://cache.example --trusted-key builder.public \
+  --require-log --trusted-root log-root.json "$DRV_PATH"
+```
+
+The root file supplies log keys, not trusted build signers. No public Sigstore
+services or trust roots are contacted implicitly. Logging errors do not fall
+back to direct signing. One JSON Lines object at
+`traces/aterm/<hash>` contains bundles for that Nix resolved
+input hash; verification needs no log connection.
+Without `--require-log`, valid direct signatures are sufficient.
+
+See the [provenance profile](docs/slsa-provenance-v1.md) for exact fields,
+supported log algorithms, trust-root configuration, and limitations. Signed
+`criticalFeatures` declare departures that cannot safely be ignored. The initial
+signer emits `[]`; the verifier excludes any claim with a nonempty set, without
+excluding other claims.
+
 ### How does it work
 
 It's a Rust workspace (`laut-cli` for argument parsing and dispatch,
 `laut-sign` for sign-side orchestration and the shared core, and
 `laut-verify` for verification). The hashing schemes and ATerm / castore
 encoding come from `nix-compat` / `laut-compat` on the
-`mschwaig/snix#fanfic` branch, and the signature envelope is JWS-based.
+`mschwaig/snix#fanfic` branch. The signed payload is an in-toto Statement v1
+with a SLSA Provenance v1 predicate, wrapped in DSSE and a Sigstore Bundle.
+
+The complete resolved request and each named output have open maps of sibling
+identities, with no universally required scheme. The current signer publishes
+the Nix request identity and store-path, NAR, and castore output identities.
+Other producers can publish different schemes independently.
+
+The current verifier selects the Nix request identity and a store path for every
+output. A claim lacking these can be valid format but unusable by this verifier.
+It declines that whole claim rather than dropping outputs. See the profile's
+[admission rules](docs/slsa-provenance-v1.md#current-admission).
 
 The signing side is straightforward: it walks the derivation, computes the
 resolved input hash, gathers output content hashes, and assembles a signed
-JWS token. Both content-addressed and input-addressed derivations are
+bundle. Both content-addressed and input-addressed derivations are
 supported — for IA derivations the signer walks the runtime closure to
 substitute synthetic CA paths and computes the CA-equivalent resolved input
 hash.
@@ -121,6 +167,19 @@ end-to-end).
 **In the future** different VM tests should exercise different trust models,
 but right now they all uniformly only trust `builderA` and `builderB` in
 combination.
+
+The small transparency checks run a private, POSIX-backed Rekor v2 server and
+an independent `sigstore-go` verifier inside network-restricted NixOS VMs:
+
+```sh
+nix build .#checks.x86_64-linux.small-sigstore-sign
+nix build .#checks.x86_64-linux.small-sigstore-verify
+```
+
+The verification test has no log VM: it verifies exported bundles offline and
+rejects corrupted or missing required evidence. Neither test contacts public
+Sigstore services. Only small VM tests should be run locally; medium and large
+tests are reserved for appropriate external runners.
 
 ### FAQ
 

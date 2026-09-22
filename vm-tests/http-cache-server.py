@@ -2,7 +2,9 @@
 import hashlib
 import json
 import os
+import re
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from urllib.parse import urlsplit
 
 
 def compute_etag(path):
@@ -44,15 +46,22 @@ class PUTHandler(SimpleHTTPRequestHandler):
             self.send_header('ETag', f'"{etag}"')
 
     def do_GET(self):
-        # GET on a /traces/ "directory" returns a JSON list of stored
-        # filenames. Production caches typically refuse this; the test
-        # fixture enables it so `laut verify --debug-preimage-corpus`
-        # can build an in-memory index. Listing is debug-only.
-        if self.path.rstrip('/') == '/traces':
-            self._serve_listing('/var/lib/cache/traces')
+        # Only list the trace namespace root and scheme leaves. This is
+        # debug-only; production caches typically refuse directory listings.
+        route = urlsplit(self.path).path
+        listing = re.fullmatch(
+            r'/traces(?:/([A-Za-z0-9][A-Za-z0-9._-]*))?/?', route
+        )
+        if listing:
+            self._serve_listing(
+                self.translate_path(route), namespaces=listing[1] is None
+            )
             return
 
         path = self.translate_path(self.path)
+        if os.path.isdir(path):
+            self.send_error(404)
+            return
         etag = compute_etag(path)
         if etag is None:
             self.send_error(404)
@@ -66,15 +75,22 @@ class PUTHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
-    def _serve_listing(self, dir_path):
+    def _serve_listing(self, dir_path, namespaces=False):
         # nginx ngx_http_autoindex_module / Caddy file_server format=json
         # shape: an array of objects, each with at least a `name` field.
         # That leaves room for future `type`/`size`/`mtime` fields without
         # changing the schema.
         try:
-            names = sorted(os.listdir(dir_path))
+            entry_type = os.path.isdir if namespaces else os.path.isfile
+            names = sorted(
+                n for n in os.listdir(dir_path)
+                if entry_type(os.path.join(dir_path, n))
+            )
         except FileNotFoundError:
             names = []
+        except NotADirectoryError:
+            self.send_error(404)
+            return
         body = json.dumps([{"name": n} for n in names]).encode('utf-8')
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')

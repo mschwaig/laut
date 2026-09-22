@@ -14,7 +14,7 @@ edition = "2024"
 nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
 laut-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "laut-compat" }
 ureq = { version = "2", default-features = false, features = ["tls"] }
-ed25519-dalek = "2"
+ed25519-dalek = { version = "2", features = ["digest"] }
 sha2 = "0.10"
 base64 = "0.22"
 serde_json = "1"

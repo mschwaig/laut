@@ -18,14 +18,13 @@ use std::process::Command;
 
 use serde_json::Value;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use laut_sign::attestation;
 
 /// A looser identity than `ct_input_hash`. Used to find signer-side preimages
 /// when the exact-hash lookup misses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Identity {
-    /// `payload.in.debug.drv_name` on the signer side, `udrv.name` locally.
+    /// Debugging byproduct's `drv_name` on the signer side, `udrv.name` locally.
     DrvName,
 }
 
@@ -73,7 +72,10 @@ impl InMemoryCorpusIndex {
     }
 
     pub fn add(&mut self, drv_name: String, candidate: PreimageCandidate) {
-        self.by_drv_name.entry(drv_name).or_default().push(candidate);
+        self.by_drv_name
+            .entry(drv_name)
+            .or_default()
+            .push(candidate);
     }
 
     pub fn lookup(&self, identity: Identity, value: &str) -> &[PreimageCandidate] {
@@ -94,7 +96,7 @@ impl InMemoryCorpusIndex {
 #[derive(Debug, thiserror::Error)]
 pub enum CorpusError {
     #[error(
-        "cache at {url:?} does not support listing /traces/ (HTTP {status}); --debug-preimage-corpus needs a cache with a listing endpoint, like the test cache server"
+        "cache does not support listing {url:?} (HTTP {status}); --debug-preimage-corpus needs a cache with a listing endpoint, like the test cache server"
     )]
     ListingNotSupported { url: String, status: u16 },
     #[error("cache at {url:?} returned a listing that is not a JSON array of objects: {detail}")]
@@ -127,31 +129,35 @@ pub enum CorpusError {
     },
 }
 
-/// Build an `InMemoryCorpusIndex` by listing the cache's `/traces/` directory
-/// and pulling the debug block out of each JWS we find. Permissive: entries
-/// whose signatures don't verify (or have no debug block at all) are simply
-/// not indexed. The flag-gated invariant is "preimages are only ever
+/// Build an `InMemoryCorpusIndex` by listing the Nix input scheme's trace directory
+/// and pulling the debugging byproduct out of each bundle. Signatures are
+/// deliberately not verified here; only malformed/missing debug data is skipped.
+/// The flag-gated invariant is "preimages are only ever
 /// generated when the signer opts in", so absence is expected.
 ///
 /// Dispatches on the same URL schemes as `Backend::fetch_signatures`:
-/// `http(s)://` requires a JSON listing endpoint at `/traces/`; `file://`
-/// reads `<path>/traces/` from disk.
+/// The URL names the cache root. `http(s)://` requires a JSON listing endpoint at
+/// `/traces/aterm/`; `file://` reads the same directory on disk.
 pub fn build_corpus_from_cache(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
     match crate::backend::parse_cache_url(cache_url)? {
         crate::backend::CacheTransport::Http(url) => build_from_http(&url),
-        crate::backend::CacheTransport::File(dir) => {
-            build_from_dir(&dir.join("traces"))
-        }
+        crate::backend::CacheTransport::File(dir) => build_from_dir(&dir.join(
+            laut_sign::http_cache::trace_directory(attestation::NIX_RESOLVED_INPUT),
+        )),
     }
 }
 
 fn build_from_http(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
     let base_url = cache_url.trim_end_matches('/');
-    let listing_url = format!("{}/traces/", base_url);
+    let listing_url = format!(
+        "{}/{}/",
+        base_url,
+        laut_sign::http_cache::trace_directory(attestation::NIX_RESOLVED_INPUT)
+    );
     let names = fetch_listing(&listing_url)?;
     let mut index = InMemoryCorpusIndex::new();
     for name in names {
-        let trace_url = format!("{}/traces/{}", base_url, name);
+        let trace_url = format!("{}{}", listing_url, name);
         let Ok(body) = fetch_bytes(&trace_url) else {
             continue;
         };
@@ -185,15 +191,11 @@ fn build_from_dir(traces_dir: &std::path::Path) -> Result<InMemoryCorpusIndex, C
 }
 
 fn extract_into(index: &mut InMemoryCorpusIndex, body: &[u8]) {
-    let Ok(parsed): serde_json::Result<Value> = serde_json::from_slice(body) else {
+    let Ok(text) = std::str::from_utf8(body) else {
         return;
     };
-    let Some(sigs) = parsed.get("signatures").and_then(|v| v.as_array()) else {
-        return;
-    };
-    for sig in sigs {
-        let Some(jws) = sig.as_str() else { continue };
-        let Some((drv_name, drv_path, aterm)) = extract_debug_from_jws(jws) else {
+    for line in text.lines() {
+        let Some((drv_name, drv_path, aterm)) = extract_debug_from_bundle(line) else {
             continue;
         };
         index.add(
@@ -210,12 +212,11 @@ fn fetch_listing(url: &str) -> Result<Vec<String>, CorpusError> {
     match ureq::get(url).call() {
         Ok(resp) => {
             let body = read_body(url, resp)?;
-            let parsed: Value = serde_json::from_slice(&body).map_err(|e| {
-                CorpusError::MalformedListing {
+            let parsed: Value =
+                serde_json::from_slice(&body).map_err(|e| CorpusError::MalformedListing {
                     url: url.to_owned(),
                     detail: format!("not valid JSON: {}", e),
-                }
-            })?;
+                })?;
             // nginx ngx_http_autoindex_module / Caddy file_server format=json
             // shape: `[{"name": "...", ...}, ...]`. We only need the `name`
             // field; other metadata (type, size, mtime) is ignored.
@@ -227,14 +228,13 @@ fn fetch_listing(url: &str) -> Result<Vec<String>, CorpusError> {
                 })?;
             let mut names = Vec::with_capacity(arr.len());
             for entry in arr {
-                let name = entry
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| CorpusError::MalformedListing {
+                let name = entry.get("name").and_then(|v| v.as_str()).ok_or_else(|| {
+                    CorpusError::MalformedListing {
                         url: url.to_owned(),
                         detail: "each array entry must be an object with a string `name` field"
                             .to_owned(),
-                    })?;
+                    }
+                })?;
                 names.push(name.to_owned());
             }
             Ok(names)
@@ -272,16 +272,21 @@ fn read_body(url: &str, resp: ureq::Response) -> Result<Vec<u8>, CorpusError> {
     Ok(buf)
 }
 
-/// Scan a JWS compact serialization for the debug block we're after, without
+/// Scan a bundle for a debugging byproduct, without
 /// verifying the signature. Returns `(drv_name, drv_path, aterm_preimage)`
 /// if all three are present.
-pub fn extract_debug_from_jws(jws: &str) -> Option<(String, String, String)> {
-    let mut parts = jws.split('.');
-    let _header = parts.next()?;
-    let payload_b64 = parts.next()?;
-    let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
-    let payload: Value = serde_json::from_slice(&payload_bytes).ok()?;
-    let debug = payload.get("in").and_then(|v| v.get("debug"))?;
+pub fn extract_debug_from_bundle(serialized: &str) -> Option<(String, String, String)> {
+    let bundle = attestation::parse_bundle(serialized.as_bytes()).ok()?;
+    let payload =
+        attestation::parse_json(&attestation::decode(&bundle.dsse_envelope.payload).ok()?).ok()?;
+    let descriptor = payload
+        .pointer("/predicate/runDetails/byproducts")?
+        .as_array()?
+        .iter()
+        .find(|v| v["name"] == "laut-debug-preimage")?;
+    let debug =
+        attestation::parse_json(&attestation::decode(descriptor["content"].as_str()?).ok()?)
+            .ok()?;
     let drv_name = debug.get("drv_name")?.as_str()?.to_owned();
     let drv_path = debug.get("rdrv_path")?.as_str()?.to_owned();
     let aterm = debug.get("rdrv_aterm_ca_preimage")?.as_str()?.to_owned();
@@ -314,9 +319,16 @@ impl DebugProbe for DifftProbe {
             return;
         }
 
-        let udrv_dir = self.out_dir.join(Path::new(local.udrv_drv_path).file_name().unwrap_or_default());
+        let udrv_dir = self.out_dir.join(
+            Path::new(local.udrv_drv_path)
+                .file_name()
+                .unwrap_or_default(),
+        );
         if let Err(e) = fs::create_dir_all(&udrv_dir) {
-            eprintln!("[laut debug] failed to create debug dir {:?}: {}", udrv_dir, e);
+            eprintln!(
+                "[laut debug] failed to create debug dir {:?}: {}",
+                udrv_dir, e
+            );
             return;
         }
 
@@ -345,7 +357,8 @@ impl DebugProbe for DifftProbe {
                 continue;
             }
 
-            let bytewise_equal = candidate.aterm_preimage.as_bytes() == local.aterm_bytes.as_bytes();
+            let bytewise_equal =
+                candidate.aterm_preimage.as_bytes() == local.aterm_bytes.as_bytes();
             if bytewise_equal {
                 eprintln!(
                     "[laut debug]   {} — bytewise identical to local preimage (divergence is elsewhere)",
@@ -424,21 +437,19 @@ mod tests {
     }
 
     #[test]
-    fn extract_debug_from_well_formed_jws() {
-        // Hand-build a JWS-shaped string with the debug block we expect.
-        let payload = serde_json::json!({
-            "in": {
-                "rdrv_aterm_ca": "ct123",
-                "debug": {
+    fn extract_debug_from_bundle_without_authenticating() {
+        let debug = serde_json::json!({
                     "drv_name": "hello",
                     "rdrv_path": "/nix/store/abc-hello.drv",
                     "rdrv_aterm_ca_preimage": "Derive(...)",
-                }
-            }
         });
-        let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_string(&payload).unwrap().as_bytes());
-        let jws = format!("header.{}.sig", payload_b64);
-        let (name, path, aterm) = extract_debug_from_jws(&jws).unwrap();
+        let payload = serde_json::json!({"predicate": {"runDetails": {"byproducts": [{
+            "name": "laut-debug-preimage", "content": attestation::encode(debug.to_string())
+        }]}}});
+        let bundle = serde_json::json!({"mediaType": attestation::BUNDLE_TYPE,
+            "verificationMaterial": {"publicKey": {"hint": "test"}},
+            "dsseEnvelope": {"payloadType": attestation::PAYLOAD_TYPE, "payload": attestation::encode(payload.to_string()), "signatures": []}});
+        let (name, path, aterm) = extract_debug_from_bundle(&bundle.to_string()).unwrap();
         assert_eq!(name, "hello");
         assert_eq!(path, "/nix/store/abc-hello.drv");
         assert_eq!(aterm, "Derive(...)");
@@ -446,9 +457,6 @@ mod tests {
 
     #[test]
     fn extract_debug_returns_none_when_block_missing() {
-        let payload = serde_json::json!({"in": {"rdrv_aterm_ca": "ct123"}});
-        let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_string(&payload).unwrap().as_bytes());
-        let jws = format!("header.{}.sig", payload_b64);
-        assert!(extract_debug_from_jws(&jws).is_none());
+        assert!(extract_debug_from_bundle("{}").is_none());
     }
 }

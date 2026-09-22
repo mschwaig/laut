@@ -2,6 +2,13 @@
 
 This document defines what it means to verify a *derivation output* under a *trust model*. Italicised terms are defined in the [project glossary](../README.md#glossary); when in doubt, look there first.
 
+## Claim Admission
+
+The reasoning below operates only on claims admitted under the
+[provenance profile](slsa-provenance-v1.md#current-admission). Authentication,
+request/build-type matching, required log checks, and critical-feature admission
+precede insertion of facts.
+
 ## Setup
 
 A *udrv* `D` describes one build step. *Dependency resolution* turns `D` into a *rdrv* by replacing each dependency on another `D'`'s *derivation outputs* with their specific *content hashes*. Executing the rdrv produces an *output map*: a mapping from each of `D`'s *derivation output* names to that output's *content hash*.

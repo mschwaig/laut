@@ -1,6 +1,6 @@
 //! Integration tests for the hash-divergence debug probe.
 //!
-//! Uses the same `tests/data/traces/signatures/` fixture corpus that the
+//! Uses the same `tests/data/traces/aterm/` fixture corpus that the
 //! orchestrator tests use. The corpus is loaded via `file://` so the
 //! production code path (cache URL → corpus) gets exercised end-to-end.
 
@@ -8,9 +8,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use laut_sign::attestation::NIX_RESOLVED_INPUT;
+use laut_sign::http_cache::trace_path;
 use laut_verify::debug::{
-    build_corpus_from_cache, extract_debug_from_jws, DebugProbe, DifftProbe, Identity,
-    InMemoryCorpusIndex, LocalWitness, NullProbe, PreimageCandidate,
+    DebugProbe, DifftProbe, Identity, InMemoryCorpusIndex, LocalWitness, NullProbe,
+    PreimageCandidate, build_corpus_from_cache, extract_debug_from_bundle,
 };
 
 fn data_dir() -> PathBuf {
@@ -20,23 +22,8 @@ fn data_dir() -> PathBuf {
         .join("data")
 }
 
-fn signatures_dir() -> PathBuf {
-    data_dir().join("traces").join("signatures")
-}
-
-/// The fixture corpus is laid out as `<data>/traces/signatures/<hash>`, but
-/// the orchestrator (and the corpus builder) expect `<root>/traces/<hash>`.
-/// Build a tiny tree that satisfies that layout by symlinking — we never
-/// mutate the fixtures.
-fn fixture_cache_root() -> tempfile::TempDir {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let traces = dir.path().join("traces");
-    std::os::unix::fs::symlink(signatures_dir(), &traces).expect("symlink fixtures");
-    dir
-}
-
-fn fixture_cache_url(root: &tempfile::TempDir) -> String {
-    format!("file://{}", root.path().display())
+fn fixture_cache_url() -> String {
+    format!("file://{}", data_dir().display())
 }
 
 fn difft_available() -> bool {
@@ -51,11 +38,10 @@ fn difft_available() -> bool {
 
 #[test]
 fn corpus_built_from_file_url_is_non_empty() {
-    let root = fixture_cache_root();
-    let index = build_corpus_from_cache(&fixture_cache_url(&root)).expect("corpus build");
+    let index = build_corpus_from_cache(&fixture_cache_url()).expect("corpus build");
     assert!(
         !index.is_empty(),
-        "fixture corpus produced no entries; either fixtures lack debug blocks or extract_debug_from_jws regressed"
+        "fixture corpus produced no entries; either fixtures lack debug data or bundle extraction regressed"
     );
 }
 
@@ -63,8 +49,7 @@ fn corpus_built_from_file_url_is_non_empty() {
 fn corpus_contains_known_fixture_drv_names() {
     // These names are present in the fixture signatures; the test will need
     // updating if the fixtures get regenerated against a different pkg set.
-    let root = fixture_cache_root();
-    let index = build_corpus_from_cache(&fixture_cache_url(&root)).expect("corpus build");
+    let index = build_corpus_from_cache(&fixture_cache_url()).expect("corpus build");
     for name in &["xz-5.8.1", "hello-2.12.1", "zlib-1.3.1"] {
         let candidates = index.lookup(Identity::DrvName, name);
         assert!(
@@ -77,11 +62,37 @@ fn corpus_contains_known_fixture_drv_names() {
 
 #[test]
 fn corpus_lookup_misses_for_unknown_name() {
-    let root = fixture_cache_root();
-    let index = build_corpus_from_cache(&fixture_cache_url(&root)).expect("corpus build");
-    assert!(index
-        .lookup(Identity::DrvName, "not-a-real-drv-name-anywhere")
-        .is_empty());
+    let index = build_corpus_from_cache(&fixture_cache_url()).expect("corpus build");
+    assert!(
+        index
+            .lookup(Identity::DrvName, "not-a-real-drv-name-anywhere")
+            .is_empty()
+    );
+}
+
+#[test]
+fn corpus_scans_only_the_selected_scheme() {
+    let root = tempfile::tempdir().unwrap();
+    let hash = "mdw7ghk4133r650ali5jdmgqi4ccwp65";
+    let body = fs::read_to_string(data_dir().join(trace_path(NIX_RESOLVED_INPUT, hash))).unwrap();
+    let bundle = body.lines().next().unwrap();
+    let (name, _, _) = extract_debug_from_bundle(bundle).unwrap();
+    let selected = root.path().join(trace_path(NIX_RESOLVED_INPUT, hash));
+    let other = root.path().join(trace_path("other-input", hash));
+    fs::create_dir_all(selected.parent().unwrap()).unwrap();
+    fs::create_dir_all(other.parent().unwrap()).unwrap();
+    fs::write(other, bundle).unwrap();
+    fs::write(root.path().join("traces").join(hash), bundle).unwrap();
+    let url = format!("file://{}", root.path().display());
+    assert!(build_corpus_from_cache(&url).unwrap().is_empty());
+    fs::write(selected, bundle).unwrap();
+    assert_eq!(
+        build_corpus_from_cache(&url)
+            .unwrap()
+            .lookup(Identity::DrvName, &name)
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -230,21 +241,29 @@ fn difft_probe_runs_difft_on_bytewise_differs() {
     );
 }
 
-// ---------------- extract_debug_from_jws ----------------
+// ---------------- extract_debug_from_bundle ----------------
 
 #[test]
-fn extract_debug_from_fixture_jws() {
-    // Read one real fixture JWS and confirm we can pull the debug block.
-    let any = fs::read_dir(signatures_dir())
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap();
-    let body = fs::read_to_string(any.path()).unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(&body).unwrap();
-    let jws = parsed["signatures"][0].as_str().unwrap();
-    let (name, drv_path, aterm) = extract_debug_from_jws(jws).expect("debug present");
+fn corpus_lookup_matches_namespaced_fixture_bundle() {
+    let path = data_dir().join(trace_path(
+        NIX_RESOLVED_INPUT,
+        "mdw7ghk4133r650ali5jdmgqi4ccwp65",
+    ));
+    let body = fs::read_to_string(path).unwrap();
+    let (name, drv_path, aterm) =
+        extract_debug_from_bundle(body.lines().next().unwrap()).expect("debug present");
     assert!(!name.is_empty());
     assert!(drv_path.starts_with("/nix/store/"));
     assert!(aterm.starts_with("Derive("));
+
+    let index = build_corpus_from_cache(&fixture_cache_url()).expect("corpus build");
+    assert!(
+        index
+            .lookup(Identity::DrvName, &name)
+            .iter()
+            .any(|candidate| {
+                candidate.drv_path == drv_path && candidate.aterm_preimage == aterm
+            }),
+        "corpus lookup must find the preimage from the namespaced fixture"
+    );
 }

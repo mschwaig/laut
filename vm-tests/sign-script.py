@@ -58,6 +58,13 @@ else:
   builderA.shutdown()
   builderB.shutdown()
 
+assert cache.succeed("ls -A /var/lib/cache/traces").split() == [
+    "aterm"
+]
+cache.succeed(
+    "test -n \"$(find /var/lib/cache/traces/aterm "
+    "-maxdepth 1 -type f)\""
+)
 cache.copy_from_vm("/var/lib/cache", "")
 cache.shutdown()
 

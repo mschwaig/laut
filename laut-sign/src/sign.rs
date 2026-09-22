@@ -1,10 +1,10 @@
 //! Sign-side orchestration: given a resolved derivation path and its
-//! post-build out-paths, build the trace JWS and (optionally) upload it.
+//! post-build out-paths, build the trace bundle and (optionally) upload it.
 //!
 //! Mirrors the pipeline phases used by [`crate::drv_json`] and the verify-side
 //! [`laut-verify::orchestrator`]: a small entry surface declared here, with
-//! the JWS payload assembly and the `$NIX_CONFIG` parsing factored into
-//! [`jws`] and [`nix_version`].
+//! the payload assembly and the `$NIX_CONFIG` parsing factored into
+//! [`crate::attestation`] and [`nix_version`].
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -25,7 +25,6 @@ use crate::keyfiles;
 use crate::nix_cmd;
 use crate::store_path;
 
-pub mod jws;
 pub mod nix_version;
 
 #[derive(Debug, thiserror::Error)]
@@ -40,12 +39,14 @@ pub enum Error {
     Keyfile(#[from] keyfiles::Error),
     #[error("content hash: {0}")]
     ContentHash(#[from] content_hash::Error),
-    #[error("jws: {0}")]
-    Jws(#[from] jws::Error),
+    #[error("attestation: {0}")]
+    Attestation(#[from] crate::attestation::Error),
     #[error("derivation: {0}")]
     Derivation(#[from] derivation::Error),
     #[error("upload: {0}")]
     Upload(#[from] http_cache::Error),
+    #[error("{0}")]
+    Transparency(#[from] crate::transparency::Error),
     #[error("derivation {0:?} not found in `nix derivation show` output")]
     DrvNotFound(String),
     #[error("derivation JSON missing field {0:?}")]
@@ -63,14 +64,14 @@ pub struct SignConfig {
     pub out_paths: Vec<String>,
     pub secret_key_file: PathBuf,
     /// When true, embed the resolved drv name, path, computed path, and ATerm
-    /// preimage under `payload.in.debug`. Test/dev only — production signers
+    /// preimage in a signed debugging byproduct. Test/dev only — production signers
     /// should leave this off so preimages never enter shared caches.
     pub include_preimage: bool,
+    pub log: Option<crate::transparency::LogConfig>,
 }
 
-/// Build and sign a trace JWS. Returns `None` when the post-build hook fires
-/// on the unresolved derivation (input_drvs non-empty), on a FOD, or on an
-/// input-addressed derivation — those are out-of-scope, not errors.
+/// Build and sign a trace bundle. Returns `None` on an unresolved CA
+/// derivation or a FOD; input-addressed builds use synthetic CA evidence.
 pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
     let drv_show_raw = nix_cmd::derivation_show(&cfg.drv_path)?;
 
@@ -126,8 +127,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
     }
 
     let aterm = nix_cmd::derivation_aterm(&cfg.drv_path)?;
-    let computed_drv_path =
-        derivation::calculate_drv_path_from_aterm(&drv_name, aterm.as_bytes())?;
+    let computed_drv_path = derivation::calculate_drv_path_from_aterm(&drv_name, aterm.as_bytes())?;
 
     let (input_hash, castore_outputs, debug_data) = if from_ia {
         sign_ia_outputs(
@@ -144,9 +144,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
             let path = entry
                 .get("path")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| Error::UnassignedOutput {
-                    path: name.clone(),
-                })?;
+                .ok_or_else(|| Error::UnassignedOutput { path: name.clone() })?;
             let encoded = content_hash::create_castore_entry(Path::new(path))?;
             castore_outputs.insert(name.clone(), Value::String(encoded));
         }
@@ -164,18 +162,18 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
         (input_hash, Value::Object(castore_outputs), debug_data)
     };
 
-    let mut buf = [0u8; 4];
+    let mut buf = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut buf);
-    let rebuild_id = u32::from_le_bytes(buf);
+    let rebuild_id = u128::from_le_bytes(buf);
 
     let (flavor, version) = std::env::var("NIX_CONFIG")
         .ok()
         .map(|s| nix_version::extract_nix_version_from_nix_config(&s))
         .unwrap_or((None, None));
 
-    let (key_name, signing_key) = keyfiles::parse_private_key_file(&cfg.secret_key_file)?;
+    let (_key_name, signing_key) = keyfiles::parse_private_key_file(&cfg.secret_key_file)?;
 
-    let jws_token = jws::create_trace_signature(
+    let mut bundle = crate::attestation::create_trace_bundle(
         &input_hash,
         debug_data.as_ref(),
         &Value::Object(output_hashes_map),
@@ -183,18 +181,21 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
         rebuild_id,
         flavor.as_deref(),
         version.as_deref(),
-        &key_name,
         &signing_key,
         from_ia,
     )?;
 
-    Ok(Some((input_hash, jws_token)))
+    if let Some(log) = &cfg.log {
+        crate::transparency::submit(&mut bundle, &signing_key.verifying_key(), log)?;
+    }
+
+    Ok(Some((input_hash, serde_json::to_string(&bundle)?)))
 }
 
 /// IA branch of [`sign`]: walks the runtime closure of every requested out-path,
 /// substitutes synthetic CA paths into `output_hashes_map`, computes the
 /// CA-equivalent drv path via [`constructive_trace::compute_resolved_input_hash_ia`],
-/// and returns the trio the caller plugs into the JWS.
+/// and returns the trio the caller plugs into the statement.
 ///
 /// `output_hashes_map[name].hash` is overwritten with the SHA256 NAR hash of
 /// the pass-2 rewritten content so the verifier can recompute and compare
@@ -252,9 +253,7 @@ fn sign_ia_outputs(
         let ia_path = entry
             .get("path")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| Error::UnassignedOutput {
-                path: name.clone(),
-            })?;
+            .ok_or_else(|| Error::UnassignedOutput { path: name.clone() })?;
         let result = walker.root_result(ia_path)?;
         name_to_synthetic.insert(
             name.clone(),
@@ -297,10 +296,12 @@ fn sign_ia_outputs(
                 walker.synthetic_ca_path(&ia_path)?.to_absolute_path()
             };
             let synthetic_sp = StorePath::<String>::from_absolute_path(synthetic_abs.as_bytes())
-                .map_err(|e| Error::StorePath(store_path::Error::Parse {
-                    path: synthetic_abs.clone(),
-                    source: e,
-                }))?;
+                .map_err(|e| {
+                    Error::StorePath(store_path::Error::Parse {
+                        path: synthetic_abs.clone(),
+                        source: e,
+                    })
+                })?;
             substitutions.insert(ia_path, synthetic_abs);
             input_sources.push(synthetic_sp);
         }
@@ -323,7 +324,7 @@ fn sign_ia_outputs(
     )?;
     let input_hash = store_path::extract_store_hash(&synthetic_drv_path)?;
 
-    // Swap `path` and `hash` in payload.out.nix for the synthetic CA path and
+    // Swap `path` and `hash` for the synthetic CA path and
     // the NAR hash of the rewritten content. The result has the "pretend-CA"
     // shape end-to-end: the verifier reads these as the values it should
     // independently recompute from its local store via the same closure walk.
@@ -358,11 +359,11 @@ fn sign_ia_outputs(
     Ok((input_hash, Value::Object(castore_outputs), debug_data))
 }
 
-/// Sign and POST to the given HTTP cache. Silently no-ops on the same
+/// Sign and conditionally publish to the given HTTP cache. No-ops on the same
 /// "out of scope" cases as [`sign`].
 pub fn sign_and_upload(cfg: &SignConfig, to: &str) -> Result<(), Error> {
-    if let Some((input_hash, jws_token)) = sign(cfg)? {
-        http_cache::upload_signature(to, &input_hash, &jws_token)?;
+    if let Some((input_hash, bundle)) = sign(cfg)? {
+        http_cache::upload_signature(to, &input_hash, &bundle)?;
     }
     Ok(())
 }
