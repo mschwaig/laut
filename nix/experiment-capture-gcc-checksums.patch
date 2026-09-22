@@ -1,0 +1,106 @@
+diff --git a/pkgs/development/compilers/gcc/common/checksum.nix b/pkgs/development/compilers/gcc/common/checksum.nix
+--- a/pkgs/development/compilers/gcc/common/checksum.nix
++++ b/pkgs/development/compilers/gcc/common/checksum.nix
+@@ -1,8 +1,6 @@
+ {
+   lib,
+   stdenv,
+-  nukeReferences,
+   langC,
+   langCC,
+-  runtimeShell,
+ }:
+@@ -26,28 +24,41 @@
+       # This is a separate phase because gcc assembles its phase scripts
+       # in bash instead of nix (we should fix that).
+       preFixupPhases = (previousAttrs.preFixupPhases or [ ]) ++ [ "postInstallSaveChecksumPhase" ];
+-      #
+-      # gcc uses an auxiliary utility `genchecksum` to md5-hash (most of) its
+-      # `.o` and `.a` files prior to linking (in case the linker is
+-      # nondeterministic).  Since we want to compare across gccs built from two
+-      # separate derivations, we wrap `genchecksum` with a `nuke-references`
+-      # call.  We also stash copies of the inputs to `genchecksum` in
+-      # `$checksum/inputs/` -- this is extremely helpful for debugging since
+-      # it's hard to get Nix to not delete the $NIX_BUILD_TOP of a successful
+-      # build.
+-      #
++      # Experiment only: observe the original invocation, never regenerate or
++      # change its inputs. Match the recipe, not the generator prerequisite.
++      postPatch = (previousAttrs.postPatch or "") + ''
++        cp ${./capture-checksum.sh} gcc/capture-checksum.sh
++        for frontend in c cp; do
++          substituteInPlace gcc/$frontend/Make-lang.in \
++            --replace-fail 'build/genchecksum$(build_exeext) $(' \
++              'bash $(srcdir)/capture-checksum.sh $@ build/genchecksum$(build_exeext) $('
++        done
++      '';
+       postInstallSaveChecksumPhase = ''
+-        mv gcc/build/genchecksum gcc/build/.genchecksum-wrapped
+-        cat > gcc/build/genchecksum <<\EOF
+-        #!${runtimeShell}
+-        ${nukeReferences}/bin/nuke-refs $@
+-        for INPUT in "$@"; do install -Dt $INPUT $checksum/inputs/; done
+-        exec build/.genchecksum-wrapped $@
+-        EOF
+-        chmod +x gcc/build/genchecksum
+-        rm gcc/*-checksum.*
+-        make -C gcc cc1-checksum.o cc1plus-checksum.o
+-        install -Dt $checksum/checksums/ gcc/cc*-checksum.o
++        mkdir -p "$checksum/checksums"
++        for frontend in cc1 cc1plus; do
++          matched=
++          for source in laut-gcc-checksums/*/$frontend-checksum.cc/*/source.cc.gz; do
++            if cmp -s "gcc/$frontend-checksum.cc" <(gzip -cd "$source"); then
++              matched=1
++              break
++            fi
++          done
++          if [ -z "$matched" ]; then
++            echo "No original capture matches final $frontend checksum source" >&2
++            return 1
++          fi
++          gzip -n -c "gcc/$frontend-checksum.cc" > "$checksum/checksums/$frontend-checksum.cc.gz"
++        done
++        mv laut-gcc-checksums "$checksum/captures"
++        # Nix must not rewrite raw evidence. Everything is compressed, and
++        # reject even accidental store-hash bytes before output registration.
++        if grep -arE '[0123456789abcdfghijklmnpqrsvwxyz]{32}' "$checksum"; then
++          echo "Store-hash-shaped bytes in checksum capture" >&2
++          return 1
++        else
++          test "$?" -eq 1 || return 1
++        fi
+       '';
+     }
+   )
+diff --git a/pkgs/development/compilers/gcc/common/capture-checksum.sh b/pkgs/development/compilers/gcc/common/capture-checksum.sh
+new file mode 100644
+--- /dev/null
++++ b/pkgs/development/compilers/gcc/common/capture-checksum.sh
+@@ -0,0 +1,26 @@
++# Called from the original GCC make recipe: target, generator, original argv.
++set -euo pipefail
++target=$1
++generator=$2
++shift 2
++stage=unbootstrapped
++if [ -f ../stage_current ]; then stage=$(cat ../stage_current); fi
++root=../laut-gcc-checksums/$stage/$target
++mkdir -p "$root"
++invocation=1
++while [ -e "$root/$invocation" ]; do invocation=$((invocation + 1)); done
++capture=$root/$invocation
++mkdir "$capture"
++trap 'rm -rf "$capture"' EXIT
++
++# Keep argv order, duplicate members and ../ names. Stream large archives;
++# only the tiny argv and generated source ever exist uncompressed here.
++printf '%s\0' "$@" > "$capture/argv.nul"
++tar --dereference --hard-dereference --format=gnu --mtime=@1 --owner=0 --group=0 --numeric-owner \
++  -cPf - --null -T "$capture/argv.nul" | gzip -n > "$capture/inputs.tar.gz"
++gzip -n "$capture/argv.nul"
++"$generator" "$@" > "$capture/source.cc"
++gzip -n -c "$capture/source.cc" > "$capture/source.cc.gz"
++cat "$capture/source.cc"
++rm "$capture/source.cc"
++trap - EXIT

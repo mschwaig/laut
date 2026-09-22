@@ -68,11 +68,14 @@ let
   smallPackageToBuild = (flattenList (lib.lists.replicate 7 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   mediumPackageToBuild = (flattenList (lib.lists.replicate 4 [ "stdenv" "__bootPackages" ])) ++ [ "binutils" ];
   largePackageToBuild = [ "hello" ];
-  experimentPatch = ../nix/experiment-disable-build-ids.patch;
+  experimentPatches = [
+    ../nix/experiment-disable-build-ids.patch
+    ../nix/experiment-capture-gcc-checksums.patch
+  ];
   experimentNixpkgs = pkgs.applyPatches {
-    name = "nixpkgs-laut-no-build-ids";
+    name = "nixpkgs-laut-experiment";
     src = nixpkgs-under-test;
-    patches = [ experimentPatch ];
+    patches = experimentPatches;
   };
   # Each experiment is an independent sign run, not a composition of checks.
   makeEquivalenceSign = { id, addressing, seed ? "", size, packageToBuild }:
@@ -100,10 +103,10 @@ let
         nixpkgs = {
           source = toString experimentNixpkgs;
           revision = nixpkgs-under-test.rev;
-          patches = [ {
-            name = "experiment-disable-build-ids.patch";
-            sha256 = builtins.hashFile "sha256" experimentPatch;
-          } ];
+          patches = map (patch: {
+            name = builtins.baseNameOf patch;
+            sha256 = builtins.hashFile "sha256" patch;
+          }) experimentPatches;
         };
         laut-sign-only = toString laut-sign-only;
       };
@@ -246,7 +249,9 @@ in
           assert code == 0, (mode, report.get("counts"), report.get("errors"))
 
       expected_nodes, expected_rebuilt = {
-          "small": (6, 4), "medium": (154, 77), "large": (250, 157),
+          # Original-checksum capture removes nuke-references: one medium
+          # recipe and two large recipes. Output equality remains strict.
+          "small": (6, 4), "medium": (153, 76), "large": (248, 155),
       }["${size}"]
       for builder, report in reports.items():
           assert report["version"] == 1, builder
@@ -293,6 +298,10 @@ in
       PY
     '';
   }) [ "small" "medium" "large" ]) // {
+    experiment-gcc-checksum = import ./gcc-checksum.nix {
+      inherit pkgs;
+      patchedSource = experimentNixpkgs;
+    };
     experiment-build-id = import ./build-id.nix {
       inherit pkgs;
       unpatchedSource = nixpkgs-under-test;

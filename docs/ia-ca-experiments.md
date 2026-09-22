@@ -830,6 +830,169 @@ The mixed-addressing restriction, signature admission, and trust semantics are
 unchanged. The larger tests therefore answer the original question negatively:
 not all synthetic IA/native CA differences are accounted for yet.
 
+## Original GCC Checksum Capture
+
+The medium follow-up adds `nix/experiment-capture-gcc-checksums.patch` to the
+common experimental nixpkgs source, alongside build-ID suppression. It does not
+disable PCH validation or normalize the checksum inputs. Ordinary VM tests and
+laut's hashing and trust rules are unchanged.
+
+The pinned nixpkgs `common/checksum.nix` phase is unsuitable for diagnosing the
+installed compiler: it runs after installation, nukes references in the input
+objects, and regenerates checksum objects without relinking installed binaries.
+Its `install -Dt $INPUT $checksum/inputs/` also reverses source and destination,
+so no original inputs were saved. The preceding medium logs contain these failed
+`install` calls; the regenerated values differ from the installed symbols.
+
+The replacement wraps the original C/C++ `genchecksum` make recipes. Each call
+streams its unmodified input files to a compressed tar archive, preserving argv
+order, duplicates, symlink contents, and parent-relative library filenames. It
+then invokes the original generator on the original files and forwards its
+source output unchanged. Separate stage/frontend/invocation directories avoid
+parallel build collisions. Publication requires the final checksum sources to
+match captured invocations, including earlier-stage sources reused by bootstrap.
+It does not rerun the generator or modify object files.
+
+The existing auxiliary `checksum` output now contains:
+
+```text
+captures/<stage>/<target>/<invocation>/argv.nul.gz
+captures/<stage>/<target>/<invocation>/inputs.tar.gz
+captures/<stage>/<target>/<invocation>/source.cc.gz
+checksums/cc1-checksum.cc.gz
+checksums/cc1plus-checksum.cc.gz
+```
+
+`argv.nul.gz` excludes the generator and target names. Replay the inputs with the
+real generator, including repeated arguments and `checksum-options`. It skips
+the first 16 bytes of each file, but is **not** ordinary MD5 over the concatenated
+remainders: its full 4096-byte `md5_process_block` calls bypass buffered tails
+from preceding files. The focused check compiles the actual pinned
+`genchecksum.cc` and `libiberty/md5.c` with infrastructure tools and exports
+`bin/genchecksum` for replay. Read tar members in order without extracting their
+potentially parent-relative paths. Compare the result with the generated source,
+final source, and installed `executable_checksum` symbol separately.
+The evidence is compressed to avoid native CA rewriting; publication rejects
+store-hash-shaped bytes even if they accidentally occur in compressed data.
+The captures themselves are not relocation-normalized outputs.
+
+```sh
+nix build .#checks.x86_64-linux.experiment-gcc-checksum \
+  .#checks.x86_64-linux.experiment-build-id \
+  .#checks.x86_64-linux.experiment-tools \
+  --no-link --print-out-paths --max-jobs 1 --cores 4
+```
+
+All three focused checks pass. The checksum check exercises the actual generator,
+patched override, helper, and publication phase with miniature C/C++ make rules. It
+covers concurrent targets, repeated arguments and invocations, symlink inputs,
+read-only input preservation, timestamp-independent archives, bootstrap reuse,
+generator/archive failures, mismatching final sources, and reference-scan errors.
+It also reproduces debug-path-sensitive checksums, agreement after stripping
+debug-only differences, and retained disagreement when code changes. Its
+published capture has no registered Nix references. These fixture checks alone
+are not evidence that medium outputs agree.
+
+### Medium Capture Results
+
+Both medium signing runs completed with independent builder A/B observations:
+
+```sh
+nix build .#checks.x86_64-linux.medium-equivalence-ia-sign \
+  .#checks.x86_64-linux.medium-equivalence-ca-sign \
+  --out-link /tmp/opencode/laut-gcc-capture-medium-sign \
+  --keep-failed --max-jobs 1 --cores 4 --print-out-paths -L
+nix build .#checks.x86_64-linux.medium-equivalence-outputs \
+  --no-link --keep-failed --max-jobs 1 --cores 4 --print-out-paths
+```
+
+| Configuration | Immutable Test Output |
+| --- | --- |
+| IA, original GCC captures | `/nix/store/cdpp49dbf3a5jikgr4j26sw9ryb6q1r2-vm-test-run-laut-medium-equivalence-ia-sign` |
+| CA, original GCC captures | `/nix/store/sh8f3sipcp572v0cb5whn615dr3qkpwq-vm-test-run-laut-medium-equivalence-ca-sign` |
+
+The common source is
+`/nix/store/df5igbgnbh1gysk9xm49r449sfgwh5jj-nixpkgs-laut-experiment`;
+the capture patch SHA-256 is
+`d964bc38ef1c4d6739de0bf67b5b755612285e25981488d0d9f99908de129b05`.
+Build-ID suppression, Nix, laut, and recipe hash-env attributes are unchanged.
+
+All four comparisons have complete correspondence, no evidence errors, and
+153 paired nodes: 76 ordinary recipes and 77 FOD boundaries. The removed recipe
+is `nuke-references`, no longer needed by the replacement diagnostic phase;
+this is an inventory change, not a newly agreeing output. Both repeats agree at
+all nodes and 99 requested output records. Both IA/CA comparisons still have
+**eight divergent ordinary nodes and ten divergent output records**, with xgcc
+the sole earliest output frontier and the same seven divergent dependents.
+The strict medium gate remains red. Large was not rebuilt; expression-level
+closure inspection finds 248 nodes / 155 ordinary recipes after removing its
+two stage-specific `nuke-references` recipes, reflected in its inventory check.
+The final gate rerun reaches the output assertion at `xgcc-14.2.1.20250322`;
+it does not stop at an inventory mismatch. Fresh small IA/CA signing runs,
+small output equality and repeats, the real-generator capture regression,
+the linker regression, and all 142 offline tests pass. The small gate output is
+`/nix/store/qfi2nvp15w74igg9wmvqg2aq879mypwy-laut-small-equivalence-outputs`;
+the final replay-generator check is
+`/nix/store/awfdfnwv69zb4li2dh2kpdvqgv7savr0-laut-gcc-checksum`.
+
+The real generator reproduces all four original frontend checksum sources from
+their captured inputs. Each source matches the final source and its checksum
+occurs in the corresponding installed compiler. The auxiliary captures are at
+`/nix/store/fs4737a0jvg79jqikvj14ygqmdwpyilc-xgcc-14.2.1.20250322-checksum`
+(IA) and
+`/nix/store/pj4ihwap152b32nwk2z3bhdycj4kj29l-xgcc-14.2.1.20250322-checksum`
+(CA), available through each run's exported cache.
+
+| Compiler | Original IA Checksum | Original CA Checksum |
+| --- | --- | --- |
+| `cc1` | `19020fe277bf7a6d5513a043763474dd` | `526e5640508f2aaa393a0523003b9817` |
+| `cc1plus` | `3327f2bd728e39505aedcdbb85dab02e` | `36804af1337de40cc9abdb9926160a59` |
+
+The two argv lists contain 46 and 77 arguments, or 84 unique input paths.
+Only `checksum-options` agrees without transformations. Comparing actual ELF
+sections at their respective offsets, rather than interpreting shifted file
+offsets as changed content, identifies:
+
+- 226 compressed `.debug_str` sections with differing `DW_AT_producer`
+  `-frandom-seed` values: `5h3n66v7q7` versus `pw37ah8s4y`, the first ten
+  characters of each **build-time** xgcc output hash.
+- 215 `.debug_line_str` sections with uppercase store-hash spellings of
+  dependency paths. All differing decoded string multisets agree under explicit
+  paired path/seed substitution. The associated 684,369 differing debug
+  relocation addends point to matching strings under that same substitution.
+- `libcommon-target.a(prefix.o)` with a real output-prefix reference in
+  `.rodata.str1.8`. The CA build-time prefix is not its final CA output path.
+- Thin `libbackend.a` with 406 differing decimal member-size fields among 538
+  member references. Every other byte of that archive agrees.
+
+No captured executable-code section, ordinary code relocation, `.comment`,
+`.eh_frame`, `.symtab`, or `.strtab` differs. This does not cover the backend
+object bodies: a thin archive contains references and sizes, not those bodies,
+and `genchecksum` itself reads only the archive bytes. GNU `objcopy` rejects thin
+archives. The debug-only origin of each backend size delta remains unproven.
+
+On separate diagnostic copies, stripping debug data makes 82 of 84 inputs
+identical. Explicit build-time self-path substitution additionally reconciles
+`prefix.o`, leaving only the thin archive's size fields. Reference nuking alone
+is insufficient: it does not remove compressed DWARF, uppercase path spellings,
+truncated random seeds, or member-size fields. No such transformation was
+applied to the installed compiler, its real checksum inputs, or laut's hashes.
+
+The next bounded producer experiment is to disable GCC host debug generation
+consistently for both modes, including its support libraries, and test whether
+the thin-member sizes then agree. A stable seed alone leaves debug paths;
+`-g0` alone still leaves the live prefix reference. Preserve genuine checksum
+generation and PCH validation; neither zeroing checksums nor inventing archive
+sizes is a fix. No `-g0` rebuild or claim of cross-compiler PCH safety is made here.
+
+Reports are in `/tmp/opencode/laut-gcc-capture-medium-analysis/`; the corrected
+byte/section diagnosis, explicit mappings, replay checksums, all 406 residual
+members, scripts, and limitations are recorded in
+`/tmp/opencode/laut-gcc-input-root-cause/summary.md` and its adjacent JSON files.
+The signing log is `/tmp/opencode/laut-gcc-capture-medium.log`. These remain
+diagnostic cached claims and targeted content checks, not signature authentication
+or full IA/CA equivalence.
+
 ## Build-ID Suppression Experiment
 
 Following the medium/large Bash diagnosis, the agreed next experiment disables

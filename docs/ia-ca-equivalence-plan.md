@@ -1,8 +1,8 @@
 # Synthetic IA / Native CA Equivalence Investigation
 
-Status: investigation in progress, 2026-09-22. Medium and large unseeded IA/CA
-experiments reran with linker build IDs disabled; Bash now agrees and the first
-remaining output difference is GCC's internal PCH checksum. Commands and results
+Status: investigation in progress. Medium original-input captures now reproduce
+GCC's differing PCH checksums and isolate debug paths, address-derived compiler
+seeds, a live output-prefix reference, and thin-archive member sizes. Commands and results
 live in the [experiment runbook](ia-ca-experiments.md). The approach below is not
 a fixed sequence of implementation steps.
 
@@ -303,7 +303,20 @@ report green.
   compatibility, not linker IDs. Small output equality and the focused linker
   regression pass; medium/large output gates remain strictly red. Large introduces
   no earlier independent frontier, but downstream local differences may remain.
-- Next: isolate the differing inputs to GCC's PCH checksum, and control recipe
+- Original GCC inputs: a common-source diagnostic patch captures the actual C/C++
+  generator invocations instead of regenerating checksums after installation.
+  Fresh medium runs and repeats complete; all four installed checksums replay
+  exactly with the real pinned generator. Eight nodes / ten requested outputs
+  still diverge. The inventory is now 153 nodes / 76 ordinary recipes because
+  the obsolete `nuke-references` dependency disappeared, not because an output
+  difference was fixed. Captured ELF differences are debug paths and truncated
+  output-hash seeds plus `prefix.o`'s live self path. After debug stripping and
+  explicit path substitution on copies, only 406 thin-archive member-size fields
+  remain; their referenced backend bodies were not captured. The focused capture
+  check uses the actual generator and preserves PCH validation. No large rerun.
+- Next: test GCC host builds without debug generation to isolate thin-member
+  size differences, then address the remaining live prefix explicitly; do not
+  assume either a stable seed or `-g0` alone fixes the checksum. Control recipe
   environment differences via a common-source patch. Do not erase content or
   environment fields in laut to force agreement. Source/FOD seed
   normalization, cross-subtree opaque source/output contexts, and authentication
