@@ -10,7 +10,10 @@
     # Pinned so the same drv hashes show up across runs and across the
     # IA/CA modes (which derive both from this same input).
     nixpkgs-under-test.url = "github:nixos/nixpkgs/979daf34c8cacebcd917d540070b52a3c2b9b16e";
-    bombon.url = "github:nikstur/bombon";
+    bombon = {
+      url = "github:nikstur/bombon";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = { self, nixpkgs, nixpkgs-under-test, bombon }@inputs:
