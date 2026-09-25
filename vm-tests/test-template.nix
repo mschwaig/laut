@@ -19,6 +19,7 @@
 let
   fullArgs = {
     inherit cacheStoreUrl cachePort verifierExtraConfig;
+    nixPackage = pkgs.nixVersions.nix_2_31;
   } // args;
   # `pkgs` is the infra Nix evaluator (rolling). We use its nixpkgs path to
   # locate the test-runner library, and its `nix` binary to drive the test
@@ -42,12 +43,10 @@ let
         builderA = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderA_key.public;
           builderPrivateKey = ../testkeys/builderA_key.private;
-          nixPackage = pkgs.nix;
         });
         builderB = import ./machines/builder.nix (fullArgs // {
           builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
-          nixPackage = pkgs.nix;
         });
       } else {
         verifier = import ./machines/verifier.nix (fullArgs);
@@ -67,7 +66,7 @@ let
       '';
 } // (if needsExtraTime then {
     # Set timeout to 8 hours for large VM tests
-    extraDriverArgs = ["--global-timeout=28800"];
+    globalTimeout = 28800;
   } else { }));
 in
   test
