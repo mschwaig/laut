@@ -12,7 +12,7 @@
   builderPublicKey,
   builderPrivateKey,
   cacheStoreUrl,
-  nixPackage ? pkgs.nix,
+  nixPackage,
   ...
 }:
 
