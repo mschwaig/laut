@@ -6,6 +6,7 @@
   lib,
   verifierExtraConfig,
   cacheStoreUrl,
+  nixPackage,
   ...
 }:
 # `imports` rather than `lib.recursiveUpdate` so list-typed options like
@@ -27,7 +28,7 @@
         # the resulting drv hashes deep in a large tree (different bytecode
         # / hashing edge cases), which leaves the verifier asking the cache
         # for paths the builder never produced.
-        package = pkgs.nix;
+        package = nixPackage;
         checkConfig = false;
         settings = {
           # The verifier only substitutes from the sign cache — it must
@@ -78,7 +79,7 @@
       };
 
       environment.systemPackages = [
-        pkgs.nix
+        nixPackage
         pkgs.git
         laut
       ];
