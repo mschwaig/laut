@@ -1,0 +1,32 @@
+name: Limit Blob Size
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  blob-size:
+    name: Limit Blob Size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          git rev-list --objects "$BASE_SHA..HEAD" -- |
+            git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' |
+            awk '
+              $1 == "blob" && $3 > 1000000 {
+                print "Blob exceeds 1,000,000 bytes:", $0
+                failed = 1
+              }
+              END { exit failed }
+            '
