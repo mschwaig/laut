@@ -119,9 +119,9 @@ impl<B: Backend> Orchestrator<B> {
         &mut self,
         udrv: &UnresolvedDerivation,
         combo: &BTreeMap<String, TrustlesslyResolvedDerivation>,
-    ) -> Result<(HashMap<String, String>, Vec<StorePath<String>>), Error> {
+    ) -> Result<(HashMap<String, String>, Vec<StorePath>), Error> {
         let mut substitutions: HashMap<String, String> = HashMap::new();
-        let mut input_sources: Vec<StorePath<String>> = Vec::new();
+        let mut input_sources: Vec<StorePath> = Vec::new();
 
         for (dep_drv_path, resolved_dep) in combo {
             let dep_drv = self.derivations.get(dep_drv_path).ok_or_else(|| {
@@ -152,7 +152,7 @@ impl<B: Backend> Orchestrator<B> {
                         output_name: unresolved_output.output_name.clone(),
                     })?;
                 substitutions.insert(ia_path.clone(), synthetic_ca_path.clone());
-                let sp = StorePath::<String>::from_absolute_path(synthetic_ca_path.as_bytes())
+                let sp = StorePath::from_absolute_path(synthetic_ca_path.as_bytes())
                     .map_err(|e| Error::ConstructiveTrace(format!(
                         "synthetic CA path {} parse: {:?}",
                         synthetic_ca_path, e

@@ -11,16 +11,24 @@ version = "0.4.0"
 edition = "2024"
 
 [workspace.dependencies]
-nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
-laut-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "laut-compat" }
-ureq = { version = "2", default-features = false, features = ["tls"] }
+nix-compat = { git = "https://github.com/mschwaig/snix", rev = "03c154ffb3c585835683219e1d901599a4cc87e6", package = "nix-compat" }
+laut-compat = { git = "https://github.com/mschwaig/snix", rev = "03c154ffb3c585835683219e1d901599a4cc87e6", package = "laut-compat" }
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+# Snix exposes dalek key types, so use its major version.
 ed25519-dalek = "2"
-sha2 = "0.10"
-base64 = "0.22"
+sha2 = "0.11"
+base64 = "0.23"
 serde_json = "1"
 data-encoding = "2"
-thiserror = "1"
+thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive", "env"] }
-rand = "0.8"
+rand = "0.10"
 regex = "1"
+
+[patch.crates-io]
+# Match snix's GOAWAY fixes; dependency workspaces do not propagate patches.
+hyper = { git = "https://github.com/flokli/hyper.git", rev = "554050c2ac5057110dc76a71022d7f6a7a8c9e2e" }
+tonic = { git = "https://github.com/flokli/grpc-rust.git", rev = "292ed1a6aa8011208f685e9e116ea205d3156256" }
+tonic-prost = { git = "https://github.com/flokli/grpc-rust.git", rev = "292ed1a6aa8011208f685e9e116ea205d3156256" }
+tonic-prost-build = { git = "https://github.com/flokli/grpc-rust.git", rev = "292ed1a6aa8011208f685e9e116ea205d3156256" }

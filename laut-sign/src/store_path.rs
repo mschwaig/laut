@@ -8,7 +8,7 @@ pub enum Error {
     #[error("invalid Nix store path {path:?}: {source:?}")]
     Parse {
         path: String,
-        source: nix_compat::store_path::Error,
+        source: nix_compat::store_path::ParseStorePathError,
     },
 }
 
@@ -18,7 +18,7 @@ pub enum Error {
 /// input is parsed by nix-compat so malformed paths and invalid digest
 /// characters are rejected up front.
 pub fn extract_store_hash(store_path: &str) -> Result<String, Error> {
-    let parsed: StorePath<String> =
+    let parsed: StorePath =
         StorePath::from_absolute_path(store_path.as_bytes()).map_err(|source| Error::Parse {
             path: store_path.to_owned(),
             source,
@@ -28,12 +28,12 @@ pub fn extract_store_hash(store_path: &str) -> Result<String, Error> {
 
 /// Return the name suffix (everything after the `<hash>-`) of a Nix store path.
 pub fn extract_store_name(store_path: &str) -> Result<String, Error> {
-    let parsed: StorePath<String> =
+    let parsed: StorePath =
         StorePath::from_absolute_path(store_path.as_bytes()).map_err(|source| Error::Parse {
             path: store_path.to_owned(),
             source,
         })?;
-    Ok(parsed.name().to_owned())
+    Ok(parsed.name().to_string())
 }
 
 #[cfg(test)]

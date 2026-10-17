@@ -8,10 +8,10 @@
   sign-only ? false,
 }:
 let
-  snix-hash = "sha256-JQtnslAFO3dpqzROmCBjpKY+w9CoKDHqJeZSaWR5zgw=";
+  snix-hash = "sha256-DfYEZEw7qBchAY7wEdrTs9jRlMclVdNKBsKAWBiUQNk=";
   snix = fetchgit {
     url = "https://github.com/mschwaig/snix";
-    rev = "95cd1ba7515d409edaf0dfb249f6cdf327f4c209";
+    rev = "03c154ffb3c585835683219e1d901599a4cc87e6";
     hash = snix-hash;
   };
 
@@ -46,6 +46,8 @@ in
       lockFile = ../Cargo.lock;
       outputHashes = {
         "laut-compat-0.1.0" = snix-hash;
+        "hyper-1.10.1" = "sha256-5Jwxx+cafnawCBV+6VS461uL2TGht8k6xPBf2tAhcO0=";
+        "tonic-0.14.6" = "sha256-tl2Zqbt26+PfNE5TO/7ITH3VXhf3KUpr26rgennfhj4=";
         "wu-manber-0.1.0" = "sha256-7YIttaQLfFC/32utojh2DyOHVsZiw8ul/z0lvOhAE/4=";
       };
     };

@@ -34,12 +34,12 @@ pub fn fetch_signatures_from_cache(
 ) -> Result<Option<Vec<u8>>, Error> {
     let url = format!("{}/traces/{}", base_url.trim_end_matches('/'), input_hash);
     match ureq::get(&url).call() {
-        Ok(resp) => {
+        Ok(mut resp) => {
             let mut buf = Vec::new();
-            resp.into_reader().read_to_end(&mut buf)?;
+            resp.body_mut().as_reader().read_to_end(&mut buf)?;
             Ok(Some(buf))
         }
-        Err(ureq::Error::Status(404, _)) => Ok(None),
+        Err(ureq::Error::StatusCode(404)) => Ok(None),
         Err(e) => Err(Error::Http(format!("{}", e))),
     }
 }
@@ -146,6 +146,58 @@ pub fn verify_resolved_trace_signatures(
 mod tests {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};
+
+    #[test]
+    fn http_fetch_handles_absence_errors_and_large_bodies() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+        use std::time::Duration;
+
+        for status in [404, 500, 200] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let body = if status == 200 {
+                vec![b'x'; 10 * 1024 * 1024 + 1]
+            } else {
+                Vec::new()
+            };
+            let expected = body.clone();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                let mut reader = BufReader::new(&mut stream);
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                assert_eq!(line, "GET /traces/hash HTTP/1.1\r\n");
+                loop {
+                    line.clear();
+                    assert_ne!(reader.read_line(&mut line).unwrap(), 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                write!(
+                    stream,
+                    "HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .unwrap();
+                stream.write_all(&body).unwrap();
+            });
+            let result = fetch_signatures_from_cache(&format!("{url}/"), "hash");
+            server.join().unwrap();
+            match status {
+                404 => assert_eq!(result.unwrap(), None),
+                200 => assert_eq!(result.unwrap(), Some(expected)),
+                _ => assert!(matches!(result, Err(Error::Http(_)))),
+            }
+        }
+    }
 
     fn make_key() -> SigningKey {
         let seed = [7u8; 32];

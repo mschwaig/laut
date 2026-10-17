@@ -239,7 +239,7 @@ fn fetch_listing(url: &str) -> Result<Vec<String>, CorpusError> {
             }
             Ok(names)
         }
-        Err(ureq::Error::Status(status @ (403 | 404 | 405), _)) => {
+        Err(ureq::Error::StatusCode(status @ (403 | 404 | 405))) => {
             Err(CorpusError::ListingNotSupported {
                 url: url.to_owned(),
                 status,
@@ -260,10 +260,14 @@ fn fetch_bytes(url: &str) -> Result<Vec<u8>, CorpusError> {
     read_body(url, resp)
 }
 
-fn read_body(url: &str, resp: ureq::Response) -> Result<Vec<u8>, CorpusError> {
+fn read_body(
+    url: &str,
+    mut resp: ureq::http::Response<ureq::Body>,
+) -> Result<Vec<u8>, CorpusError> {
     use std::io::Read as _;
     let mut buf = Vec::new();
-    resp.into_reader()
+    resp.body_mut()
+        .as_reader()
         .read_to_end(&mut buf)
         .map_err(|e| CorpusError::Io {
             url: url.to_owned(),
@@ -388,6 +392,55 @@ impl DebugProbe for DifftProbe {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn http_listing_success_and_unsupported_statuses() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+        use std::time::Duration;
+
+        for status in [200, 403, 404, 405, 500] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/traces/", listener.local_addr().unwrap());
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                let mut reader = BufReader::new(&mut stream);
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                assert_eq!(line, "GET /traces/ HTTP/1.1\r\n");
+                loop {
+                    line.clear();
+                    assert_ne!(reader.read_line(&mut line).unwrap(), 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                let body = r#"[{"name":"trace-hash"}]"#;
+                write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            });
+            let result = fetch_listing(&url);
+            server.join().unwrap();
+            match status {
+                200 => assert_eq!(result.unwrap(), vec!["trace-hash"]),
+                403 | 404 | 405 => assert!(
+                    matches!(result, Err(CorpusError::ListingNotSupported { status: actual, .. }) if actual == status)
+                ),
+                _ => assert!(matches!(
+                    result,
+                    Err(CorpusError::Transport {
+                        source: ureq::Error::StatusCode(500),
+                        ..
+                    })
+                )),
+            }
+        }
+    }
 
     #[test]
     fn null_probe_does_nothing() {

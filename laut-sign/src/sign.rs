@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use laut_compat::content_hash::format_nar_hash;
 use nix_compat::nixhash::NixHash;
 use nix_compat::store_path::{StorePath, hash_placeholder};
-use rand::RngCore;
 use serde_json::{Value, json};
 
 use crate::constructive_trace;
@@ -164,9 +163,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
         (input_hash, Value::Object(castore_outputs), debug_data)
     };
 
-    let mut buf = [0u8; 4];
-    rand::thread_rng().fill_bytes(&mut buf);
-    let rebuild_id = u32::from_le_bytes(buf);
+    let rebuild_id = rand::random::<u32>();
 
     let (flavor, version) = std::env::var("NIX_CONFIG")
         .ok()
@@ -243,7 +240,7 @@ fn sign_ia_outputs(
     // nodes across roots.
     struct Synthetic {
         ia_path: String,
-        synthetic_ca: StorePath<String>,
+        synthetic_ca: StorePath,
         castore_entry: String,
         nar_hash: NixHash,
     }
@@ -271,7 +268,7 @@ fn sign_ia_outputs(
     // and every input drv's outputs that the ATerm references. Also collect
     // the input drvs' synthetic CA paths to fold into inputSrcs.
     let mut substitutions: HashMap<String, String> = HashMap::new();
-    let mut input_sources: Vec<StorePath<String>> = Vec::new();
+    let mut input_sources: Vec<StorePath> = Vec::new();
 
     for (input_drv_path, input_drv_ref) in &drv.input_drvs {
         let input_show_raw = nix_cmd::derivation_show(input_drv_path)?;
@@ -296,7 +293,7 @@ fn sign_ia_outputs(
             } else {
                 walker.synthetic_ca_path(&ia_path)?.to_absolute_path()
             };
-            let synthetic_sp = StorePath::<String>::from_absolute_path(synthetic_abs.as_bytes())
+            let synthetic_sp = StorePath::from_absolute_path(synthetic_abs.as_bytes())
                 .map_err(|e| Error::StorePath(store_path::Error::Parse {
                     path: synthetic_abs.clone(),
                     source: e,

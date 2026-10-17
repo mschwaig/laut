@@ -1,16 +1,17 @@
 //! Compute the resolved-input-hash drv path for an unresolved derivation, given a
 //! resolution map for each of its input derivations' outputs.
 //!
-//! We parse with snix's non-validating parser, edit the `Derivation` struct
+//! We parse with snix's non-validating parser, edit the `UnvalidatedDerivation` struct
 //! (drop `inputDrvs`, fold the resolved content-hash paths into `inputSrcs`),
 //! serialize back to ATerm, replace upstream placeholders throughout the bytes,
 //! and hand the result to [`calculate_derivation_path_from_aterm`] for the
-//! final hash.
+//! final hash. Output environment bindings remain preimage data, not paths to normalize.
 
 use std::collections::HashMap;
 
-use nix_compat::derivation::{calculate_derivation_path_from_aterm, CAFloatingAlgo, Derivation};
-use nix_compat::nixhash::HashAlgo;
+use nix_compat::derivation::{
+    UnvalidatedDerivation as Derivation, calculate_derivation_path_from_aterm,
+};
 use nix_compat::store_path::{self, StorePath};
 
 /// Map of unresolved input drv path -> output name -> resolved content-hash path.
@@ -51,13 +52,13 @@ pub fn compute_resolved_input_hash(
         return Ok((path, aterm));
     }
 
-    let mut drv = Derivation::from_aterm_bytes_unchecked(drv_aterm)
+    let mut drv = Derivation::from_aterm_bytes(drv_aterm)
         .map_err(|e| Error::Parse(format!("{:?}", e)))?;
 
     // Walk input_derivations in one pass, collecting:
     //   - resolved content-hash paths to fold into input_sources
     //   - placeholder/replacement pairs to apply post-serialize
-    let mut new_input_sources: Vec<StorePath<String>> = Vec::new();
+    let mut new_input_sources: Vec<StorePath> = Vec::new();
     let mut substitutions: Vec<(String, String)> = Vec::new();
 
     for (input_drv_sp, output_names) in &drv.input_derivations {
@@ -70,7 +71,7 @@ pub fn compute_resolved_input_hash(
         })?;
 
         for output_name in output_names {
-            let content_hash_path = outputs_map.get(output_name).ok_or_else(|| {
+            let content_hash_path = outputs_map.get(output_name.as_str()).ok_or_else(|| {
                 Error::MissingResolution(format!(
                     "no resolution provided for output {}!{}",
                     input_drv_path, output_name
@@ -89,7 +90,7 @@ pub fn compute_resolved_input_hash(
             let placeholder = store_path::hash_upstream_placeholder(
                 "/nix/store/",
                 &input_drv_path,
-                output_name,
+                output_name.as_str(),
             )
             .map_err(Error::Placeholder)?;
             substitutions.push((placeholder, content_hash_path.clone()));
@@ -119,7 +120,7 @@ pub fn compute_resolved_input_hash(
 /// natively-CA analogue would produce.
 ///
 /// Concretely:
-///   - Each output's `path` is cleared and `ca_floating` is set to
+///   - Each output's `path` is cleared and `hash_algo` is set to
 ///     `r:sha256` (recursive SHA256), matching the NAR-mode CA that
 ///     [`rewrite_to_ca_pass1`] derives.
 ///   - `inputDrvs` is cleared; dep synthetic-CA paths are folded into
@@ -132,10 +133,10 @@ pub fn compute_resolved_input_hash(
 pub fn compute_resolved_input_hash_ia(
     drv_name: &str,
     drv_aterm: &[u8],
-    input_drv_outputs_synthetic_ca: Vec<StorePath<String>>,
+    input_drv_outputs_synthetic_ca: Vec<StorePath>,
     substitutions: &HashMap<String, String>,
 ) -> Result<(String, String), Error> {
-    let mut drv = Derivation::from_aterm_bytes_unchecked(drv_aterm)
+    let mut drv = Derivation::from_aterm_bytes(drv_aterm)
         .map_err(|e| Error::Parse(format!("{:?}", e)))?;
 
     // Convert each output to a floating-CA shape: clear the concrete IA path
@@ -143,11 +144,8 @@ pub fn compute_resolved_input_hash_ia(
     // `("out","","r:sha256","")` — identical to a natively floating CA drv.
     for output in drv.outputs.values_mut() {
         output.path = None;
-        output.ca_hash = None;
-        output.ca_floating = Some(CAFloatingAlgo {
-            algo: HashAlgo::Sha256,
-            recursive: true,
-        });
+        output.hash_algo = "r:sha256".into();
+        output.hash.clear();
     }
 
     drv.input_derivations.clear();
@@ -217,6 +215,53 @@ mod tests {
     }
 
     #[test]
+    fn empty_resolutions_preserve_original_bytes() {
+        // Deliberately noncanonical environment order: hashing must use the
+        // supplied bytes rather than a sorted reserialization.
+        let aterm = br#"Derive([("out","","r:sha256","")],[],[],"","",[],[("z","last"),("out",""),("a","first\n\"\\")])"#;
+        let (path, preimage) =
+            compute_resolved_input_hash("self", aterm, &Resolutions::new()).unwrap();
+
+        assert_eq!(preimage.as_bytes(), aterm);
+        assert_eq!(
+            path,
+            calculate_derivation_path_from_aterm("self", aterm).unwrap()
+        );
+        let canonical = Derivation::from_aterm_bytes(aterm).unwrap().to_aterm_bytes();
+        assert_ne!(aterm.as_slice(), canonical);
+        assert_ne!(
+            path,
+            calculate_derivation_path_from_aterm("self", &canonical).unwrap()
+        );
+    }
+
+    #[test]
+    fn resolved_preimage_preserves_output_environment_and_escapes() {
+        let input_drv = format!("/nix/store/{INPUT_DRV}-inp.drv");
+        let resolved_output = format!("/nix/store/{INPUT_OUT_CA}-input-out");
+        let placeholder =
+            store_path::hash_upstream_placeholder("/nix/store/", &input_drv, "out").unwrap();
+        let aterm = format!(
+            r#"Derive([("out","","r:sha256","")],[("{input_drv}",["out"])],[],"","",[],[("dep","{placeholder}"),("out","keep\n\"\\")])"#
+        );
+        let resolutions = HashMap::from([(
+            input_drv,
+            HashMap::from([("out".to_owned(), resolved_output.clone())]),
+        )]);
+
+        let (path, preimage) =
+            compute_resolved_input_hash("self", aterm.as_bytes(), &resolutions).unwrap();
+        let expected = format!(
+            r#"Derive([("out","","r:sha256","")],[],["{resolved_output}"],"","",[],[("dep","{resolved_output}"),("out","keep\n\"\\")])"#
+        );
+        assert_eq!(preimage.as_bytes(), expected.as_bytes());
+        assert_eq!(
+            path,
+            calculate_derivation_path_from_aterm("self", expected.as_bytes()).unwrap()
+        );
+    }
+
+    #[test]
     fn ia_converts_to_floating_ca_with_placeholders() {
         let aterm = synthetic_ia_aterm();
 
@@ -231,7 +276,7 @@ mod tests {
         );
 
         let input_sources = vec![
-            StorePath::<String>::from_absolute_path(
+            StorePath::from_absolute_path(
                 format!("/nix/store/{}-input-out", INPUT_OUT_CA).as_bytes(),
             )
             .expect("valid CA path"),
@@ -276,13 +321,13 @@ mod tests {
         );
 
         let input_a = vec![
-            StorePath::<String>::from_absolute_path(
+            StorePath::from_absolute_path(
                 format!("/nix/store/{}-input-out", INPUT_OUT_CA).as_bytes(),
             )
             .expect("valid"),
         ];
         let input_b = vec![
-            StorePath::<String>::from_absolute_path(
+            StorePath::from_absolute_path(
                 format!("/nix/store/{}-input-out", alt_input_ca).as_bytes(),
             )
             .expect("valid"),
@@ -320,7 +365,7 @@ mod tests {
         );
 
         let input_sources = vec![
-            StorePath::<String>::from_absolute_path(
+            StorePath::from_absolute_path(
                 format!("/nix/store/{}-input-out", INPUT_OUT_CA).as_bytes(),
             )
             .expect("valid"),

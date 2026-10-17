@@ -45,14 +45,14 @@ impl From<HashError> for Error {
 /// Entry that goes into the JWS payload, NAR hash + size of the
 /// rewritten content for stamping `payload.out.nix[name].hash`).
 pub struct RootResult {
-    pub synthetic_ca_path: StorePath<String>,
+    pub synthetic_ca_path: StorePath,
     pub castore_entry_base64: String,
     pub nar_hash: NixHash,
     pub nar_size: u64,
 }
 
 struct MemoEntry {
-    synthetic_ca_path: StorePath<String>,
+    synthetic_ca_path: StorePath,
 }
 
 /// Recursive walker; one instance covers the closure of all roots passed
@@ -98,7 +98,7 @@ impl Walker {
             return Ok(nixbase32::encode(entry.synthetic_ca_path.digest()));
         }
         if self.fod_outputs.contains(path) {
-            let sp = StorePath::<String>::from_absolute_path(path.as_bytes()).map_err(|e| {
+            let sp = StorePath::from_absolute_path(path.as_bytes()).map_err(|e| {
                 Error::Hash(format!("fod path {} parse: {:?}", path, e))
             })?;
             let hash = nixbase32::encode(sp.digest());
@@ -115,12 +115,12 @@ impl Walker {
 
     /// Synthetic CA store path of `path`. Wraps [`synthetic_ca_hash`] so the
     /// caller doesn't have to reconstruct the path from name + hash.
-    pub fn synthetic_ca_path(&mut self, path: &str) -> Result<StorePath<String>, Error> {
+    pub fn synthetic_ca_path(&mut self, path: &str) -> Result<StorePath, Error> {
         self.synthetic_ca_hash(path)?;
         Ok(self.memo[path].synthetic_ca_path.clone())
     }
 
-    fn compute_pass1(&mut self, path: &str) -> Result<StorePath<String>, Error> {
+    fn compute_pass1(&mut self, path: &str) -> Result<StorePath, Error> {
         let self_ia_hash = extract_store_hash(path)?;
 
         let scanned = scan_for_references(Path::new(path), &self.global_hashes)?;
@@ -193,7 +193,7 @@ impl Walker {
     /// Read-only memo lookup: synthetic CA path of a path already processed,
     /// or `None` if it hasn't been visited yet. Used by `sign.rs` to look up
     /// input drvs' outputs after the closure walk has driven them in.
-    pub fn lookup(&self, path: &str) -> Option<&StorePath<String>> {
+    pub fn lookup(&self, path: &str) -> Option<&StorePath> {
         self.memo.get(path).map(|e| &e.synthetic_ca_path)
     }
 }

@@ -82,7 +82,9 @@ It's a Rust workspace (`laut-cli` for argument parsing and dispatch,
 `laut-sign` for sign-side orchestration and the shared core, and
 `laut-verify` for verification). The hashing schemes and ATerm / castore
 encoding come from `nix-compat` / `laut-compat` on the
-`mschwaig/snix#fanfic` branch, and the signature envelope is JWS-based.
+the pinned revision of the `mschwaig/snix#fanfic-update-independent-20261017`
+branch, and the signature envelope is JWS-based. See
+[dependency update notes](docs/dependency-update.md) for compatibility changes.
 
 The signing side is straightforward: it walks the derivation, computes the
 resolved input hash, gathers output content hashes, and assembles a signed
