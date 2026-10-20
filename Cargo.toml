@@ -13,14 +13,14 @@ edition = "2024"
 [workspace.dependencies]
 nix-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "nix-compat" }
 laut-compat = { git = "https://github.com/mschwaig/snix", branch = "fanfic", package = "laut-compat" }
-ureq = { version = "2", default-features = false, features = ["tls"] }
-ed25519-dalek = "2"
-sha2 = "0.10"
-base64 = "0.22"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+ed25519-dalek = "3"
+sha2 = "0.11"
+base64 = "0.23"
 serde_json = "1"
 data-encoding = "2"
-thiserror = "1"
+thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive", "env"] }
-rand = "0.8"
+rand = "0.10"
 regex = "1"

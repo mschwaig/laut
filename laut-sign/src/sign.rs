@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use laut_compat::content_hash::format_nar_hash;
 use nix_compat::nixhash::NixHash;
 use nix_compat::store_path::{StorePath, hash_placeholder};
-use rand::RngCore;
 use serde_json::{Value, json};
 
 use crate::constructive_trace;
@@ -164,9 +163,7 @@ pub fn sign(cfg: &SignConfig) -> Result<Option<(String, String)>, Error> {
         (input_hash, Value::Object(castore_outputs), debug_data)
     };
 
-    let mut buf = [0u8; 4];
-    rand::thread_rng().fill_bytes(&mut buf);
-    let rebuild_id = u32::from_le_bytes(buf);
+    let rebuild_id: u32 = rand::random();
 
     let (flavor, version) = std::env::var("NIX_CONFIG")
         .ok()
