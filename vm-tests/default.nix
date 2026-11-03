@@ -29,6 +29,7 @@ let
   fullArgs = {
     inherit system scope laut laut-sign-only pkgs nixpkgs-under-test lib pkgsIA pkgsCA nixpkgs-swh;
     verifierExtraConfig = {};
+    nixPackage = pkgs.nixVersions.nix_2_34;
   } // args;
   makeTestSet = {
     name,
@@ -102,6 +103,8 @@ let
   smallCaSign = smallCaSet."small-ca-sign";
 in
   smallCaSet // smallIaSet // mediumCaSet // mediumIaSet // largeCaSet // largeIaSet // {
+    local-ca = import ./local.nix fullArgs;
+
     # Exercises the hash-divergence debug probe end-to-end: reuses the
     # small-ca-sign cache (preimages on), tampers one trace's preimage with a
     # known marker on the verifier, then runs `laut verify

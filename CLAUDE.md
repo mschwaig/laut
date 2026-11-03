@@ -71,6 +71,7 @@ nix build .#checks.x86_64-linux.small-ca-verify
 nix build .#checks.x86_64-linux.small-ia-sign
 nix build .#checks.x86_64-linux.small-ia-verify
 nix build .#checks.x86_64-linux.debug-probe
+nix build .#checks.x86_64-linux.local-ca  # one host, zero-config sign + verify
 ```
 
 The `debug-probe` test exercises `laut verify --debug-preimage-corpus` by
@@ -217,6 +218,6 @@ flake.nix          flake outputs (packages.{laut,laut-sign-only}, checks, devShe
 default.nix        scope wrapper for callPackage convenience
 testkeys/          ed25519 keypairs used by Rust + VM tests
 tests/data/        Rust integration test fixtures (drv JSONs, signatures, ATerms)
-vm-tests/          NixOS VM tests (small-sign, small-verify, debug-probe)
+vm-tests/          NixOS VM tests (small-sign, small-verify, debug-probe, local-ca)
 docs/semantics.md  formal trust-model semantics
 ```

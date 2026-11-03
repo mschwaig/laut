@@ -150,7 +150,8 @@ in
     ];
 
     environment = {
-      systemPackages = [ cfg.package ];
+      # Wins over the sign module's `laut-sign-only`, which also ships `bin/laut`.
+      systemPackages = [ (lib.hiPrio cfg.package) ];
       etc."laut/verify.json".source = configFile;
     };
   };
