@@ -62,8 +62,8 @@ pub enum Error {
     StorePath(#[from] store_path::Error),
     #[error("signature verify: {0}")]
     SignatureVerify(#[from] signature_verify::Error),
-    #[error("trust model config: {0}")]
-    TrustModelConfig(#[from] trust_model::Error),
+    #[error("trust model: {0}")]
+    TrustModel(#[from] trust_model::Error),
 }
 
 /// Addressing regime of the verification target.
@@ -121,18 +121,8 @@ pub struct Orchestrator<B: Backend> {
 
 impl<B: Backend> Orchestrator<B> {
     pub fn new(backend: B, cfg: Config) -> Result<Self, Error> {
-        // Build the trust model from the declarative spec. The spec carries
-        // its key material inline as `name:base64` strings; we resolve those
-        // into `(kid, raw_bytes)` pairs for both the trust model and signature
-        // verification.
-        let interner = StringInterner::new();
-        let (trust_model, mut interner) = trust_model::resolve_spec(&cfg.trust_model, interner)?;
-
-        let mut kid_keys: Vec<(String, Vec<u8>)> = Vec::new();
-        for spec_str in trust_model::collect_key_specs(&cfg.trust_model) {
-            let (kid, bytes) = trust_model::key_spec_to_kid_and_bytes(&spec_str)?;
-            kid_keys.push((kid, bytes));
-        }
+        let mut interner = StringInterner::new();
+        let (trust_model, kid_keys) = trust_model::resolve_spec(&cfg.trust_model, &mut interner)?;
 
         let recursive_json = backend.derivation_show_recursive(&cfg.root_drv_path)?;
         let derivations: HashMap<String, DrvJson> = serde_json::from_str(&recursive_json)?;

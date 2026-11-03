@@ -57,7 +57,8 @@ pub struct SignAndUploadArgs {
     #[arg(long)]
     pub secret_key_file: PathBuf,
 
-    /// URL of the target store (e.g. http://cache:9000).
+    /// Where to store the signed trace: an HTTP cache (e.g. http://cache:9000)
+    /// or a local directory (file:///var/lib/laut).
     #[arg(long = "to")]
     pub to: String,
 
@@ -77,17 +78,16 @@ pub struct VerifyArgs {
     /// (`nixpkgs#hello`); the type is inferred from the format.
     pub target: String,
 
-    /// URL of an HTTP signature cache to query. Repeatable.
+    /// Signature cache to query (`http(s)://` or `file://`). Repeatable.
+    /// When given, replaces the config file's `caches`.
     #[arg(long = "cache")]
     pub cache: Vec<String>,
 
-    /// Path to a Nix file describing the trust model. The Nix file must
-    /// evaluate to a trust-model attrset, e.g.:
-    ///   { threshold = 2; of = [ { key = "name:base64"; } ... ]; }
-    /// Keys referenced in the spec are used for both trust-model evaluation
-    /// and signature verification.
-    #[arg(long = "trust-model-config", env = "LAUT_TRUST_MODEL_CONFIG")]
-    pub trust_model_config: PathBuf,
+    /// JSON config with `caches` and `trust_model`, e.g.:
+    ///   {"caches": ["https://cache"], "trust_model": {"threshold": 2, "of": [{"key": "name:base64"}, ...]}}
+    /// The NixOS module writes it from `services.laut.verify`.
+    #[arg(long, env = "LAUT_CONFIG", default_value = laut_verify::config::DEFAULT_PATH)]
+    pub config: PathBuf,
 
     /// Cache URL to scan for signer-side debug preimages. When a
     /// resolved-input-hash lookup misses, runs difft against any preimage

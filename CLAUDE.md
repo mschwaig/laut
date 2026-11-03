@@ -97,27 +97,30 @@ touch laut-verify/src/lib.rs
 
 ### Signing (called from a post-build hook)
 ```bash
-laut sign-and-upload --to [HTTP_CACHE_URL] --secret-key-file [KEY] [DRV_PATH]
+laut sign-and-upload --to [HTTP_CACHE_URL or file://DIR] --secret-key-file [KEY] [DRV_PATH]
 ```
 
 `$OUT_PATHS` (set by `nix` in the post-build hook) supplies the output paths.
-Exit codes: `0` = signed, `117` = no-op (the hook fired on the unresolved
-drv or on a FOD/IA), `1` = error.
+Exit codes: `0` = signed or no-op (the hook fired on the unresolved drv or
+on a FOD/IA), `1` = error. Plain `laut sign` exits `117` on a no-op.
 
 ### Verification
 ```bash
-laut verify --cache [URL] --trusted-key [KEY.public] [DRV_PATH_OR_FLAKE_REF]
+laut verify [--config verify.json] [--cache URL] [DRV_PATH_OR_FLAKE_REF]
 ```
 
 A target is detected as either `/nix/store/*.drv` or a flake reference
 (`pkg#attr`); flake refs are resolved via `nix eval --raw <ref>.drvPath`.
-Multiple `--cache` and `--trusted-key` flags are allowed.
+The config (`--config` / `LAUT_CONFIG`, default `/etc/laut/verify.json`, see
+`laut-verify/src/config.rs`) holds `caches` and `trust_model`; the NixOS
+module writes it from `services.laut.verify`. Repeatable `--cache` flags
+replace the config's caches.
 
 Exit codes: `0` = verified, `118` = verification failed, `1` = error.
 
 ### Hash-divergence debug probe
 ```bash
-laut verify --cache [URL] --trusted-key [KEY] \
+laut verify --cache [URL] \
   --debug-preimage-corpus [URL] \
   --debug-out-dir [DIR] \
   [TARGET]

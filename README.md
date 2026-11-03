@@ -70,33 +70,55 @@ inputs and import the module:
 }
 ```
 
-**Signing** (`services.laut.sign`): installs `laut` on a builder and
-wires the Nix `post-build-hook` to upload signed traces + store paths
-to your cache:
+**Local signing and verification**: enabling both modules with no other
+settings signs every local build with a host key (`local`, generated in
+`/var/lib/laut` on first boot) and verifies against exactly that key:
+
+```nix
+services.laut.sign.enable = true;
+services.laut.verify.enable = true;
+```
+
+**Signing** (`services.laut.sign`): installs `laut` and wires the Nix
+`post-build-hook` to sign each build. By default traces stay local in
+`file:///var/lib/laut` and are signed with the generated key. To sign for a
+shared cache, point `cacheUrl` at it (store paths are then copied there too,
+see `copyStorePaths`) and bring your own key:
 
 ```nix
 services.laut.sign = {
   enable = true;
   cacheUrl = "http://cache.example.org:9000";
-  secretKeyFile = "/etc/laut/builder.key";
-  publicKeyFile = "/etc/laut/builder.key.public";
+  # Runtime path (a string, so the key never lands in the Nix store).
+  secretKeyFile = "/var/lib/laut/builder.key";
   includePreimage = false;  # set true for debug caches only
 };
 ```
 
-**Verification** (`services.laut.verify`): installs `laut` and provides a
-`laut-verify` wrapper pre-configured with your caches and trust model. Users
-run `laut-verify <drv>` without any additional flags:
+**Verification** (`services.laut.verify`): installs `laut` and writes your
+caches and trust model to `/etc/laut/verify.json`, which `laut verify` reads
+by default, so `laut verify nixpkgs#hello` needs no flags. If
+`services.laut.sign` is enabled on the same host, its `cacheUrl` is queried
+too, and a `{ local = true; }` leaf stands for its key (the default trust
+model is just that leaf). The trust model is type-checked and validated at evaluation time, so a
+malformed model fails `nixos-rebuild`:
 
 ```nix
 services.laut.verify = {
   enable = true;
-  caches = [ "http://cache.example.org:9000" ];
+  caches = [ "https://cache.example.org" ];
   trustModel = {
-    threshold = 2;
+    threshold = 1;
     of = [
-      { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
-      { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+      {
+        threshold = 2;
+        of = [
+          { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+          { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+        ];
+      }
+      # This host's own builds, signed via services.laut.sign.
+      { local = true; }
     ];
   };
 };
@@ -104,19 +126,22 @@ services.laut.verify = {
 
 #### Trust models
 
-The trust model is a recursive structure with two node kinds:
+The trust model is a recursive structure built from these nodes:
 
 - `key` — a leaf naming a single trusted signing key, as a
   `name:base64-public-key` string (the same format Nix uses for
   `trusted-public-keys`).
+- `{ key_file = "/path"; }` — like `key`, but read from a file at runtime.
+- `{ local = true; }` — this host's own signing key from
+  `services.laut.sign` (NixOS module only; becomes a `key_file` leaf).
 - `{ threshold, of }` — `threshold` of the `of` sub-models must be satisfied.
-  Children may themselves be `key` leaves or further thresholds.
+  Children may themselves be leaves or further thresholds.
 
 Some canonical shapes:
 
 ```nix
-# Self-build only — trust only your own key
-{ key = "self:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+# Self-build only — trust only this host's own key
+{ local = true; }
 
 # Reproducibility, 2-of-2 — both builders must agree
 { threshold = 2; of = [
@@ -169,19 +194,18 @@ The CLI is the low-level interface; the NixOS module wraps it.
 
 Signing (from a post-build hook):
 ```
-laut sign-and-upload --to [HTTP cache URL] --secret-key-file [KEY] [DRV_PATH]
+laut sign-and-upload --to [http(s):// or file:// URL] --secret-key-file [KEY] [DRV_PATH]
 ```
-Exit codes: `0` = signed and uploaded, `117` = no-op (hook fired on
+Exit codes: `0` = signed and uploaded, or nothing to sign (hook fired on
 unresolved drv or FOD), `1` = error. `$OUT_PATHS` supplies output paths.
 
 Verification:
 ```
-laut verify --cache [URL] --trust-model-config [PATH TO NIX FILE] [DRV_PATH or flake ref]
+laut verify [--config PATH] [--cache URL ...] [DRV_PATH or flake ref]
 ```
-The `--trust-model-config` flag points at a `.nix` file that evaluates to the
-trust model attrset shown above. The `LAUT_TRUST_MODEL_CONFIG` environment
-variable is an alternative to the flag — this is how the NixOS module's
-`laut-verify` wrapper pre-configures it.
+`--config` (or `LAUT_CONFIG`, default `/etc/laut/verify.json`) points at a
+JSON file `{ "caches": [...], "trust_model": {...} }` with the trust model
+shown above. `--cache` flags, if given, replace the config's caches.
 
 ### How does it work
 

@@ -9,7 +9,6 @@
   nixpkgs-swh,
   packageToBuild,
   fodScanPackage ? packageToBuild,
-  builderPublicKey,
   builderPrivateKey,
   cacheStoreUrl,
   nixPackage,
@@ -68,8 +67,7 @@ in {
     enable = true;
     package = laut-sign-only;
     cacheUrl = cacheStoreUrl;
-    secretKeyFile = builderPrivateKey;
-    publicKeyFile = builderPublicKey;
+    secretKeyFile = "/etc/nix/private-key";
     includePreimage = true;
   };
 
@@ -120,6 +118,8 @@ in {
   };
 
   environment = {
+    # Test keys live in the store anyway; sign-script.py also uses this path.
+    etc."nix/private-key".source = builderPrivateKey;
     systemPackages = [
       nixPackage
       pkgs.git

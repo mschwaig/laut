@@ -8,8 +8,8 @@
 //! system `nix` binary or the network.
 
 use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+
+use laut_sign::cache::{self, CacheTransport};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,35 +19,8 @@ pub enum Error {
     MissingAtermFixture(String),
     #[error("{0}")]
     SignatureFetch(#[from] crate::signature_verify::Error),
-    #[error("unsupported cache URL scheme in {url:?} (expected http://, https://, or file://)")]
-    UnsupportedCacheUrl { url: String },
-    #[error("io error reading {path:?}: {source}")]
-    Io {
-        path: String,
-        #[source]
-        source: std::io::Error,
-    },
-}
-
-/// Cache URL transport. `--cache` accepts either form; tests typically use
-/// `file://` so they don't need a running HTTP server.
-pub enum CacheTransport {
-    Http(String),
-    File(PathBuf),
-}
-
-/// Recognise the URL scheme and return its transport. Unknown schemes are an
-/// error — silently treating them as "skip this cache" hides misconfiguration.
-pub fn parse_cache_url(url: &str) -> Result<CacheTransport, Error> {
-    if url.starts_with("http://") || url.starts_with("https://") {
-        Ok(CacheTransport::Http(url.to_owned()))
-    } else if let Some(rest) = url.strip_prefix("file://") {
-        Ok(CacheTransport::File(PathBuf::from(rest)))
-    } else {
-        Err(Error::UnsupportedCacheUrl {
-            url: url.to_owned(),
-        })
-    }
+    #[error("{0}")]
+    Cache(#[from] laut_sign::cache::Error),
 }
 
 pub trait Backend {
@@ -82,7 +55,7 @@ impl Backend for RealBackend {
         cache_url: &str,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error> {
-        match parse_cache_url(cache_url)? {
+        match cache::parse_cache_url(cache_url)? {
             CacheTransport::Http(url) => {
                 let base_url = match laut_sign::http_cache::parse_http_cache_url(&url) {
                     Ok(b) => b,
@@ -95,17 +68,7 @@ impl Backend for RealBackend {
                     &base_url, input_hash,
                 )?)
             }
-            CacheTransport::File(dir) => {
-                let path = dir.join("traces").join(input_hash);
-                match fs::read(&path) {
-                    Ok(bytes) => Ok(Some(bytes)),
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                    Err(source) => Err(Error::Io {
-                        path: path.display().to_string(),
-                        source,
-                    }),
-                }
-            }
+            CacheTransport::File(dir) => Ok(cache::read_file_traces(&dir, input_hash)?),
         }
     }
 }
