@@ -19,7 +19,7 @@
 let
   fullArgs = {
     inherit cacheStoreUrl cachePort verifierExtraConfig;
-    nixPackage = pkgs.nixVersions.nix_2_31;
+    nixPackage = pkgs.nixVersions.nix_2_34;
   } // args;
   # `pkgs` is the infra Nix evaluator (rolling). We use its nixpkgs path to
   # locate the test-runner library, and its `nix` binary to drive the test
