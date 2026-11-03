@@ -9,6 +9,7 @@ let
   cfg = config.services.laut.sign;
   nix = "${config.nix.package}/bin/nix --extra-experimental-features nix-command";
   stateDir = "/var/lib/laut";
+  keyFile = lib.defaultTo "${stateDir}/local.key" cfg.secretKeyFile;
 in {
   options.services.laut.sign = {
     enable = lib.mkEnableOption "laut build-trace signing via a Nix post-build hook";
@@ -50,14 +51,17 @@ in {
     secretKeyFile = lib.mkOption {
       # A string, not a path: a path literal would copy the key into the
       # world-readable Nix store.
-      type = lib.types.str;
-      default = "${stateDir}/local.key";
-      example = "/run/secrets/laut-builder.key";
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = lib.literalExpression "config.sops.secrets.laut-key.path";
       description = ''
-        Runtime path to the Nix-format secret key file
-        (`name:base64-private-key`), readable by the nix-daemon. Used both
+        Runtime path to a Nix-format secret key file
+        (`name:base64-private-key`) readable by the nix-daemon. Used both
         for narinfo signing (`nix copy --secret-key-files`) and for laut
-        trace signing. Generated (key name `local`) if missing.
+        trace signing.
+
+        If null, a key named `local` is generated in `${stateDir}/local.key`
+        on first boot.
       '';
     };
 
@@ -66,7 +70,8 @@ in {
       readOnly = true;
       default = "${stateDir}/local.key.public";
       description = ''
-        Public half of `secretKeyFile`, derived from it at boot. This is the
+        Public half of the signing key, derived at boot and whenever a
+        provided `secretKeyFile` changes. This is the
         key a `{ local = true; }` leaf in `services.laut.verify.trustModel`
         stands for.
       '';
@@ -89,22 +94,30 @@ in {
     # The post-build hook runs inside the nix-daemon, so the key must exist
     # before it starts.
     systemd.services.laut-keygen = {
-      description = "Generate laut signing key";
+      description = "Prepare laut signing key";
       wantedBy = [ "multi-user.target" "nix-daemon.service" ];
       before = [ "nix-daemon.service" ];
+      # No RemainAfterExit, so the path unit below can re-run it.
       serviceConfig = {
         Type = "oneshot";
-        RemainAfterExit = true;
         StateDirectory = "laut";
       };
       script = ''
-        if [ ! -e "${cfg.secretKeyFile}" ]; then
-          (umask 077; ${nix} key generate-secret --key-name local > "${cfg.secretKeyFile}.tmp")
-          mv "${cfg.secretKeyFile}.tmp" "${cfg.secretKeyFile}"
-        fi
-        ${nix} key convert-secret-to-public < "${cfg.secretKeyFile}" > "${cfg.publicKeyFile}.tmp"
+        ${lib.optionalString (cfg.secretKeyFile == null) ''
+          if [ ! -e "${keyFile}" ]; then
+            (umask 077; ${nix} key generate-secret --key-name local > "${keyFile}.tmp")
+            mv "${keyFile}.tmp" "${keyFile}"
+          fi
+        ''}
+        ${nix} key convert-secret-to-public < "${keyFile}" > "${cfg.publicKeyFile}.tmp"
         mv "${cfg.publicKeyFile}.tmp" "${cfg.publicKeyFile}"
       '';
+    };
+
+    # Re-derive the public key when a secret manager rotates the key.
+    systemd.paths.laut-keygen = lib.mkIf (cfg.secretKeyFile != null) {
+      wantedBy = [ "multi-user.target" ];
+      pathConfig.PathChanged = keyFile;
     };
 
     nix.settings.post-build-hook = lib.mkDefault (pkgs.writeShellScript "laut-post-build-hook" ''
@@ -117,11 +130,11 @@ in {
       ${lib.optionalString cfg.copyStorePaths ''
         echo Pushing "$OUT_PATHS" to ${cfg.cacheUrl}
         printf "%s" "$OUT_PATHS" | xargs ${nix} copy --to "${cfg.cacheUrl}" --no-require-sigs
-        printf "%s" "$DRV_PATH"^'*' | xargs ${nix} copy --to "${cfg.cacheUrl}" --secret-key-files "${cfg.secretKeyFile}"
+        printf "%s" "$DRV_PATH"^'*' | xargs ${nix} copy --to "${cfg.cacheUrl}" --secret-key-files "${keyFile}"
       ''}
 
       ${cfg.package}/bin/laut sign-and-upload ${lib.optionalString cfg.includePreimage "--include-preimage "}"$DRV_PATH" \
-        --secret-key-file "${cfg.secretKeyFile}" \
+        --secret-key-file "${keyFile}" \
         --to "${cfg.cacheUrl}"
     '');
   };

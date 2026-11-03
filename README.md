@@ -83,14 +83,15 @@ services.laut.verify.enable = true;
 `post-build-hook` to sign each build. By default traces stay local in
 `file:///var/lib/laut` and are signed with the generated key. To sign for a
 shared cache, point `cacheUrl` at it (store paths are then copied there too,
-see `copyStorePaths`) and bring your own key:
+see `copyStorePaths`) and bring your own key, e.g. a sops-nix or agenix
+secret. `secretKeyFile` is a runtime path, so the key never lands in the Nix
+store, and laut never overwrites it:
 
 ```nix
 services.laut.sign = {
   enable = true;
   cacheUrl = "http://cache.example.org:9000";
-  # Runtime path (a string, so the key never lands in the Nix store).
-  secretKeyFile = "/var/lib/laut/builder.key";
+  secretKeyFile = config.sops.secrets.laut-key.path;
   includePreimage = false;  # set true for debug caches only
 };
 ```

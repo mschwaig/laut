@@ -59,7 +59,7 @@ testLib.runTest {
     traces = "/var/lib/laut/traces"
     chain = "/etc/laut-chain.nix"
 
-    machine.wait_for_unit("laut-keygen.service")
+    machine.wait_for_file("/var/lib/laut/local.key.public")
     assert machine.succeed("stat -c %a /var/lib/laut/local.key").strip() == "600"
 
     # a has no input derivations, so building it writes exactly one trace.
