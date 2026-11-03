@@ -15,4 +15,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 data-encoding = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }

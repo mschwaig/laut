@@ -76,12 +76,18 @@ pub struct SignAndUploadArgs {
 pub struct VerifyArgs {
     /// Either a derivation path (`/nix/store/....drv`) or a flake reference
     /// (`nixpkgs#hello`); the type is inferred from the format.
-    pub target: String,
+    #[arg(required_unless_present = "check_config")]
+    pub target: Option<String>,
+
+    /// Only validate the config file and exit (0 if valid). Needs no network
+    /// and doesn't read `key_file`s, so it works in a Nix build sandbox.
+    #[arg(long, conflicts_with_all = ["target", "cache", "debug_preimage_corpus", "debug_out_dir"])]
+    pub check_config: bool,
 
     /// Signature cache to query (`http(s)://` or `file://`). Repeatable.
     /// When given, replaces the config file's `caches`.
-    #[arg(long = "cache")]
-    pub cache: Vec<String>,
+    #[arg(long = "cache", value_parser = laut_sign::cache::parse_cache_url)]
+    pub cache: Vec<laut_sign::cache::CacheTransport>,
 
     /// JSON config with `caches` and `trust_model`, e.g.:
     ///   {"caches": ["https://cache"], "trust_model": {"threshold": 2, "of": [{"key": "name:base64"}, ...]}}

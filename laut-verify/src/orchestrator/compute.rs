@@ -200,8 +200,8 @@ impl<B: Backend> Orchestrator<B> {
 
     fn fetch_raw_signatures(&self, input_hash: &str) -> Result<Vec<String>, Error> {
         let mut all = Vec::new();
-        for cache_url in &self.cache_urls {
-            let body = match self.backend.fetch_signatures(cache_url, input_hash) {
+        for cache in &self.caches {
+            let body = match self.backend.fetch_signatures(cache, input_hash) {
                 Ok(Some(b)) => b,
                 Ok(None) => continue,
                 Err(_) => continue,
@@ -226,20 +226,11 @@ impl<B: Backend> Orchestrator<B> {
         input_hash: &str,
         signatures: &[String],
     ) -> Result<Vec<(Value, String)>, Error> {
-        let results = signature_verify::verify_resolved_trace_signatures(
+        Ok(signature_verify::verify_resolved_trace_signatures(
             input_hash,
             signatures,
             &self.trusted_keys,
-        )?;
-        let mut out = Vec::new();
-        for (payload_str, kid) in results {
-            let payload: Value = match serde_json::from_str(&payload_str) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            out.push((payload, kid));
-        }
-        Ok(out)
+        ))
     }
 }
 

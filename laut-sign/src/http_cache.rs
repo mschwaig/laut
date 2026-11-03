@@ -71,11 +71,10 @@ fn get_existing(url: &str) -> Result<Option<(Value, String)>, Error> {
     }
 }
 
-/// Upload `signature` to `<store_url>/traces/<input_hash>`. If another builder
+/// Upload `signature` to `<base_url>/traces/<input_hash>`. If another builder
 /// is publishing the same input hash concurrently, ETag-based optimistic
 /// concurrency merges the lists across retries.
-pub fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> Result<(), Error> {
-    let base_url = parse_http_cache_url(store_url)?;
+pub fn upload_signature(base_url: &str, input_hash: &str, signature: &str) -> Result<(), Error> {
     let url = format!("{}/traces/{}", base_url, input_hash);
 
     for _ in 0..MAX_RETRIES {

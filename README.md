@@ -101,8 +101,8 @@ caches and trust model to `/etc/laut/verify.json`, which `laut verify` reads
 by default, so `laut verify nixpkgs#hello` needs no flags. If
 `services.laut.sign` is enabled on the same host, its `cacheUrl` is queried
 too, and a `{ local = true; }` leaf stands for its key (the default trust
-model is just that leaf). The trust model is type-checked and validated at evaluation time, so a
-malformed model fails `nixos-rebuild`:
+model is just that leaf). laut validates the generated config when the
+system is built, so a malformed trust model fails `nixos-rebuild`:
 
 ```nix
 services.laut.verify = {
@@ -132,7 +132,8 @@ The trust model is a recursive structure built from these nodes:
 - `key` — a leaf naming a single trusted signing key, as a
   `name:base64-public-key` string (the same format Nix uses for
   `trusted-public-keys`).
-- `{ key_file = "/path"; }` — like `key`, but read from a file at runtime.
+- `{ key_file = "/path"; }` — like `key`, but read from a file at runtime
+  (`verify.json` only; the NixOS module uses `local` for this).
 - `{ local = true; }` — this host's own signing key from
   `services.laut.sign` (NixOS module only; becomes a `key_file` leaf).
 - `{ threshold, of }` — `threshold` of the `of` sub-models must be satisfied.
@@ -160,10 +161,10 @@ Some canonical shapes:
 
 # Nested: I built it AND at least one trusted cache agrees
 { threshold = 2; of = [
-    { key = "self:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+    { key = "self:uzToz0O9Q3B+ob1JSK1ybTX0hg0gFGnE7M7WRe4pLTg="; }
     { threshold = 1; of = [
-        { key = "cacheA:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa="; }
-        { key = "cacheB:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb="; }
+        { key = "cacheA:C7GpsHKXh8eQ67L1k0esSJDzC+FJWCpSTua3CE9FcV0="; }
+        { key = "cacheB:ruTY7A6q5X3x9FNMV8257H/aA5oPG3j1BiDHZVjxajs="; }
       ];
     }
   ];
@@ -171,7 +172,7 @@ Some canonical shapes:
 
 # Legacy cache fallback: trust a cache's word OR require the stricter model
 { threshold = 1; of = [
-    { key_legacy = "cache:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+    { key_legacy = "cache:Yms8BC4ERcaYrdksD+y80B37QILetIlkVd0P27t+IIQ="; }
     { threshold = 2; of = [
         { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
         { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }

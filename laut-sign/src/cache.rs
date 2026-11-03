@@ -2,12 +2,13 @@
 //! `traces/<input_hash>` layout and its `{ "signatures": [...] }` document.
 //!
 //! `http(s)://` caches are uploaded to by [`crate::http_cache`]. `file://`
-//! directories (a host's own local signing key) are written here; their only
-//! writer is the host's post-build hook, so there is no locking, and
-//! write-then-rename keeps readers from seeing a partial file.
+//! directories (a host's own local signing key) are written here by the
+//! post-build hook, which the nix-daemon may run concurrently: writers
+//! serialize read-merge-write on `traces/.lock`, and write-then-rename keeps
+//! (lock-free) readers from seeing a partial file.
 
-use std::fs;
-use std::io::ErrorKind;
+use std::fs::{self, File};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
@@ -20,17 +21,30 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Http(#[from] crate::http_cache::Error),
 }
 
+/// A parsed cache URL. Deserializes from its URL string.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(try_from = "String")]
 pub enum CacheTransport {
+    /// Canonical base URL, see [`crate::http_cache::parse_http_cache_url`].
     Http(String),
     File(PathBuf),
+}
+
+impl TryFrom<String> for CacheTransport {
+    type Error = Error;
+    fn try_from(url: String) -> Result<Self, Error> {
+        parse_cache_url(&url)
+    }
 }
 
 /// Unknown schemes are an error — silently skipping them hides misconfiguration.
 pub fn parse_cache_url(url: &str) -> Result<CacheTransport, Error> {
     if url.starts_with("http://") || url.starts_with("https://") {
-        Ok(CacheTransport::Http(url.to_owned()))
+        Ok(CacheTransport::Http(crate::http_cache::parse_http_cache_url(url)?))
     } else if let Some(rest) = url.strip_prefix("file://") {
         Ok(CacheTransport::File(PathBuf::from(rest)))
     } else {
@@ -70,6 +84,12 @@ pub(crate) fn merge_signature(existing: Option<Value>, signature: &str) -> Optio
 
 /// Append `signature` to `<cache_dir>/traces/<input_hash>`.
 pub fn write_file_signature(cache_dir: &Path, input_hash: &str, signature: &str) -> Result<(), Error> {
+    let traces = traces_dir(cache_dir);
+    fs::create_dir_all(&traces)?;
+    // Released when dropped.
+    let lock = File::create(traces.join(".lock"))?;
+    lock.lock()?;
+
     let existing = read_file_traces(cache_dir, input_hash)?
         .map(|bytes| serde_json::from_slice(&bytes))
         .transpose()?;
@@ -77,10 +97,10 @@ pub fn write_file_signature(cache_dir: &Path, input_hash: &str, signature: &str)
         return Ok(());
     };
 
-    let traces = traces_dir(cache_dir);
-    fs::create_dir_all(&traces)?;
     let tmp = traces.join(format!(".{input_hash}.tmp"));
-    fs::write(&tmp, body)?;
+    let mut f = File::create(&tmp)?;
+    f.write_all(body.as_bytes())?;
+    f.sync_all()?;
     fs::rename(&tmp, traces.join(input_hash))?;
     Ok(())
 }
@@ -96,6 +116,17 @@ mod tests {
         let parsed: Value = serde_json::from_str(&doc).unwrap();
         assert_eq!(parsed, json!({ "signatures": ["a", "b"] }));
         assert!(merge_signature(Some(parsed), "a").is_none());
+    }
+
+    #[test]
+    fn file_writes_merge_and_dedup() {
+        let dir = tempfile::tempdir().unwrap();
+        write_file_signature(dir.path(), "h", "a").unwrap();
+        write_file_signature(dir.path(), "h", "b").unwrap();
+        write_file_signature(dir.path(), "h", "a").unwrap();
+        let doc: Value =
+            serde_json::from_slice(&read_file_traces(dir.path(), "h").unwrap().unwrap()).unwrap();
+        assert_eq!(doc, json!({ "signatures": ["a", "b"] }));
     }
 
     #[test]

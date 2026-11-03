@@ -5,6 +5,8 @@
 //! [`laut_verify::orchestrator`]. Exit code `118` matches the Python CLI's
 //! "verification failed" code so post-build hooks can distinguish failure
 //! from a hard error.
+//!
+//! `--check-config` stops after loading and statically validating the config.
 
 use std::path::Path;
 use std::process::{Command, ExitCode};
@@ -13,6 +15,7 @@ use laut_verify::backend::RealBackend;
 use laut_verify::config;
 use laut_verify::debug::{build_corpus_from_cache, DebugProbe, DifftProbe, NullProbe};
 use laut_verify::orchestrator::{Config, Orchestrator};
+use laut_verify::trust_model;
 
 use crate::cli::VerifyArgs;
 
@@ -24,6 +27,8 @@ pub enum Error {
     DebugCorpus(#[from] laut_verify::debug::CorpusError),
     #[error("config: {0}")]
     Config(#[from] config::Error),
+    #[error("config: {0}")]
+    TrustModel(#[from] trust_model::Error),
     #[error("temp dir: {0}")]
     Io(#[from] std::io::Error),
     #[error("invalid target {target:?}: must be a /nix/store/*.drv path or a flake reference (pkg#attr)")]
@@ -43,13 +48,18 @@ pub enum Error {
 pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
     // Cheap; fail on a bad config before flake resolution or corpus building.
     let file_cfg = config::load(&args.config)?;
-    let cache_urls = if args.cache.is_empty() {
+    if args.check_config {
+        trust_model::check_spec(&file_cfg.trust_model)?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    let target = args.target.expect("clap requires a target without --check-config");
+    let caches = if args.cache.is_empty() {
         file_cfg.caches
     } else {
         args.cache
     };
 
-    let drv_path = resolve_target(&args.target)?;
+    let drv_path = resolve_target(&target)?;
 
     let probe: Box<dyn DebugProbe> = match &args.debug_preimage_corpus {
         Some(corpus_url) => {
@@ -65,7 +75,7 @@ pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
 
     let cfg = Config {
         root_drv_path: drv_path.clone(),
-        cache_urls,
+        caches,
         trust_model: file_cfg.trust_model,
         debug_probe: probe,
     };
@@ -73,10 +83,10 @@ pub fn run(args: VerifyArgs) -> Result<ExitCode, Error> {
     let verified = orch.verify()?;
 
     if let Some(first) = verified.first() {
-        println!("successfully resolved {} to {}", args.target, first);
+        println!("successfully resolved {} to {}", target, first);
         Ok(ExitCode::SUCCESS)
     } else {
-        eprintln!("failed to resolve {}", args.target);
+        eprintln!("failed to resolve {}", target);
         Ok(ExitCode::from(118))
     }
 }

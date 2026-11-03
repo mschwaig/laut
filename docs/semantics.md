@@ -92,8 +92,9 @@ Fix a target `(D, S)`. All evidence lives in one directed graph.
   the target position down to a leaf.
 - A **grounded path** along a dependency path `P` is a sequence of entries at
   the consecutive positions of `P`, each linked to the next, whose first
-  entry's output map agrees with `S`, and which terminates at an FOD (or at a
-  legacy-signed entry, see below).
+  entry's output map agrees with `S`, and which terminates at an FOD, at an
+  entry for a leaf position (a derivation with no derivation inputs, which
+  has nothing left to resolve), or at a legacy-signed entry (see below).
 
 ## Semantics
 
@@ -131,6 +132,8 @@ Spelled out:
   below has all vertical cuts of size 3 and a diagonal cut of size 2.
 - FODs ground paths and contribute no signers; the trust we place in them is
   what defines an FOD. A target that is itself an FOD verifies trivially.
+- A non-FOD leaf position grounds a path too, but through its signed entries:
+  they count toward the signer set at that position like any other entry.
 
 ## Worked example
 

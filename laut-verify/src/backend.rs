@@ -30,11 +30,11 @@ pub trait Backend {
     /// Return the ATerm representation of one derivation (`nix store cat <drv>`).
     fn derivation_aterm(&self, drv_path: &str) -> Result<String, Error>;
 
-    /// Fetch the raw `traces/<input_hash>` body from `cache_url`. `Ok(None)`
+    /// Fetch the raw `traces/<input_hash>` body from `cache`. `Ok(None)`
     /// means "not in this cache". Real impls do HTTP; test impls read files.
     fn fetch_signatures(
         &self,
-        cache_url: &str,
+        cache: &CacheTransport,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error>;
 }
@@ -52,23 +52,14 @@ impl Backend for RealBackend {
 
     fn fetch_signatures(
         &self,
-        cache_url: &str,
+        cache: &CacheTransport,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error> {
-        match cache::parse_cache_url(cache_url)? {
-            CacheTransport::Http(url) => {
-                let base_url = match laut_sign::http_cache::parse_http_cache_url(&url) {
-                    Ok(b) => b,
-                    // Already passed scheme check; only a malformed http URL
-                    // gets here. Treat as "not in this cache" rather than
-                    // failing the whole verify.
-                    Err(_) => return Ok(None),
-                };
-                Ok(crate::signature_verify::fetch_signatures_from_cache(
-                    &base_url, input_hash,
-                )?)
-            }
-            CacheTransport::File(dir) => Ok(cache::read_file_traces(&dir, input_hash)?),
+        match cache {
+            CacheTransport::Http(base_url) => Ok(
+                crate::signature_verify::fetch_signatures_from_cache(base_url, input_hash)?,
+            ),
+            CacheTransport::File(dir) => Ok(cache::read_file_traces(dir, input_hash)?),
         }
     }
 }
@@ -95,7 +86,7 @@ impl Backend for InMemoryBackend {
 
     fn fetch_signatures(
         &self,
-        _cache_url: &str,
+        _cache: &CacheTransport,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error> {
         Ok(self.signatures.get(input_hash).cloned())

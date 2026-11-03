@@ -33,6 +33,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::string_interner::{ContentHash, KeyId, OutputName, RDrv, UDrv};
 
+/// Signer sets are `u64` bitmasks over the model's keys.
+pub const MAX_KEYS: usize = u64::BITS as usize;
+
 /// A recursive threshold-based trust model. `KeyLegacy` marks a key that
 /// short-circuits the linking-up check at the point where it signs.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,6 +86,7 @@ impl TrustModel {
 
     /// Structural well-formedness:
     ///
+    /// - At most [`MAX_KEYS`] leaves.
     /// - Each key appears in at most one leaf. Otherwise a single key could
     ///   satisfy several leaves at once and a threshold would count the same
     ///   signature more than once.
@@ -91,11 +95,15 @@ impl TrustModel {
     ///   `Threshold(1, ...)`. This is what makes the legacy short-circuit
     ///   unambiguous: the user opts in to "trust this signer as-is" via an OR
     ///   at the very root of the model.
-    ///
-    /// Returns the set of legacy keys.
-    pub fn validate(&self) -> Result<HashSet<KeyId>, String> {
+    pub fn validate(&self) -> Result<(), String> {
         let mut leaf_keys = Vec::new();
         self.collect_leaf_keys(&mut leaf_keys);
+        if leaf_keys.len() > MAX_KEYS {
+            return Err(format!(
+                "trust model has {} keys; at most {MAX_KEYS} are supported",
+                leaf_keys.len()
+            ));
+        }
         let mut seen = HashSet::new();
         for k in &leaf_keys {
             if !seen.insert(*k) {
@@ -106,9 +114,8 @@ impl TrustModel {
         }
         self.validate_thresholds()?;
 
-        let mut legacy = HashSet::new();
         match self {
-            TrustModel::Key(_) => Ok(legacy),
+            TrustModel::Key(_) => Ok(()),
             TrustModel::KeyLegacy(_) => Err(
                 "KeyLegacy is only allowed as a child of a top-level Threshold(1, [...])".into(),
             ),
@@ -123,18 +130,28 @@ impl TrustModel {
                     ));
                 }
                 for child in children {
-                    match child {
-                        TrustModel::KeyLegacy(k) => {
-                            legacy.insert(*k);
-                        }
-                        other => {
-                            ensure_no_legacy(other)?;
-                        }
+                    if !matches!(child, TrustModel::KeyLegacy(_)) {
+                        ensure_no_legacy(child)?;
                     }
                 }
-                Ok(legacy)
+                Ok(())
             }
         }
+    }
+
+    /// Keys of the `KeyLegacy` leaves, which [`Self::validate`] confines to
+    /// direct children of the root.
+    fn legacy_keys(&self) -> HashSet<KeyId> {
+        let TrustModel::Threshold(_, children) = self else {
+            return HashSet::new();
+        };
+        children
+            .iter()
+            .filter_map(|c| match c {
+                TrustModel::KeyLegacy(k) => Some(*k),
+                _ => None,
+            })
+            .collect()
     }
 
     fn validate_thresholds(&self) -> Result<(), String> {
@@ -283,18 +300,18 @@ type Demands = Vec<Subset>;
 /// How one demand of a multiset is served at a position.
 #[derive(Clone, Debug)]
 enum RouteOption {
-    /// The path continues upstream through claims on this rdrv; `cand` is the
-    /// bitmask of (non-legacy) model keys signing a matching claim on it.
-    Continue { rdrv: RDrv, cand: u64 },
-    /// The path terminates at a legacy-signed claim; `cand` is the bitmask of
-    /// legacy keys with a matching claim at this position.
-    Terminate { cand: u64 },
+    /// The path continues upstream through claims on this rdrv; `signers` is
+    /// the bitmask of (non-legacy) model keys signing a matching claim on it.
+    Continue { rdrv: RDrv, signers: u64 },
+    /// The path terminates at a legacy-signed claim; `signers` is the bitmask
+    /// of legacy keys with a matching claim at this position.
+    Terminate { signers: u64 },
 }
 
 impl RouteOption {
-    fn cand(&self) -> u64 {
+    fn signers(&self) -> u64 {
         match self {
-            RouteOption::Continue { cand, .. } | RouteOption::Terminate { cand } => *cand,
+            RouteOption::Continue { signers, .. } | RouteOption::Terminate { signers } => *signers,
         }
     }
 }
@@ -336,26 +353,21 @@ pub struct Verifier<'a> {
 }
 
 impl<'a> Verifier<'a> {
-    pub fn new(facts: &'a Facts, trust_model: &'a TrustModel) -> Result<Self, String> {
-        let legacy_keys = trust_model.validate()?;
+    /// `trust_model` must have passed [`TrustModel::validate`].
+    pub fn new(facts: &'a Facts, trust_model: &'a TrustModel) -> Self {
+        debug_assert_eq!(trust_model.validate(), Ok(()));
         let mut model_keys = Vec::new();
         trust_model.collect_leaf_keys(&mut model_keys);
-        if model_keys.len() > 64 {
-            return Err(format!(
-                "trust model has {} keys; at most 64 are supported",
-                model_keys.len()
-            ));
-        }
         let key_bit = model_keys
             .iter()
             .enumerate()
             .map(|(i, k)| (*k, i))
             .collect();
         let min_width = trust_model.min_qualified_size();
-        Ok(Verifier {
+        Verifier {
             facts,
             trust_model,
-            legacy_keys,
+            legacy_keys: trust_model.legacy_keys(),
             model_keys,
             key_bit,
             min_width,
@@ -363,7 +375,7 @@ impl<'a> Verifier<'a> {
             qualified_memo: HashMap::new(),
             evidence_acc: HashMap::new(),
             unservable_acc: BTreeSet::new(),
-        })
+        }
     }
 
     /// Verify `(target_udrv, target_subset)` per the witness-family semantics.
@@ -439,8 +451,8 @@ impl<'a> Verifier<'a> {
                 continue;
             }
             any_transition = true;
-            for tr in transitions {
-                for (dep_udrv, dep_demands) in tr {
+            for transition in transitions {
+                for (dep_udrv, dep_demands) in transition {
                     successors.entry(dep_udrv).or_default().insert(dep_demands);
                 }
             }
@@ -508,12 +520,12 @@ impl<'a> Verifier<'a> {
         let mut options: Vec<Vec<RouteOption>> = Vec::with_capacity(demands.len());
         for subset in demands {
             let mut opts = Vec::new();
-            let mut legacy_cand = 0u64;
+            let mut legacy_signers = 0u64;
             for &rdrv in rdrvs {
                 let Some(claims) = self.facts.rdrv_claims.get(&rdrv) else {
                     continue;
                 };
-                let mut cand = 0u64;
+                let mut signers = 0u64;
                 for claim in claims {
                     if !subset.matches_output_map(&claim.output_map) {
                         continue;
@@ -524,17 +536,17 @@ impl<'a> Verifier<'a> {
                         continue;
                     };
                     if self.legacy_keys.contains(&claim.signer) {
-                        legacy_cand |= 1 << bit;
+                        legacy_signers |= 1 << bit;
                     } else {
-                        cand |= 1 << bit;
+                        signers |= 1 << bit;
                     }
                 }
-                if cand != 0 {
-                    opts.push(RouteOption::Continue { rdrv, cand });
+                if signers != 0 {
+                    opts.push(RouteOption::Continue { rdrv, signers });
                 }
             }
-            if legacy_cand != 0 {
-                opts.push(RouteOption::Terminate { cand: legacy_cand });
+            if legacy_signers != 0 {
+                opts.push(RouteOption::Terminate { signers: legacy_signers });
             }
             if opts.is_empty() {
                 // Some demand cannot be served at all: no transition exists.
@@ -576,10 +588,10 @@ impl<'a> Verifier<'a> {
             let mut masks: HashSet<u64> = HashSet::new();
             masks.insert(0);
             for opt in &route {
-                let cand = opt.cand();
+                let signers = opt.signers();
                 let mut next = HashSet::new();
                 for &mask in &masks {
-                    let mut free = cand & !mask;
+                    let mut free = signers & !mask;
                     while free != 0 {
                         let bit = free & free.wrapping_neg();
                         next.insert(mask | bit);
@@ -602,17 +614,12 @@ impl<'a> Verifier<'a> {
             if qualified_union == 0 {
                 return;
             }
-            let mut bits = qualified_union;
-            while bits != 0 {
-                let bit = bits.trailing_zeros() as usize;
-                evidence_out.insert(self.model_keys[bit]);
-                bits &= bits - 1;
-            }
+            evidence_out.extend(self.keys_in_mask(qualified_union));
 
             // Demands induced per dependency position: each continuing rdrv
             // contributes its resolution subset at every dep it resolves;
             // terminated paths contribute nothing.
-            let mut tr: BTreeMap<UDrv, Demands> = dep_positions
+            let mut transition: BTreeMap<UDrv, Demands> = dep_positions
                 .iter()
                 .map(|&d| (d, Vec::new()))
                 .collect();
@@ -620,15 +627,15 @@ impl<'a> Verifier<'a> {
                 if let RouteOption::Continue { rdrv, .. } = opt {
                     if let Some(subsets) = self.facts.rdrv_dep_subsets.get(rdrv) {
                         for (dep_udrv, subset) in subsets {
-                            tr.entry(*dep_udrv).or_default().push(subset.clone());
+                            transition.entry(*dep_udrv).or_default().push(subset.clone());
                         }
                     }
                 }
             }
-            for d in tr.values_mut() {
+            for d in transition.values_mut() {
                 d.sort();
             }
-            transitions.insert(tr);
+            transitions.insert(transition);
             return;
         }
 
@@ -643,16 +650,16 @@ impl<'a> Verifier<'a> {
         if let Some(&q) = self.qualified_memo.get(&mask) {
             return q;
         }
-        let mut keys = HashSet::new();
-        let mut bits = mask;
-        while bits != 0 {
-            let bit = bits.trailing_zeros() as usize;
-            keys.insert(self.model_keys[bit]);
-            bits &= bits - 1;
-        }
+        let keys: HashSet<KeyId> = self.keys_in_mask(mask).collect();
         let q = self.trust_model.satisfied_by(&keys);
         self.qualified_memo.insert(mask, q);
         q
+    }
+
+    fn keys_in_mask(&self, mask: u64) -> impl Iterator<Item = KeyId> + '_ {
+        (0..self.model_keys.len())
+            .filter(move |bit| mask & (1 << bit) != 0)
+            .map(|bit| self.model_keys[bit])
     }
 }
 
@@ -724,7 +731,7 @@ mod tests {
         facts.add_claim(R_B_1, K2, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(result.verified);
         assert_eq!(result.evidence[&A], [K1, K2].into());
@@ -747,7 +754,7 @@ mod tests {
         facts.add_claim(R_B_1, K2, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(!result.verified);
         assert!(unservable_at(&result, A));
@@ -770,7 +777,7 @@ mod tests {
         facts.add_claim(R_B_2, K2, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(result.verified);
         assert_eq!(result.evidence[&A], [K1, K2].into());
@@ -797,7 +804,7 @@ mod tests {
         facts.add_claim(R_B_2, K2, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(result.verified);
     }
@@ -830,7 +837,7 @@ mod tests {
         facts.add_claim(R_C_2, K2, make_output_map(&[(OUT, HC)]));
 
         let tm3 = threshold(3, &[K1, K2, K3]);
-        let mut v = Verifier::new(&facts, &tm3).unwrap();
+        let mut v = Verifier::new(&facts, &tm3);
         let result = v.verify(C, make_subset(&[(OUT, HC)]));
         assert!(
             !result.verified,
@@ -839,7 +846,7 @@ mod tests {
 
         // The same evidence carries width 2: 2-of-3 verifies.
         let tm2 = threshold(2, &[K1, K2, K3]);
-        let mut v = Verifier::new(&facts, &tm2).unwrap();
+        let mut v = Verifier::new(&facts, &tm2);
         let result = v.verify(C, make_subset(&[(OUT, HC)]));
         assert!(result.verified, "two disjoint paths exist; 2-of-3 verifies");
     }
@@ -868,7 +875,7 @@ mod tests {
         facts.add_claim(R_B_3, K3, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(3, &[K1, K2, K3]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(!result.verified);
         assert!(unservable_at(&result, A));
@@ -892,7 +899,7 @@ mod tests {
         facts.add_claim(R_B_2, K1, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(!result.verified);
         assert!(unservable_at(&result, A));
@@ -910,7 +917,7 @@ mod tests {
         facts.add_claim(R_B_1, K2, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(1, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(result.verified);
     }
@@ -934,7 +941,7 @@ mod tests {
                 TrustModel::Threshold(1, vec![TrustModel::Key(K2), TrustModel::Key(K3)]),
             ],
         );
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(result.verified);
     }
@@ -961,7 +968,7 @@ mod tests {
                 TrustModel::Threshold(1, vec![TrustModel::Key(K2), TrustModel::Key(K3)]),
             ],
         );
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(result.verified);
     }
@@ -988,7 +995,7 @@ mod tests {
                 TrustModel::Threshold(2, vec![TrustModel::Key(K2), TrustModel::Key(K3)]),
             ],
         );
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(!result.verified);
     }
@@ -1020,7 +1027,7 @@ mod tests {
                 TrustModel::Threshold(2, vec![TrustModel::Key(K2), TrustModel::Key(K3)]),
             ],
         );
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(C, make_subset(&[(OUT, HC)]));
         assert!(result.verified);
     }
@@ -1037,7 +1044,7 @@ mod tests {
         facts.add_claim(R_A_1, K2, make_output_map(&[(OUT, HA), (DEV, HDEV2)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(A, make_subset(&[(OUT, HA)]));
         assert!(
             result.verified,
@@ -1061,7 +1068,7 @@ mod tests {
         facts.add_claim(R_B_1, K2, make_output_map(&[(OUT, HB)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         // Only k1's A-signing matches the (out=HA, dev=HDEV1) requirement; a width-2
         // family cannot find two distinct signers at A.
@@ -1085,7 +1092,7 @@ mod tests {
         facts.add_claim(R_C_1, K2, make_output_map(&[(OUT, HC)]));
 
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(C, make_subset(&[(OUT, HC)]));
         assert!(result.verified);
     }
@@ -1106,7 +1113,7 @@ mod tests {
                 TrustModel::Key(K1), // not satisfied here
             ],
         );
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(
             result.verified,
@@ -1122,8 +1129,7 @@ mod tests {
         // Threshold of 2 with a legacy child — not allowed.
         let tm =
             TrustModel::Threshold(2, vec![TrustModel::KeyLegacy(K_CACHE), TrustModel::Key(K1)]);
-        let facts = Facts::new();
-        assert!(Verifier::new(&facts, &tm).is_err());
+        assert!(tm.validate().is_err());
 
         // Legacy nested inside an inner threshold — also not allowed.
         let tm = TrustModel::Threshold(
@@ -1133,17 +1139,15 @@ mod tests {
                 vec![TrustModel::KeyLegacy(K_CACHE)],
             )],
         );
-        assert!(Verifier::new(&facts, &tm).is_err());
+        assert!(tm.validate().is_err());
     }
 
     /// A key may appear in at most one leaf of the trust model. Duplicates would let
     /// a single signature light several leaves at once (self-corroboration).
     #[test]
     fn duplicate_key_in_model_rejected() {
-        let facts = Facts::new();
-
         let tm = TrustModel::Threshold(2, vec![TrustModel::Key(K1), TrustModel::Key(K1)]);
-        assert!(Verifier::new(&facts, &tm).is_err());
+        assert!(tm.validate().is_err());
 
         // Duplicate across nesting levels is also rejected.
         let tm = TrustModel::Threshold(
@@ -1153,19 +1157,17 @@ mod tests {
                 TrustModel::Threshold(1, vec![TrustModel::Key(K1), TrustModel::Key(K2)]),
             ],
         );
-        assert!(Verifier::new(&facts, &tm).is_err());
+        assert!(tm.validate().is_err());
     }
 
     /// Threshold arities are validated: t must satisfy 1 <= t <= n.
     #[test]
     fn threshold_bounds_validated() {
-        let facts = Facts::new();
-
         let tm = TrustModel::Threshold(0, vec![TrustModel::Key(K1)]);
-        assert!(Verifier::new(&facts, &tm).is_err());
+        assert!(tm.validate().is_err());
 
         let tm = TrustModel::Threshold(3, vec![TrustModel::Key(K1), TrustModel::Key(K2)]);
-        assert!(Verifier::new(&facts, &tm).is_err());
+        assert!(tm.validate().is_err());
     }
 
     /// Target with no signed claims fails — no witness family exists at the root.
@@ -1177,7 +1179,7 @@ mod tests {
         facts.add_rdrv(R_B_1, B, [((F1, OUT), HF)].into());
 
         let tm = threshold(1, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(B, make_subset(&[(OUT, HB)]));
         assert!(!result.verified);
         assert!(unservable_at(&result, B));
@@ -1189,7 +1191,7 @@ mod tests {
         let mut facts = Facts::new();
         facts.add_fod(F1, make_output_map(&[(OUT, HF)]));
         let tm = threshold(2, &[K1, K2]);
-        let mut v = Verifier::new(&facts, &tm).unwrap();
+        let mut v = Verifier::new(&facts, &tm);
         let result = v.verify(F1, make_subset(&[(OUT, HF)]));
         assert!(result.verified);
     }

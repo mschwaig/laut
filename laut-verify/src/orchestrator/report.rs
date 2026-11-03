@@ -10,8 +10,18 @@ use crate::verifier::{Facts, Subset, VerifyResult};
 use super::Orchestrator;
 
 impl<B: Backend> Orchestrator<B> {
+    /// Render a subset of the root as `root: out=hash, ...`.
     pub(super) fn format_subset(&self, subset: &Subset) -> String {
-        let parts: Vec<String> = subset
+        format!(
+            "{}: {}",
+            self.interner.udrv_str(self.expected_root).unwrap_or("?"),
+            self.format_entries(subset)
+        )
+    }
+
+    /// Render a subset's entries as `out=hash, ...`.
+    fn format_entries(&self, subset: &Subset) -> String {
+        subset
             .entries()
             .iter()
             .map(|(out, ch)| {
@@ -21,12 +31,8 @@ impl<B: Backend> Orchestrator<B> {
                     self.interner.content_hash_str(*ch).unwrap_or("?")
                 )
             })
-            .collect();
-        format!(
-            "{}: {}",
-            self.interner.udrv_str(self.expected_root).unwrap_or("?"),
-            parts.join(", ")
-        )
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     pub(super) fn print_success_summary(&self, subset: &Subset, result: &VerifyResult) {
@@ -54,12 +60,12 @@ impl<B: Backend> Orchestrator<B> {
             position_count
         );
         eprintln!(
-            "  signers contributing to the bundle: {{{}}}",
+            "  signers in witness families: {{{}}}",
             signer_names.join(", ")
         );
     }
 
-    /// Render a demand multiset as `out=hash (×n), ...`, grouping repeated
+    /// Render a demand multiset as `out=hash (×n); ...`, grouping repeated
     /// subsets with a multiplicity marker.
     fn format_demands(&self, demands: &[Subset]) -> String {
         let mut groups: Vec<(&Subset, usize)> = Vec::new();
@@ -72,21 +78,11 @@ impl<B: Backend> Orchestrator<B> {
         groups
             .iter()
             .map(|(subset, count)| {
-                let entries: Vec<String> = subset
-                    .entries()
-                    .iter()
-                    .map(|(out, ch)| {
-                        format!(
-                            "{}={}",
-                            self.interner.output_name_str(*out).unwrap_or("?"),
-                            self.interner.content_hash_str(*ch).unwrap_or("?")
-                        )
-                    })
-                    .collect();
+                let entries = self.format_entries(subset);
                 if *count > 1 {
-                    format!("{} (×{})", entries.join(","), count)
+                    format!("{entries} (×{count})")
                 } else {
-                    entries.join(",")
+                    entries
                 }
             })
             .collect::<Vec<_>>()

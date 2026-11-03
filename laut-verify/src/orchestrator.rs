@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use laut_sign::cache::CacheTransport;
 use laut_sign::drv_json::{self, DrvJson};
 use laut_sign::store_path;
 
@@ -20,7 +21,7 @@ use crate::backend::{self, Backend};
 use crate::debug::DebugProbe;
 use crate::signature_verify;
 use crate::string_interner::{StringInterner, UDrv};
-use crate::trust_model::{self, TrustModelSpec};
+use crate::trust_model::{self, TrustModelSpec, TrustedKey};
 use crate::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};
 use crate::verifier::{Facts, Subset, TrustModel, Verifier, VerifyResult};
 
@@ -80,21 +81,19 @@ pub enum Regime {
 /// Configuration knobs from the verify CLI surface.
 pub struct Config {
     pub root_drv_path: String,
-    pub cache_urls: Vec<String>,
-    /// Declarative trust model spec (parsed from a Nix config file). The
-    /// spec carries its own key material inline as `name:base64` strings.
+    pub caches: Vec<CacheTransport>,
+    /// Declarative trust model spec, from the verify config file.
     pub trust_model: TrustModelSpec,
-    /// Defaults to a `NullProbe`; the verify CLI swaps in a `DifftProbe` when
-    /// `--debug-preimage-corpus` is set.
+    /// The verify CLI passes a `DifftProbe` when `--debug-preimage-corpus` is
+    /// set, a `NullProbe` otherwise.
     pub debug_probe: Box<dyn DebugProbe>,
 }
 
 pub struct Orchestrator<B: Backend> {
     backend: B,
-    cache_urls: Vec<String>,
-    /// `(kid, raw_key)` for signature verification; `kid` is `name:thumbprint16`.
-    /// Built from the trust model spec's inline keys.
-    trusted_keys: Vec<(String, Vec<u8>)>,
+    caches: Vec<CacheTransport>,
+    /// Keys of the trust model's leaves, for signature verification.
+    trusted_keys: Vec<TrustedKey>,
     pub(crate) regime: Regime,
     debug_probe: Box<dyn DebugProbe>,
 
@@ -122,7 +121,7 @@ pub struct Orchestrator<B: Backend> {
 impl<B: Backend> Orchestrator<B> {
     pub fn new(backend: B, cfg: Config) -> Result<Self, Error> {
         let mut interner = StringInterner::new();
-        let (trust_model, kid_keys) = trust_model::resolve_spec(&cfg.trust_model, &mut interner)?;
+        let (trust_model, trusted_keys) = trust_model::resolve_spec(&cfg.trust_model, &mut interner)?;
 
         let recursive_json = backend.derivation_show_recursive(&cfg.root_drv_path)?;
         let derivations: HashMap<String, DrvJson> = serde_json::from_str(&recursive_json)?;
@@ -170,8 +169,8 @@ impl<B: Backend> Orchestrator<B> {
 
         Ok(Self {
             backend,
-            cache_urls: cfg.cache_urls,
-            trusted_keys: kid_keys,
+            caches: cfg.caches,
+            trusted_keys,
             regime,
             debug_probe: cfg.debug_probe,
             derivations,
@@ -226,8 +225,7 @@ impl<B: Backend> Orchestrator<B> {
             return Ok(Vec::new());
         }
 
-        let mut verifier =
-            Verifier::new(&self.facts, &self.trust_model).expect("trust model validated at construction");
+        let mut verifier = Verifier::new(&self.facts, &self.trust_model);
 
         let mut verified = Vec::new();
         let mut successes: Vec<(Subset, VerifyResult)> = Vec::new();

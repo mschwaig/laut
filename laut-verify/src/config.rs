@@ -15,6 +15,7 @@
 
 use std::path::{Path, PathBuf};
 
+use laut_sign::cache::CacheTransport;
 use serde::Deserialize;
 
 use crate::trust_model::TrustModelSpec;
@@ -41,7 +42,7 @@ pub enum Error {
 #[serde(deny_unknown_fields)]
 pub struct VerifyConfig {
     #[serde(default)]
-    pub caches: Vec<String>,
+    pub caches: Vec<CacheTransport>,
     pub trust_model: TrustModelSpec,
 }
 
@@ -62,14 +63,25 @@ mod tests {
 
     #[test]
     fn loads_caches_and_trust_model() {
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        std::io::Write::write_all(
-            &mut f,
+        let f = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            f.path(),
             br#"{"caches":["file:///var/lib/laut"],"trust_model":{"key":"a:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="}}"#,
         )
         .unwrap();
         let cfg = load(f.path()).unwrap();
-        assert_eq!(cfg.caches, vec!["file:///var/lib/laut"]);
+        assert_eq!(cfg.caches, vec![CacheTransport::File("/var/lib/laut".into())]);
         assert!(matches!(cfg.trust_model, TrustModelSpec::Key { .. }));
+    }
+
+    #[test]
+    fn rejects_unknown_cache_scheme() {
+        let f = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            f.path(),
+            br#"{"caches":["s3://bucket"],"trust_model":{"key":"a:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="}}"#,
+        )
+        .unwrap();
+        assert!(matches!(load(f.path()), Err(Error::Json { .. })));
     }
 }

@@ -10,6 +10,14 @@ let
   nix = "${config.nix.package}/bin/nix --extra-experimental-features nix-command";
   stateDir = "/var/lib/laut";
   keyFile = lib.defaultTo "${stateDir}/local.key" cfg.secretKeyFile;
+
+  # Unique tmp name: parallel post-build hooks may run this concurrently.
+  derivePublicKey = ''
+    tmp=$(mktemp "${cfg.publicKeyFile}.XXXXXX")
+    ${nix} key convert-secret-to-public < "${keyFile}" > "$tmp"
+    chmod 644 "$tmp"
+    mv "$tmp" "${cfg.publicKeyFile}"
+  '';
 in {
   options.services.laut.sign = {
     enable = lib.mkEnableOption "laut build-trace signing via a Nix post-build hook";
@@ -70,10 +78,10 @@ in {
       readOnly = true;
       default = "${stateDir}/local.key.public";
       description = ''
-        Public half of the signing key, derived at boot and whenever a
-        provided `secretKeyFile` changes. This is the
-        key a `{ local = true; }` leaf in `services.laut.verify.trustModel`
-        stands for.
+        Public half of the signing key, derived at boot and before every
+        signing, so it follows a rotated `secretKeyFile`. This is the key a
+        `{ local = true; }` leaf in `services.laut.verify.trustModel` stands
+        for.
       '';
     };
 
@@ -97,7 +105,6 @@ in {
       description = "Prepare laut signing key";
       wantedBy = [ "multi-user.target" "nix-daemon.service" ];
       before = [ "nix-daemon.service" ];
-      # No RemainAfterExit, so the path unit below can re-run it.
       serviceConfig = {
         Type = "oneshot";
         StateDirectory = "laut";
@@ -109,15 +116,8 @@ in {
             mv "${keyFile}.tmp" "${keyFile}"
           fi
         ''}
-        ${nix} key convert-secret-to-public < "${keyFile}" > "${cfg.publicKeyFile}.tmp"
-        mv "${cfg.publicKeyFile}.tmp" "${cfg.publicKeyFile}"
+        ${derivePublicKey}
       '';
-    };
-
-    # Re-derive the public key when a secret manager rotates the key.
-    systemd.paths.laut-keygen = lib.mkIf (cfg.secretKeyFile != null) {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig.PathChanged = keyFile;
     };
 
     nix.settings.post-build-hook = lib.mkDefault (pkgs.writeShellScript "laut-post-build-hook" ''
@@ -126,6 +126,11 @@ in {
 
       [ -n "$OUT_PATHS" ]
       [ -n "$DRV_PATH" ]
+
+      # Follow secret-manager key rotation.
+      if [ "${keyFile}" -nt "${cfg.publicKeyFile}" ]; then
+        ${derivePublicKey}
+      fi
 
       ${lib.optionalString cfg.copyStorePaths ''
         echo Pushing "$OUT_PATHS" to ${cfg.cacheUrl}

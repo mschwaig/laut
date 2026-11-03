@@ -16,25 +16,30 @@
 //! `key` and `key_legacy` carry `name:base64-public-key` strings (the same
 //! format Nix uses for `trusted-public-keys`). The resolver decodes the
 //! public key, computes the JWK thumbprint, and builds the `kid =
-//! name:thumbprint16` that matches what signers put in the JWS header.
+//! name:thumbprint16` that signers put in the JWS header.
 //! `key_file` names a file holding such a string, read at resolution time
 //! (the NixOS module uses it for the host's own, runtime-generated key).
+//! [`check_spec`] validates a spec without reading key files.
 
 use std::path::PathBuf;
 
-use base64::Engine;
+use nix_compat::narinfo::{VerifyingKey, VerifyingKeyError};
 use serde::Deserialize;
 
 use crate::string_interner::{KeyId, StringInterner};
-use laut_sign::thumbprint;
 use crate::verifier::TrustModel;
+use laut_sign::thumbprint;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("invalid key spec {spec:?}: {detail}")]
-    InvalidKeySpec { spec: String, detail: String },
-    #[error("thumbprint: {0}")]
-    Thumbprint(#[from] thumbprint::Error),
+    #[error("invalid key {spec:?} (expected 'name:base64-public-key'): {source}")]
+    InvalidKey {
+        spec: String,
+        #[source]
+        source: VerifyingKeyError,
+    },
+    #[error("the same public key appears more than once in the trust model (as {first:?} and {second:?})")]
+    DuplicateKey { first: String, second: String },
     #[error("trust model validation: {0}")]
     Validation(String),
     #[error("reading key file {path:?}: {source}")]
@@ -74,92 +79,91 @@ pub enum TrustModelSpec {
     },
 }
 
-/// A key spec parsed into its `(name, raw_public_key)` form.
-#[derive(Debug)]
-struct ParsedKey {
-    name: String,
-    key_bytes: [u8; 32],
-}
-
-fn parse_key_spec(spec: &str) -> Result<ParsedKey, Error> {
-    let (name, b64) = spec.split_once(':').ok_or_else(|| Error::InvalidKeySpec {
-        spec: spec.to_owned(),
-        detail: "expected 'name:base64-public-key'".into(),
-    })?;
-    if name.is_empty() {
-        return Err(Error::InvalidKeySpec {
-            spec: spec.to_owned(),
-            detail: "key name is empty".into(),
-        });
-    }
-    let raw = base64::engine::general_purpose::STANDARD
-        .decode(b64.as_bytes())
-        .map_err(|e| Error::InvalidKeySpec {
-            spec: spec.to_owned(),
-            detail: format!("base64 decode: {e}"),
-        })?;
-    if raw.len() != 32 {
-        return Err(Error::InvalidKeySpec {
-            spec: spec.to_owned(),
-            detail: format!("expected 32-byte public key, got {}", raw.len()),
-        });
-    }
-    let mut key_bytes = [0u8; 32];
-    key_bytes.copy_from_slice(&raw);
-    Ok(ParsedKey { name: name.to_owned(), key_bytes })
+/// A key signatures are accepted from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustedKey {
+    /// `name:thumbprint16`; a signature's header `kid` must equal it exactly.
+    pub kid: String,
+    pub key: ed25519_dalek::VerifyingKey,
 }
 
 /// Resolve a [`TrustModelSpec`] into a validated [`TrustModel`], interning
-/// each leaf's kid. Also returns `(kid, raw_public_key)` per leaf for
-/// signature verification; `kid = name:thumbprint16` matches what signers put
-/// in the JWS header.
+/// each leaf's kid. Also returns the [`TrustedKey`] of every leaf for
+/// signature verification.
 pub fn resolve_spec(
     spec: &TrustModelSpec,
     interner: &mut StringInterner,
-) -> Result<(TrustModel, Vec<(String, Vec<u8>)>), Error> {
-    let mut keys = Vec::new();
-    let model = resolve(spec, interner, &mut keys)?;
-    model.validate().map_err(Error::Validation)?;
-    Ok((model, keys))
+) -> Result<(TrustModel, Vec<TrustedKey>), Error> {
+    resolve_validated(spec, interner, true)
 }
 
-fn resolve(
+/// Validate `spec` like [`resolve_spec`] but without reading `key_file`s,
+/// which may not exist yet (e.g. in a Nix build sandbox). Each `key_file`
+/// leaf stands in as a placeholder key identified by its path.
+pub fn check_spec(spec: &TrustModelSpec) -> Result<(), Error> {
+    resolve_validated(spec, &mut StringInterner::new(), false).map(|_| ())
+}
+
+fn resolve_validated(
     spec: &TrustModelSpec,
     interner: &mut StringInterner,
-    keys: &mut Vec<(String, Vec<u8>)>,
-) -> Result<TrustModel, Error> {
-    Ok(match spec {
-        TrustModelSpec::Key { key } => TrustModel::Key(resolve_key(key, interner, keys)?),
-        TrustModelSpec::KeyLegacy { key_legacy } => {
-            TrustModel::KeyLegacy(resolve_key(key_legacy, interner, keys)?)
-        }
-        TrustModelSpec::KeyFile { key_file } => {
-            let key = std::fs::read_to_string(key_file).map_err(|source| Error::KeyFile {
-                path: key_file.clone(),
-                source,
-            })?;
-            TrustModel::Key(resolve_key(key.trim(), interner, keys)?)
-        }
-        TrustModelSpec::Threshold { threshold, of } => TrustModel::Threshold(
-            *threshold,
-            of.iter()
-                .map(|child| resolve(child, interner, keys))
-                .collect::<Result<_, _>>()?,
-        ),
-    })
+    read_key_files: bool,
+) -> Result<(TrustModel, Vec<TrustedKey>), Error> {
+    let mut resolver = Resolver { interner, keys: Vec::new(), read_key_files };
+    let model = resolver.resolve(spec)?;
+    model.validate().map_err(Error::Validation)?;
+    Ok((model, resolver.keys))
 }
 
-fn resolve_key(
-    spec: &str,
-    interner: &mut StringInterner,
-    keys: &mut Vec<(String, Vec<u8>)>,
-) -> Result<KeyId, Error> {
-    let parsed = parse_key_spec(spec)?;
-    let tp = thumbprint::ed25519_thumbprint(&parsed.key_bytes)?;
-    let kid = format!("{}:{}", parsed.name, &tp[..16]);
-    let id = interner.key(&kid);
-    keys.push((kid, parsed.key_bytes.to_vec()));
-    Ok(id)
+struct Resolver<'a> {
+    interner: &'a mut StringInterner,
+    keys: Vec<TrustedKey>,
+    read_key_files: bool,
+}
+
+impl Resolver<'_> {
+    fn resolve(&mut self, spec: &TrustModelSpec) -> Result<TrustModel, Error> {
+        Ok(match spec {
+            TrustModelSpec::Key { key } => TrustModel::Key(self.resolve_key(key)?),
+            TrustModelSpec::KeyLegacy { key_legacy } => {
+                TrustModel::KeyLegacy(self.resolve_key(key_legacy)?)
+            }
+            TrustModelSpec::KeyFile { key_file } if self.read_key_files => {
+                let key = std::fs::read_to_string(key_file).map_err(|source| Error::KeyFile {
+                    path: key_file.clone(),
+                    source,
+                })?;
+                TrustModel::Key(self.resolve_key(key.trim())?)
+            }
+            TrustModelSpec::KeyFile { key_file } => {
+                TrustModel::Key(self.interner.key(&format!("key_file:{}", key_file.display())))
+            }
+            TrustModelSpec::Threshold { threshold, of } => TrustModel::Threshold(
+                *threshold,
+                of.iter()
+                    .map(|child| self.resolve(child))
+                    .collect::<Result<_, _>>()?,
+            ),
+        })
+    }
+
+    /// Parse `name:base64-public-key`, reject key material already used by
+    /// another leaf (under any name), and intern its kid. `validate()` only
+    /// sees kids, so it can't catch the same key under two names.
+    fn resolve_key(&mut self, spec: &str) -> Result<KeyId, Error> {
+        let parsed = VerifyingKey::parse(spec).map_err(|source| Error::InvalidKey {
+            spec: spec.to_owned(),
+            source,
+        })?;
+        let key = *parsed.verifying_key();
+        let kid = thumbprint::kid(parsed.name(), key.as_bytes());
+        if let Some(prev) = self.keys.iter().find(|k| k.key == key) {
+            return Err(Error::DuplicateKey { first: prev.kid.clone(), second: kid });
+        }
+        let id = self.interner.key(&kid);
+        self.keys.push(TrustedKey { kid, key });
+        Ok(id)
+    }
 }
 
 #[cfg(test)]
@@ -227,36 +231,81 @@ mod tests {
         assert!(matches!(err, Error::Validation(_)));
     }
 
-    /// The same key referenced in two positions resolves to the same KeyId,
-    /// and validation then rejects the model: a key may appear in at most one
-    /// leaf (otherwise one signature could light several leaves at once).
+    /// A key may appear in at most one leaf (otherwise one signature could
+    /// light several leaves at once), whatever name it is given and whether
+    /// it comes inline, as legacy, or from a file.
     #[test]
-    fn same_key_in_two_positions_rejected() {
-        let ks = key_spec("a", &[1u8; 32]);
-        let spec = TrustModelSpec::Threshold {
+    fn same_key_in_two_leaves_rejected() {
+        let nested = TrustModelSpec::Threshold {
             threshold: 2,
             of: vec![
-                TrustModelSpec::Key { key: ks.clone() },
+                TrustModelSpec::Key { key: key_spec("a", &[1u8; 32]) },
                 TrustModelSpec::Threshold {
                     threshold: 1,
                     of: vec![
-                        TrustModelSpec::Key { key: ks.clone() },
+                        TrustModelSpec::Key { key: key_spec("a", &[1u8; 32]) },
                         TrustModelSpec::Key { key: key_spec("b", &[2u8; 32]) },
                     ],
                 },
             ],
         };
+        let renamed_legacy = TrustModelSpec::Threshold {
+            threshold: 1,
+            of: vec![
+                TrustModelSpec::KeyLegacy { key_legacy: key_spec("cache", &[1u8; 32]) },
+                TrustModelSpec::Key { key: key_spec("self", &[1u8; 32]) },
+            ],
+        };
+        let f = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(f.path(), key_spec("b", &[1u8; 32])).unwrap();
+        let renamed_file = TrustModelSpec::Threshold {
+            threshold: 2,
+            of: vec![
+                TrustModelSpec::Key { key: key_spec("a", &[1u8; 32]) },
+                TrustModelSpec::KeyFile { key_file: f.path().to_owned() },
+            ],
+        };
+        for spec in [nested, renamed_legacy, renamed_file] {
+            let err = resolve_spec(&spec, &mut StringInterner::new()).unwrap_err();
+            assert!(matches!(err, Error::DuplicateKey { .. }), "{err}");
+        }
+    }
+
+    /// Signer sets are u64 bitmasks in the verifier.
+    #[test]
+    fn more_than_64_keys_rejected() {
+        let spec = TrustModelSpec::Threshold {
+            threshold: 1,
+            of: (0..65u8)
+                .map(|i| TrustModelSpec::Key { key: key_spec(&format!("k{i}"), &[i; 32]) })
+                .collect(),
+        };
         let err = resolve_spec(&spec, &mut StringInterner::new()).unwrap_err();
-        assert!(matches!(err, Error::Validation(_)));
+        assert!(matches!(err, Error::Validation(_)), "{err}");
     }
 
     #[test]
     fn rejects_bad_key_format() {
-        let err = parse_key_spec("no-colon").unwrap_err();
-        assert!(matches!(err, Error::InvalidKeySpec { .. }));
+        for bad in ["no-colon", "a:short", "bad name:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="] {
+            let spec = TrustModelSpec::Key { key: bad.to_owned() };
+            let err = resolve_spec(&spec, &mut StringInterner::new()).unwrap_err();
+            assert!(matches!(err, Error::InvalidKey { .. }), "{bad}: {err}");
+        }
+    }
 
-        let err = parse_key_spec("a:short").unwrap_err();
-        assert!(matches!(err, Error::InvalidKeySpec { .. }));
+    /// `check_spec` runs where key files don't exist yet (Nix build sandbox).
+    #[test]
+    fn check_spec_skips_key_files() {
+        let spec = TrustModelSpec::Threshold {
+            threshold: 2,
+            of: vec![
+                TrustModelSpec::Key { key: key_spec("a", &[1u8; 32]) },
+                TrustModelSpec::KeyFile { key_file: "/nonexistent/local.key.public".into() },
+            ],
+        };
+        check_spec(&spec).unwrap();
+        let err = resolve_spec(&spec, &mut StringInterner::new()).unwrap_err();
+        assert!(matches!(err, Error::KeyFile { .. }));
     }
 
     #[test]
@@ -283,8 +332,8 @@ mod tests {
     #[test]
     fn key_file_resolves_like_key() {
         let spec = key_spec("local", &[5u8; 32]);
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        std::io::Write::write_all(&mut f, format!("{spec}\n").as_bytes()).unwrap();
+        let f = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(f.path(), format!("{spec}\n")).unwrap();
         let from_file = TrustModelSpec::KeyFile { key_file: f.path().to_owned() };
         let (_, file_keys) = resolve_spec(&from_file, &mut StringInterner::new()).unwrap();
         let (_, inline_keys) =

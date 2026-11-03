@@ -27,6 +27,9 @@ testLib.runTest {
       package = laut;
     };
 
+    # laut verify must work for unprivileged users.
+    users.users.alice.isNormalUser = true;
+
     nix = {
       package = nixPackage;
       settings.experimental-features = [ "nix-command" "ca-derivations" ];
@@ -70,7 +73,7 @@ testLib.runTest {
 
     machine.succeed(f"nix-build {chain} -A b --no-out-link")
     b_drv = machine.succeed(f"nix-instantiate {chain} -A b").strip()
-    machine.succeed(f"laut verify {b_drv}")
+    machine.succeed(f"su - alice -c 'laut verify {b_drv}'")
 
     def flip_signature(jws):
         signing_input, sig = jws.rsplit(".", 1)
@@ -82,7 +85,7 @@ testLib.runTest {
 
     # With a's signatures broken, b no longer resolves. laut must report that
     # as a failed verification (exit 118), not as an error (exit 1).
-    status, out = machine.execute(f"laut verify {b_drv} 2>&1")
+    status, out = machine.execute(f"su - alice -c 'laut verify {b_drv}' 2>&1")
     assert status == 118, f"expected exit 118, got {status}:\n{out}"
   '';
 }

@@ -33,8 +33,8 @@
         trustModel = {
           threshold = 2;
           of = [
-            { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
-            { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+            { key = builtins.readFile ../../testkeys/builderA_key.public; }
+            { key = builtins.readFile ../../testkeys/builderB_key.public; }
           ];
         };
       };

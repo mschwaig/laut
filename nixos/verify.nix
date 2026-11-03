@@ -9,16 +9,13 @@ let
   cfg = config.services.laut.verify;
   inherit (lib) mkOption types;
 
-  # `name:base64-ed25519-public-key`, same format as Nix's trusted-public-keys.
-  keyStr = types.strMatching "[^:]+:[A-Za-z0-9+/]{43}=";
-
   # Submodule checks accept any attrset, so each node kind is discriminated by
   # its tag field before `oneOf` picks it.
   node = tag: options: types.addCheck (types.submodule { inherit options; }) (v: v ? ${tag});
 
   trustModelType = types.oneOf [
-    (node "key" { key = mkOption { type = keyStr; }; })
-    (node "key_legacy" { key_legacy = mkOption { type = keyStr; }; })
+    (node "key" { key = mkOption { type = types.str; }; })
+    (node "key_legacy" { key_legacy = mkOption { type = types.str; }; })
     # This host's own signing key, which only exists at runtime.
     (node "local" { local = mkOption { type = types.enum [ true ]; }; })
     (node "threshold" {
@@ -27,31 +24,7 @@ let
     })
   ];
 
-  leafKeys =
-    m:
-    if m ? threshold then lib.concatMap leafKeys m.of
-    else [ (m.key or m.key_legacy or "local") ];
-
-  thresholdsInRange =
-    m:
-    !(m ? threshold) || (m.threshold <= lib.length m.of && lib.all thresholdsInRange m.of);
-
-  hasLegacy = m: m ? key_legacy || (m ? threshold && lib.any hasLegacy m.of);
-
-  # Mirrors `TrustModel::validate` in laut-verify/src/verifier.rs; the CLI
-  # re-checks at runtime, this just fails `nixos-rebuild` early.
-  legacyPlacementOk =
-    m:
-    if m ? key_legacy then false
-    else if !(m ? threshold) then true
-    else
-      let
-        legacyChildren = lib.filter (c: c ? key_legacy) m.of;
-      in
-      (legacyChildren == [ ] || m.threshold == 1)
-      && lib.all (c: !(c ? threshold) || !hasLegacy c) m.of;
-
-  keys = leafKeys cfg.trustModel;
+  hasLocal = m: m.local or false || (m ? threshold && lib.any hasLocal m.of);
 
   # Traces this host signs itself (e.g. a `local` key) are verifiable too.
   # `or false`: the sign module may not be imported (`nixosModules.laut-verify`).
@@ -65,10 +38,22 @@ let
     else if m ? threshold then m // { of = map toSpec m.of; }
     else m;
 
-  configFile = pkgs.writeText "laut-verify.json" (builtins.toJSON {
-    inherit caches;
-    trust_model = toSpec cfg.trustModel;
-  });
+  # Validated by laut itself at build time, so a bad trust model fails
+  # `nixos-rebuild` rather than `laut verify`.
+  configFile =
+    pkgs.runCommand "laut-verify.json"
+      {
+        nativeBuildInputs = [ cfg.package ];
+        json = builtins.toJSON {
+          inherit caches;
+          trust_model = toSpec cfg.trustModel;
+        };
+        passAsFile = [ "json" ];
+      }
+      ''
+        laut verify --check-config --config "$jsonPath"
+        cp "$jsonPath" "$out"
+      '';
 in
 {
   options.services.laut.verify = {
@@ -132,20 +117,8 @@ in
         message = "services.laut.verify: set `caches` or enable `services.laut.sign` on this host.";
       }
       {
-        assertion = signEnabled || !(lib.elem "local" keys);
+        assertion = signEnabled || !(hasLocal cfg.trustModel);
         message = "services.laut.verify.trustModel: a `local` leaf needs `services.laut.sign` enabled on this host.";
-      }
-      {
-        assertion = thresholdsInRange cfg.trustModel;
-        message = "services.laut.verify.trustModel: every threshold must be <= the number of its `of` children.";
-      }
-      {
-        assertion = lib.allUnique keys;
-        message = "services.laut.verify.trustModel: a key may appear in at most one leaf.";
-      }
-      {
-        assertion = legacyPlacementOk cfg.trustModel;
-        message = "services.laut.verify.trustModel: key_legacy is only allowed as a direct child of a top-level `threshold = 1`.";
       }
     ];
 

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+use laut_sign::cache::CacheTransport;
 use laut_verify::backend::InMemoryBackend;
 use laut_verify::orchestrator::{cartesian_product, Config, Error, Orchestrator};
 use laut_verify::trust_model::TrustModelSpec;
@@ -96,7 +97,7 @@ fn make_orchestrator(
         backend,
         Config {
             root_drv_path: root.to_owned(),
-            cache_urls: vec!["http://mock".to_owned()],
+            caches: vec![CacheTransport::Http("http://mock".to_owned())],
             trust_model: trust_model_spec(),
             debug_probe: Box::new(laut_verify::debug::NullProbe),
         },
@@ -227,13 +228,4 @@ fn cartesian_three_keys_three_values_each() {
     };
     let combos = cartesian_product(&[mk_set("k0"), mk_set("k1"), mk_set("k2")]);
     assert_eq!(combos.len(), 27);
-}
-
-#[test]
-fn key_spec_smoke() {
-    let spec = read_key_spec("builderA_key.public");
-    assert!(spec.contains(':'), "key spec should be 'name:base64'");
-    let (name, b64) = spec.split_once(':').unwrap();
-    assert!(!name.is_empty());
-    assert!(!b64.is_empty());
 }
