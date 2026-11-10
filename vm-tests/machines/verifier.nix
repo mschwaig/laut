@@ -13,7 +13,10 @@
 # `environment.systemPackages` get *merged* by the NixOS module system instead
 # of being silently overwritten when a test pulls in extra packages.
 {
-  imports = [ verifierExtraConfig ];
+  imports = [
+    ../../nixos/verify.nix
+    verifierExtraConfig
+  ];
   config = {
       virtualisation.memorySize = 2 * 1024;
       virtualisation.cores = 2;
@@ -21,6 +24,20 @@
       virtualisation.useNixStoreImage = true;
       systemd.services.nix-daemon.enable = true;
       virtualisation.mountHostNixStore = false;
+
+      services.laut.verify = {
+        enable = true;
+        package = laut;
+        caches = [ cacheStoreUrl ];
+        # Threshold(2, [builderA, builderB]) — both builders must agree.
+        trustModel = {
+          threshold = 2;
+          of = [
+            { key = builtins.readFile ../../testkeys/builderA_key.public; }
+            { key = builtins.readFile ../../testkeys/builderB_key.public; }
+          ];
+        };
+      };
 
       nix = {
         # Match the builder: both sides instantiate the under-test drv tree
@@ -81,7 +98,6 @@
       environment.systemPackages = [
         nixPackage
         pkgs.git
-        laut
       ];
     };
 }

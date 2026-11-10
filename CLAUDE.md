@@ -14,8 +14,9 @@ Cargo workspace at the repo root, three members:
   work lives in `laut-sign` and `laut-verify`.
 - `laut-sign/` — sign-side orchestration + everything both sides need:
   derivation-path computation, content hashing, the constructive-trace
-  resolved-input-hash routine, HTTP cache upload, JWS assembly, keyfile
-  parsing, `nix` subprocess wrappers.
+  resolved-input-hash routine, cache URLs and the `traces/` layout (HTTP
+  upload, `file://` writes), JWS assembly, keyfile parsing, `nix`
+  subprocess wrappers.
 - `laut-verify/` — verify-side only: the orchestrator pipeline (under
   `src/orchestrator/`), the trust-model evaluator, signature verification,
   the hash-divergence debug probe.
@@ -71,6 +72,7 @@ nix build .#checks.x86_64-linux.small-ca-verify
 nix build .#checks.x86_64-linux.small-ia-sign
 nix build .#checks.x86_64-linux.small-ia-verify
 nix build .#checks.x86_64-linux.debug-probe
+nix build .#checks.x86_64-linux.local-ca  # one host, zero-config sign + verify
 ```
 
 The `debug-probe` test exercises `laut verify --debug-preimage-corpus` by
@@ -97,27 +99,30 @@ touch laut-verify/src/lib.rs
 
 ### Signing (called from a post-build hook)
 ```bash
-laut sign-and-upload --to [HTTP_CACHE_URL] --secret-key-file [KEY] [DRV_PATH]
+laut sign-and-upload --to [HTTP_CACHE_URL or file://DIR] --secret-key-file [KEY] [DRV_PATH]
 ```
 
 `$OUT_PATHS` (set by `nix` in the post-build hook) supplies the output paths.
-Exit codes: `0` = signed, `117` = no-op (the hook fired on the unresolved
-drv or on a FOD/IA), `1` = error.
+Exit codes: `0` = signed or no-op (the hook fired on the unresolved drv or
+on a FOD/IA), `1` = error. Plain `laut sign` exits `117` on a no-op.
 
 ### Verification
 ```bash
-laut verify --cache [URL] --trusted-key [KEY.public] [DRV_PATH_OR_FLAKE_REF]
+laut verify [--config verify.json] [--cache URL] [DRV_PATH_OR_FLAKE_REF]
 ```
 
 A target is detected as either `/nix/store/*.drv` or a flake reference
 (`pkg#attr`); flake refs are resolved via `nix eval --raw <ref>.drvPath`.
-Multiple `--cache` and `--trusted-key` flags are allowed.
+The config (`--config` / `LAUT_CONFIG`, default `/etc/laut/verify.json`, see
+`laut-verify/src/config.rs`) holds `caches` and `trust_model`; the NixOS
+module writes it from `services.laut.verify`. Repeatable `--cache` flags
+replace the config's caches.
 
 Exit codes: `0` = verified, `118` = verification failed, `1` = error.
 
 ### Hash-divergence debug probe
 ```bash
-laut verify --cache [URL] --trusted-key [KEY] \
+laut verify --cache [URL] \
   --debug-preimage-corpus [URL] \
   --debug-out-dir [DIR] \
   [TARGET]
@@ -141,13 +146,18 @@ corpus URL accepts `http(s)://` (requires the cache to expose
     feeds the verifier's facts.
   - `compute.rs` — resolved-input-hash computation + signature fetch/verify.
   - `report.rs` — success/failure formatting + candidate-output-map collection.
-- **Trust models**: Rust types in `laut-verify/src/verifier.rs`
-  (`TrustModel::Key(KeyId)` and `TrustModel::Threshold(n, Vec<TrustModel>)`).
-  Evaluated by the two-pass `Verifier` in the same file (see `docs/semantics.md`
-  for the formal definition).
-- **Storage**: HTTP cache with a `traces/<input-hash>` path layout, accessed
-  via `ureq`. The `Backend` trait in `laut-verify/src/backend.rs` abstracts
-  cache I/O so tests can use an in-memory backend.
+- **Trust models**: `laut-verify/src/config.rs` loads `verify.json`;
+  `trust_model.rs` resolves its trust-model spec (keys, `key_file` leaves,
+  validation) into the `TrustModel` type in `verifier.rs`. The `Verifier`
+  there checks for witness families of signer-disjoint grounded paths (see
+  `docs/semantics.md` for the formal definition).
+- **Storage**: caches use a `traces/<input-hash>` path layout, either over
+  HTTP (`ureq`) or in a `file://` directory (`laut-sign/src/cache.rs`). The
+  `Backend` trait in `laut-verify/src/backend.rs` abstracts cache I/O so
+  tests can use an in-memory backend.
+- **NixOS modules**: `nixos/sign.nix` (`services.laut.sign`, post-build hook
+  + key generation) and `nixos/verify.nix` (`services.laut.verify`, writes
+  `/etc/laut/verify.json`), exported as `nixosModules.laut`.
 - **Snix integration**: ed25519 keyfile parsing, ATerm derivation handling,
   and castore entry encoding come from `nix-compat` / `laut-compat` on the
   `mschwaig/snix#fanfic` branch. The branch hash is pinned in
@@ -209,11 +219,12 @@ Cargo.lock
 laut-cli/          binary "laut": clap CLI + dispatch
 laut-sign/         sign-side orchestration + shared core
 laut-verify/       verify-side orchestration + trust-model evaluator
+nixos/             NixOS modules (services.laut.{sign,verify})
 nix/laut.nix       Rust binary derivation (sign-only via fileset + postPatch)
 flake.nix          flake outputs (packages.{laut,laut-sign-only}, checks, devShell)
 default.nix        scope wrapper for callPackage convenience
 testkeys/          ed25519 keypairs used by Rust + VM tests
 tests/data/        Rust integration test fixtures (drv JSONs, signatures, ATerms)
-vm-tests/          NixOS VM tests (small-sign, small-verify, debug-probe)
+vm-tests/          NixOS VM tests (small-sign, small-verify, debug-probe, local-ca)
 docs/semantics.md  formal trust-model semantics
 ```

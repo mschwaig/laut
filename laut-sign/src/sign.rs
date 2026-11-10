@@ -19,6 +19,7 @@ use crate::constructive_trace;
 use crate::content_hash;
 use crate::derivation;
 use crate::drv_json::{self, DrvJson};
+use crate::cache::{self, CacheTransport};
 use crate::http_cache;
 use crate::ia_closure;
 use crate::keyfiles;
@@ -46,6 +47,8 @@ pub enum Error {
     Derivation(#[from] derivation::Error),
     #[error("upload: {0}")]
     Upload(#[from] http_cache::Error),
+    #[error("cache: {0}")]
+    Cache(#[from] cache::Error),
     #[error("derivation {0:?} not found in `nix derivation show` output")]
     DrvNotFound(String),
     #[error("derivation JSON missing field {0:?}")]
@@ -354,11 +357,14 @@ fn sign_ia_outputs(
     Ok((input_hash, Value::Object(castore_outputs), debug_data))
 }
 
-/// Sign and POST to the given HTTP cache. Silently no-ops on the same
-/// "out of scope" cases as [`sign`].
+/// Sign and store the trace in the given cache (`http(s)://` or `file://`).
+/// Silently no-ops on the same "out of scope" cases as [`sign`].
 pub fn sign_and_upload(cfg: &SignConfig, to: &str) -> Result<(), Error> {
     if let Some((input_hash, jws_token)) = sign(cfg)? {
-        http_cache::upload_signature(to, &input_hash, &jws_token)?;
+        match cache::parse_cache_url(to)? {
+            CacheTransport::Http(url) => http_cache::upload_signature(&url, &input_hash, &jws_token)?,
+            CacheTransport::File(dir) => cache::write_file_signature(&dir, &input_hash, &jws_token)?,
+        }
     }
     Ok(())
 }

@@ -13,13 +13,15 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use laut_sign::cache::CacheTransport;
 use laut_sign::drv_json::{self, DrvJson};
-use laut_sign::{store_path, thumbprint};
+use laut_sign::store_path;
 
 use crate::backend::{self, Backend};
-use crate::debug::{DebugProbe, NullProbe};
+use crate::debug::DebugProbe;
 use crate::signature_verify;
-use crate::string_interner::{KeyId, StringInterner, UDrv};
+use crate::string_interner::{StringInterner, UDrv};
+use crate::trust_model::{self, TrustModelSpec, TrustedKey};
 use crate::types::{TrustlesslyResolvedDerivation, UnresolvedDerivation};
 use crate::verifier::{Facts, Subset, TrustModel, Verifier, VerifyResult};
 
@@ -61,10 +63,8 @@ pub enum Error {
     StorePath(#[from] store_path::Error),
     #[error("signature verify: {0}")]
     SignatureVerify(#[from] signature_verify::Error),
-    #[error("thumbprint: {0}")]
-    Thumbprint(#[from] thumbprint::Error),
     #[error("trust model: {0}")]
-    TrustModel(String),
+    TrustModel(#[from] trust_model::Error),
 }
 
 /// Addressing regime of the verification target.
@@ -81,30 +81,19 @@ pub enum Regime {
 /// Configuration knobs from the verify CLI surface.
 pub struct Config {
     pub root_drv_path: String,
-    pub cache_urls: Vec<String>,
-    /// `(key_name, raw_32_byte_public_key)` for each trusted key.
-    pub trusted_keys: Vec<(String, Vec<u8>)>,
-    /// Defaults to a `NullProbe`; the verify CLI swaps in a `DifftProbe` when
-    /// `--debug-preimage-corpus` is set.
+    pub caches: Vec<CacheTransport>,
+    /// Declarative trust model spec, from the verify config file.
+    pub trust_model: TrustModelSpec,
+    /// The verify CLI passes a `DifftProbe` when `--debug-preimage-corpus` is
+    /// set, a `NullProbe` otherwise.
     pub debug_probe: Box<dyn DebugProbe>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            root_drv_path: String::new(),
-            cache_urls: Vec::new(),
-            trusted_keys: Vec::new(),
-            debug_probe: Box::new(NullProbe),
-        }
-    }
 }
 
 pub struct Orchestrator<B: Backend> {
     backend: B,
-    cache_urls: Vec<String>,
-    /// `(kid, raw_key)` for verification + reasoner; `kid` is `name:thumbprint16`.
-    trusted_keys: Vec<(String, Vec<u8>)>,
+    caches: Vec<CacheTransport>,
+    /// Keys of the trust model's leaves, for signature verification.
+    trusted_keys: Vec<TrustedKey>,
     pub(crate) regime: Regime,
     debug_probe: Box<dyn DebugProbe>,
 
@@ -131,21 +120,8 @@ pub struct Orchestrator<B: Backend> {
 
 impl<B: Backend> Orchestrator<B> {
     pub fn new(backend: B, cfg: Config) -> Result<Self, Error> {
-        if cfg.trusted_keys.is_empty() {
-            return Err(Error::TrustModel(
-                "No trusted keys configured. Please specify at least one trusted key using --trusted-key".to_owned(),
-            ));
-        }
-
-        // Resolve names → `kid` so both verification and the trust model use
-        // the same string representation. The kid head is the first 16 chars
-        // of the JWK thumbprint, matching what the signer puts in the JWS.
-        let mut kid_keys: Vec<(String, Vec<u8>)> = Vec::with_capacity(cfg.trusted_keys.len());
-        for (name, key_bytes) in &cfg.trusted_keys {
-            let tp = thumbprint::ed25519_thumbprint(key_bytes)?;
-            let kid = format!("{}:{}", name, &tp[..16]);
-            kid_keys.push((kid, key_bytes.clone()));
-        }
+        let mut interner = StringInterner::new();
+        let (trust_model, trusted_keys) = trust_model::resolve_spec(&cfg.trust_model, &mut interner)?;
 
         let recursive_json = backend.derivation_show_recursive(&cfg.root_drv_path)?;
         let derivations: HashMap<String, DrvJson> = serde_json::from_str(&recursive_json)?;
@@ -159,14 +135,6 @@ impl<B: Backend> Orchestrator<B> {
         let (_is_fod, is_ca) = drv_json::classify(&root_drv.outputs);
         let regime = if is_ca { Regime::Ca } else { Regime::Ia };
 
-        let mut interner = StringInterner::new();
-        let key_ids: Vec<KeyId> = kid_keys.iter().map(|(k, _)| interner.key(k)).collect();
-        let threshold = key_ids.len();
-        let trust_model = TrustModel::Threshold(
-            threshold,
-            key_ids.into_iter().map(TrustModel::Key).collect(),
-        );
-        trust_model.validate().map_err(Error::TrustModel)?;
         let expected_root = interner.udrv(&cfg.root_drv_path);
 
         let walker = if matches!(regime, Regime::Ia) {
@@ -201,8 +169,8 @@ impl<B: Backend> Orchestrator<B> {
 
         Ok(Self {
             backend,
-            cache_urls: cfg.cache_urls,
-            trusted_keys: kid_keys,
+            caches: cfg.caches,
+            trusted_keys,
             regime,
             debug_probe: cfg.debug_probe,
             derivations,
@@ -257,8 +225,7 @@ impl<B: Backend> Orchestrator<B> {
             return Ok(Vec::new());
         }
 
-        let mut verifier =
-            Verifier::new(&self.facts, &self.trust_model).map_err(Error::TrustModel)?;
+        let mut verifier = Verifier::new(&self.facts, &self.trust_model);
 
         let mut verified = Vec::new();
         let mut successes: Vec<(Subset, VerifyResult)> = Vec::new();

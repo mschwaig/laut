@@ -16,6 +16,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use laut_sign::cache::{self, CacheTransport};
 use serde_json::Value;
 
 use base64::Engine as _;
@@ -112,7 +113,7 @@ pub enum CorpusError {
         source: std::io::Error,
     },
     #[error("{0}")]
-    Backend(#[from] crate::backend::Error),
+    Cache(#[from] cache::Error),
     #[error("failed to read directory {path:?}: {source}")]
     DirRead {
         path: String,
@@ -137,11 +138,9 @@ pub enum CorpusError {
 /// `http(s)://` requires a JSON listing endpoint at `/traces/`; `file://`
 /// reads `<path>/traces/` from disk.
 pub fn build_corpus_from_cache(cache_url: &str) -> Result<InMemoryCorpusIndex, CorpusError> {
-    match crate::backend::parse_cache_url(cache_url)? {
-        crate::backend::CacheTransport::Http(url) => build_from_http(&url),
-        crate::backend::CacheTransport::File(dir) => {
-            build_from_dir(&dir.join("traces"))
-        }
+    match cache::parse_cache_url(cache_url)? {
+        CacheTransport::Http(url) => build_from_http(&url),
+        CacheTransport::File(dir) => build_from_dir(&cache::traces_dir(&dir)),
     }
 }
 

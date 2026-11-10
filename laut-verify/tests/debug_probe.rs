@@ -89,7 +89,7 @@ fn unsupported_scheme_errors_explicitly() {
     let err = build_corpus_from_cache("s3://bucket").unwrap_err();
     let msg = format!("{}", err);
     assert!(
-        msg.contains("unsupported cache URL scheme"),
+        msg.contains("unsupported cache URL"),
         "expected scheme error, got: {}",
         msg
     );

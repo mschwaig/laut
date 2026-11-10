@@ -49,32 +49,165 @@ context.
 
 ### How can I use it
 
-This is a standalone command line tool called `laut`, which has two subcommands.
+`laut` ships as two things: a CLI tool and a NixOS module.
 
-The first one is
-```
-laut sign-and-upload --to [HTTP cache URL] --secret-key-file [KEY] [DRV_PATH]
+#### NixOS module
+
+The NixOS module is the primary interface. Add the flake to your system
+inputs and import the module:
+
+```nix
+{
+  inputs.laut.url = "github:mschwaig/laut";
+  outputs = { self, nixpkgs, laut, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      modules = [
+        laut.nixosModules.laut
+        # ...
+      ];
+    };
+  };
+}
 ```
 
-which signs a derivation with the new signature format and uploads it to the
-`traces/` namespace of the provided HTTP cache. This is meant to run from a
-Nix post-build hook, in the same slot where legacy signatures are normally
-uploaded from nix-based builders. Exit codes: `0` = signed and uploaded,
-`117` = no-op (the hook fired on the unresolved drv, or on a FOD), `1` =
-error. The `$OUT_PATHS` environment variable set by `nix` in the post-build
-hook supplies the output paths.
+**Local signing and verification**: enabling both modules with no other
+settings signs every local build with a host key (`local`, generated in
+`/var/lib/laut` on first boot) and verifies against exactly that key:
 
-The second one is
-```
-laut verify --cache [HTTP cache URL] --trusted-key [path to public key file] [derivation path or flake reference]
+```nix
+services.laut.sign.enable = true;
+services.laut.verify.enable = true;
 ```
 
-which is run manually by the user after building or obtaining an output from a
-cache. It tries to verify that an output can be derived from a given
-derivation according to the stricter validation criteria of the tool: it
-resolves the dependency tree itself, gathers signatures from the configured
-caches, and feeds the resulting facts into a trust-model evaluator that
-decides whether the configured trust model is satisfied.
+**Signing** (`services.laut.sign`): installs `laut` and wires the Nix
+`post-build-hook` to sign each build. By default traces stay local in
+`file:///var/lib/laut` and are signed with the generated key. To sign for a
+shared cache, point `cacheUrl` at it (store paths are then copied there too,
+see `copyStorePaths`) and bring your own key, e.g. a sops-nix or agenix
+secret. `secretKeyFile` is a runtime path, so the key never lands in the Nix
+store, and laut never overwrites it:
+
+```nix
+services.laut.sign = {
+  enable = true;
+  cacheUrl = "http://cache.example.org:9000";
+  secretKeyFile = config.sops.secrets.laut-key.path;
+  includePreimage = false;  # set true for debug caches only
+};
+```
+
+**Verification** (`services.laut.verify`): installs `laut` and writes your
+caches and trust model to `/etc/laut/verify.json`, which `laut verify` reads
+by default, so `laut verify nixpkgs#hello` needs no flags. If
+`services.laut.sign` is enabled on the same host, its `cacheUrl` is queried
+too, and a `{ local = true; }` leaf stands for its key (the default trust
+model is just that leaf). laut validates the generated config when the
+system is built, so a malformed trust model fails `nixos-rebuild`:
+
+```nix
+services.laut.verify = {
+  enable = true;
+  caches = [ "https://cache.example.org" ];
+  trustModel = {
+    threshold = 1;
+    of = [
+      {
+        threshold = 2;
+        of = [
+          { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+          { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+        ];
+      }
+      # This host's own builds, signed via services.laut.sign.
+      { local = true; }
+    ];
+  };
+};
+```
+
+#### Trust models
+
+The trust model is a recursive structure built from these nodes:
+
+- `key` — a leaf naming a single trusted signing key, as a
+  `name:base64-public-key` string (the same format Nix uses for
+  `trusted-public-keys`).
+- `{ key_file = "/path"; }` — like `key`, but read from a file at runtime
+  (`verify.json` only; the NixOS module uses `local` for this).
+- `{ local = true; }` — this host's own signing key from
+  `services.laut.sign` (NixOS module only; becomes a `key_file` leaf).
+- `{ threshold, of }` — `threshold` of the `of` sub-models must be satisfied.
+  Children may themselves be leaves or further thresholds.
+
+Some canonical shapes:
+
+```nix
+# Self-build only — trust only this host's own key
+{ local = true; }
+
+# Reproducibility, 2-of-2 — both builders must agree
+{ threshold = 2; of = [
+    { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+    { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+  ];
+}
+
+# Any one of these signers suffices
+{ threshold = 1; of = [
+    { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+    { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+  ];
+}
+
+# Nested: I built it AND at least one trusted cache agrees
+{ threshold = 2; of = [
+    { key = "self:uzToz0O9Q3B+ob1JSK1ybTX0hg0gFGnE7M7WRe4pLTg="; }
+    { threshold = 1; of = [
+        { key = "cacheA:C7GpsHKXh8eQ67L1k0esSJDzC+FJWCpSTua3CE9FcV0="; }
+        { key = "cacheB:ruTY7A6q5X3x9FNMV8257H/aA5oPG3j1BiDHZVjxajs="; }
+      ];
+    }
+  ];
+}
+
+# Legacy cache fallback: trust a cache's word OR require the stricter model
+{ threshold = 1; of = [
+    { key_legacy = "cache:Yms8BC4ERcaYrdksD+y80B37QILetIlkVd0P27t+IIQ="; }
+    { threshold = 2; of = [
+        { key = "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI="; }
+        { key = "builderB:Dwxy6SpfvApt2NHfA8luc1Lj6sobZoX99epUTo3im6M="; }
+      ];
+    }
+  ];
+}
+```
+
+`key_legacy` marks a key that short-circuits upstream verification at the
+point where it signs — useful for trusting an existing cache "as-is". It is
+only permitted as a direct child of a top-level `threshold = 1` (an OR at the
+root of the model).
+
+The verification semantics are defined in
+[docs/semantics.md](docs/semantics.md).
+
+#### CLI
+
+The CLI is the low-level interface; the NixOS module wraps it.
+
+Signing (from a post-build hook):
+```
+laut sign-and-upload --to [http(s):// or file:// URL] --secret-key-file [KEY] [DRV_PATH]
+```
+Exit codes: `0` = signed and uploaded, or nothing to sign (hook fired on
+unresolved drv or FOD), `1` = error. `$OUT_PATHS` supplies output paths.
+
+Verification:
+```
+laut verify [--config PATH] [--cache URL ...] [DRV_PATH or flake ref]
+```
+`--config` (or `LAUT_CONFIG`, default `/etc/laut/verify.json`) points at a
+JSON file `{ "caches": [...], "trust_model": {...} }` with the trust model
+shown above. `--cache` flags, if given, replace the config's caches.
 
 ### How does it work
 
@@ -83,6 +216,7 @@ It's a Rust workspace (`laut-cli` for argument parsing and dispatch,
 `laut-verify` for verification). The hashing schemes and ATerm / castore
 encoding come from `nix-compat` / `laut-compat` on the
 `mschwaig/snix#fanfic` branch, and the signature envelope is JWS-based.
+NixOS modules under `nixos/` wrap the CLI for end-user deployment.
 
 The signing side is straightforward: it walks the derivation, computes the
 resolved input hash, gathers output content hashes, and assembles a signed
@@ -118,9 +252,8 @@ shell. The VM tests come in `{small,medium,large} × {ca,ia}` flavors (the IA
 flavors currently exist as red baselines until IA support is wired up
 end-to-end).
 
-**In the future** different VM tests should exercise different trust models,
-but right now they all uniformly only trust `builderA` and `builderB` in
-combination.
+The VM tests use the NixOS module with a `threshold(2, [builderA, builderB])`
+trust model — both builders must sign every build step.
 
 ### FAQ
 
@@ -180,36 +313,24 @@ Here is a list of technical terms we use in this project with their definitions:
   <dd>The outer nodes of any dependency tree might be things like sources files, or binary blobs. We call them leaves or leaf nodes, the build systems a la carte paper calls them terminal inputs.</dd>
   <dt>FOD / FO derivation</dt>
   <dd>FODs are a different kind of content-addressed derivation, which nix has supported for a long time. They pre-declare the hash of their outputs, which means their output paths can be pre-computed, even though they are content-addressed. When we use the term CA derivation, we do not include FODs. In our work FODs are considered content-addressed leaves, aka terminal inputs, in the dependency tree.</dd>
-  <dt>IA path</dt>
-  <dd>The output path of an IA derivation.</dd>
-  <dt>CA path</dt>
-  <dd>The output path a CA derivation or FOD.</dd>
   <dt>build trace</dt>
   <dd>A statement which associates the resolved input hash of a derivation with the output hashes of the set of produced output.</dd>
   <dt>provenance log entry</dt>
-  <dd>A cyptograpically secured statement which associates the resolved input hash of a derivation with the output hashes of the set of produced output, and an open set of additional metadata about the builder.
-  This potentially includes a source reference for the builders claimed software state and maybe even a remote attestation of said software state.
-  This statement might be sigend, or be entered in a transparency log.</dd>
+  <dd>A cyptograpically secured statement which associates the resolved input hash of a derivation with the output hashes of the set of produced output, and an open set of additional metadata about the builder.</dd>
   <dt>nix legacy signature</dt>
   <dd>A statement which associates the unresolved input hash of a derivation with the output hash of a specific produced output. This does not contain any data about the builder, and depends on all of those implicit dependency resolutions that happen with IA derivations, because it uses an unresolved input hash. I'm calling it legacy because we are trying to replace it as the load-bearing component in terms of trust.</dd>
   <dt>laut signature</dt>
   <dd>A signature in the format specified in this repository.</dd>
-  <dt>trustlessly-resolved derivation</dt>
-  <dd>We call a derivation, for which the validator resolves all dependencies and then looks up build traces trustlessly resolved.</dd>
-  <dt>trustfully-resolved derivation</dt>
-  <dd>We call a derivation, for which the validator looks up a legacy signature and thereby trusts however its builder resolved its immediate dependencies trustfully resolved.</dd>
   <dt>trust model</dt>
-  <dd>A set of trusted keys and additional, per key, validation criteria which must be met to consider a provenance log entry or nix legacy signature valid.</dd>
-  <dt>threshold function</dt>
-  <dd>The way trust models are constructed from trusted keys is using a threshold function. <code>threshold(m, n = len(keys), keys: set)</code>, where only the mapping from inputs to outputs are considered trustworthy, which m out of n keys agree on. This is used to build OR and AND functions. We actually also not only allow keys as input to the threshold function, but also trust models, which allows for more complex trust model, but also makes the definition of trust model recursive.</dd>
+  <dd>A recursive structure of trusted keys and threshold functions which decides whether a set of signatures is sufficient. See the trust models section above for concrete examples, and [docs/semantics.md](docs/semantics.md) for the formal definition.</dd>
+  <dt>legacy signer</dt>
+  <dd>A key trusted "as-is" — its signature short-circuits upstream verification at the point where it signs. Declared via <code>key_legacy</code> in the trust model. Only permitted as a direct child of a top-level <code>threshold = 1</code>.</dd>
   <dt>builder</dt>
-  <dd>A verifier of the inputs to its own builds, as well as a a signer of the outputs of its own builds.</dd>
+  <dd>A verifier of the inputs to its own builds, as well as a signer of the outputs of its own builds.</dd>
   <dt>signer / producer</dt>
-  <dd>A builder, which produces signatures they have built themselves, and potentially uploads  them to a cache.</dd>
+  <dd>A builder which produces signatures for builds it did itself, and potentially uploads them to a cache.</dd>
   <dt>verifier / consumer</dt>
   <dd>A consumer (and verifier according to some trust model) of signatures, and possibly also build outputs, from a cache.</dd>
-  <dt>legacy signer</dt>
-  <dd>A builder or INTERMEDIARY, producing signatuers. While addressing this problem is out of scope for laut, signing intermediaries introduce transitive trust relationships that are difficult to revoke, which is why we think groups of builders should be organized around data structures like signed lists or transparency logs instead.</dd>
 </dl>
 
 ### Funding

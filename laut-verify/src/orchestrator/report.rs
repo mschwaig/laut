@@ -10,8 +10,18 @@ use crate::verifier::{Facts, Subset, VerifyResult};
 use super::Orchestrator;
 
 impl<B: Backend> Orchestrator<B> {
+    /// Render a subset of the root as `root: out=hash, ...`.
     pub(super) fn format_subset(&self, subset: &Subset) -> String {
-        let parts: Vec<String> = subset
+        format!(
+            "{}: {}",
+            self.interner.udrv_str(self.expected_root).unwrap_or("?"),
+            self.format_entries(subset)
+        )
+    }
+
+    /// Render a subset's entries as `out=hash, ...`.
+    fn format_entries(&self, subset: &Subset) -> String {
+        subset
             .entries()
             .iter()
             .map(|(out, ch)| {
@@ -21,12 +31,8 @@ impl<B: Backend> Orchestrator<B> {
                     self.interner.content_hash_str(*ch).unwrap_or("?")
                 )
             })
-            .collect();
-        format!(
-            "{}: {}",
-            self.interner.udrv_str(self.expected_root).unwrap_or("?"),
-            parts.join(", ")
-        )
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     pub(super) fn print_success_summary(&self, subset: &Subset, result: &VerifyResult) {
@@ -54,9 +60,33 @@ impl<B: Backend> Orchestrator<B> {
             position_count
         );
         eprintln!(
-            "  signers contributing to the bundle: {{{}}}",
+            "  signers in witness families: {{{}}}",
             signer_names.join(", ")
         );
+    }
+
+    /// Render a demand multiset as `out=hash (×n); ...`, grouping repeated
+    /// subsets with a multiplicity marker.
+    fn format_demands(&self, demands: &[Subset]) -> String {
+        let mut groups: Vec<(&Subset, usize)> = Vec::new();
+        for subset in demands {
+            match groups.last_mut() {
+                Some((prev, count)) if *prev == subset => *count += 1,
+                _ => groups.push((subset, 1)),
+            }
+        }
+        groups
+            .iter()
+            .map(|(subset, count)| {
+                let entries = self.format_entries(subset);
+                if *count > 1 {
+                    format!("{entries} (×{count})")
+                } else {
+                    entries
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     pub(super) fn format_verification_failure(
@@ -68,37 +98,20 @@ impl<B: Backend> Orchestrator<B> {
         let mut out = String::new();
         let _ = writeln!(out, "  candidate: {}", self.format_subset(subset));
 
-        if !result.reachable.contains(&(self.expected_root, subset.clone())) {
-            let _ = writeln!(out, "    no supporting threads to this candidate");
+        if result.unservable.is_empty() {
+            let _ = writeln!(
+                out,
+                "    no grounded, linked claims support this candidate"
+            );
             return out;
         }
 
-        let mut bad_positions: Vec<_> = result
-            .evidence
-            .iter()
-            .filter(|(_, keys)| !self.trust_model.satisfied_by(keys))
-            .collect();
-        bad_positions.sort_by_key(|(u, _)| u.0);
-
-        if !result.evidence.contains_key(&self.expected_root)
-            && !self.facts.fods.contains_key(&self.expected_root)
-        {
+        for (udrv, demands) in &result.unservable {
             let _ = writeln!(
                 out,
-                "    root position has no signed claims (no rdrv-claim at the root matched the candidate output map)"
-            );
-        }
-
-        for (udrv, keys) in bad_positions {
-            let key_names: Vec<&str> = keys
-                .iter()
-                .map(|k| self.interner.key_str(*k).unwrap_or("?"))
-                .collect();
-            let _ = writeln!(
-                out,
-                "    position {} insufficient: keys={{{}}}",
+                "    position {}: no distinct, qualified signers for demanded outputs [{}]",
                 self.interner.udrv_str(*udrv).unwrap_or("?"),
-                key_names.join(", ")
+                self.format_demands(demands)
             );
         }
         out
