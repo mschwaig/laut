@@ -36,10 +36,10 @@ pub fn fetch_signatures_from_cache(
     match ureq::get(&url).call() {
         Ok(resp) => {
             let mut buf = Vec::new();
-            resp.into_reader().read_to_end(&mut buf)?;
+            resp.into_body().into_reader().read_to_end(&mut buf)?;
             Ok(Some(buf))
         }
-        Err(ureq::Error::Status(404, _)) => Ok(None),
+        Err(ureq::Error::StatusCode(404)) => Ok(None),
         Err(e) => Err(Error::Http(format!("{}", e))),
     }
 }

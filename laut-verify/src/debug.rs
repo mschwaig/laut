@@ -239,7 +239,7 @@ fn fetch_listing(url: &str) -> Result<Vec<String>, CorpusError> {
             }
             Ok(names)
         }
-        Err(ureq::Error::Status(status @ (403 | 404 | 405), _)) => {
+        Err(ureq::Error::StatusCode(status @ (403 | 404 | 405))) => {
             Err(CorpusError::ListingNotSupported {
                 url: url.to_owned(),
                 status,
@@ -260,10 +260,11 @@ fn fetch_bytes(url: &str) -> Result<Vec<u8>, CorpusError> {
     read_body(url, resp)
 }
 
-fn read_body(url: &str, resp: ureq::Response) -> Result<Vec<u8>, CorpusError> {
+fn read_body(url: &str, resp: ureq::http::Response<ureq::Body>) -> Result<Vec<u8>, CorpusError> {
     use std::io::Read as _;
     let mut buf = Vec::new();
-    resp.into_reader()
+    resp.into_body()
+        .into_reader()
         .read_to_end(&mut buf)
         .map_err(|e| CorpusError::Io {
             url: url.to_owned(),

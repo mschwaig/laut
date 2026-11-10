@@ -2,9 +2,8 @@
 //!
 //! Delegates to snix's `nix_compat::narinfo::signing_keys::parse_keypair`,
 //! which validates the Nix name charset, the exact base64 length, and the
-//! ed25519 point validity of the embedded public half. We hand back the
-//! parsed `ed25519_dalek::SigningKey` directly — requires adding an accessor
-//! in snix.
+//! ed25519 point validity of the embedded public half. snix is on a different
+//! `ed25519-dalek` major, so we rebuild our `SigningKey` from its seed bytes.
 
 use std::path::Path;
 
@@ -26,7 +25,10 @@ pub enum Error {
 /// Parse a `name:base64` signing-key string, returning `(name, signing_key)`.
 pub fn parse_private_key_content(content: &str) -> Result<(String, SigningKey), Error> {
     let (snix_key, _verifying) = parse_keypair(content.trim())?;
-    Ok((snix_key.name().to_owned(), snix_key.signing_key().clone()))
+    Ok((
+        snix_key.name().to_owned(),
+        SigningKey::from_bytes(&snix_key.signing_key().to_bytes()),
+    ))
 }
 
 /// Read and parse a Nix private-key file from disk.

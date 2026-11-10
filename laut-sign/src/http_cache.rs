@@ -57,14 +57,19 @@ fn get_existing(url: &str) -> Result<Option<(Value, String)>, Error> {
     match ureq::get(url).call() {
         Ok(resp) => {
             let etag = resp
-                .header("ETag")
+                .headers()
+                .get("ETag")
+                .and_then(|v| v.to_str().ok())
                 .map(|s| s.trim_matches('"').to_owned())
                 .unwrap_or_default();
-            let body = resp.into_string()?;
+            let body = resp
+                .into_body()
+                .read_to_string()
+                .map_err(|e| Error::Http(format!("{}", e)))?;
             let content: Value = serde_json::from_str(&body)?;
             Ok(Some((content, etag)))
         }
-        Err(ureq::Error::Status(404, _)) => Ok(None),
+        Err(ureq::Error::StatusCode(404)) => Ok(None),
         Err(e) => Err(Error::Http(format!("{}", e))),
     }
 }
@@ -83,10 +88,10 @@ pub fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> R
                 // builder created it between our GET and PUT, the server
                 // returns 412 and we retry through the merge path.
                 let body = json!({ "signatures": [signature] }).to_string();
-                ureq::request("PUT", &url)
-                    .set("Content-Type", "application/json")
-                    .set("If-None-Match", "*")
-                    .send_string(&body)
+                ureq::put(&url)
+                    .header("Content-Type", "application/json")
+                    .header("If-None-Match", "*")
+                    .send(&body)
             }
             Some((content, etag)) => {
                 let mut signatures: Vec<Value> = content
@@ -99,16 +104,16 @@ pub fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> R
                 }
                 signatures.push(Value::String(signature.to_owned()));
                 let body = json!({ "signatures": signatures }).to_string();
-                ureq::request("PUT", &url)
-                    .set("Content-Type", "application/json")
-                    .set("If-Match", &format!("\"{}\"", etag))
-                    .send_string(&body)
+                ureq::put(&url)
+                    .header("Content-Type", "application/json")
+                    .header("If-Match", format!("\"{}\"", etag))
+                    .send(&body)
             }
         };
 
         match response {
             Ok(_) => return Ok(()),
-            Err(ureq::Error::Status(412, _)) | Err(ureq::Error::Status(409, _)) => continue,
+            Err(ureq::Error::StatusCode(412 | 409)) => continue,
             Err(e) => return Err(Error::Http(format!("{}", e))),
         }
     }
