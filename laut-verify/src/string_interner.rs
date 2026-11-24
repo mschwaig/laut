@@ -40,6 +40,7 @@ pub struct ContentHash(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OutputName(pub usize);
 
+#[derive(Debug)]
 pub struct StringInterner {
     udrv_to_id: HashMap<String, UDrv>,
     rdrv_to_id: HashMap<String, RDrv>,

@@ -8,8 +8,8 @@
 //! system `nix` binary or the network.
 
 use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+
+use laut_sign::cache::{self, CacheTransport};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -19,35 +19,8 @@ pub enum Error {
     MissingAtermFixture(String),
     #[error("{0}")]
     SignatureFetch(#[from] crate::signature_verify::Error),
-    #[error("unsupported cache URL scheme in {url:?} (expected http://, https://, or file://)")]
-    UnsupportedCacheUrl { url: String },
-    #[error("io error reading {path:?}: {source}")]
-    Io {
-        path: String,
-        #[source]
-        source: std::io::Error,
-    },
-}
-
-/// Cache URL transport. `--cache` accepts either form; tests typically use
-/// `file://` so they don't need a running HTTP server.
-pub enum CacheTransport {
-    Http(String),
-    File(PathBuf),
-}
-
-/// Recognise the URL scheme and return its transport. Unknown schemes are an
-/// error — silently treating them as "skip this cache" hides misconfiguration.
-pub fn parse_cache_url(url: &str) -> Result<CacheTransport, Error> {
-    if url.starts_with("http://") || url.starts_with("https://") {
-        Ok(CacheTransport::Http(url.to_owned()))
-    } else if let Some(rest) = url.strip_prefix("file://") {
-        Ok(CacheTransport::File(PathBuf::from(rest)))
-    } else {
-        Err(Error::UnsupportedCacheUrl {
-            url: url.to_owned(),
-        })
-    }
+    #[error("{0}")]
+    Cache(#[from] laut_sign::cache::Error),
 }
 
 pub trait Backend {
@@ -57,11 +30,11 @@ pub trait Backend {
     /// Return the ATerm representation of one derivation (`nix store cat <drv>`).
     fn derivation_aterm(&self, drv_path: &str) -> Result<String, Error>;
 
-    /// Fetch the raw `traces/<input_hash>` body from `cache_url`. `Ok(None)`
+    /// Fetch the raw `traces/<input_hash>` body from `cache`. `Ok(None)`
     /// means "not in this cache". Real impls do HTTP; test impls read files.
     fn fetch_signatures(
         &self,
-        cache_url: &str,
+        cache: &CacheTransport,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error>;
 }
@@ -79,33 +52,14 @@ impl Backend for RealBackend {
 
     fn fetch_signatures(
         &self,
-        cache_url: &str,
+        cache: &CacheTransport,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error> {
-        match parse_cache_url(cache_url)? {
-            CacheTransport::Http(url) => {
-                let base_url = match laut_sign::http_cache::parse_http_cache_url(&url) {
-                    Ok(b) => b,
-                    // Already passed scheme check; only a malformed http URL
-                    // gets here. Treat as "not in this cache" rather than
-                    // failing the whole verify.
-                    Err(_) => return Ok(None),
-                };
-                Ok(crate::signature_verify::fetch_signatures_from_cache(
-                    &base_url, input_hash,
-                )?)
-            }
-            CacheTransport::File(dir) => {
-                let path = dir.join("traces").join(input_hash);
-                match fs::read(&path) {
-                    Ok(bytes) => Ok(Some(bytes)),
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                    Err(source) => Err(Error::Io {
-                        path: path.display().to_string(),
-                        source,
-                    }),
-                }
-            }
+        match cache {
+            CacheTransport::Http(base_url) => Ok(
+                crate::signature_verify::fetch_signatures_from_cache(base_url, input_hash)?,
+            ),
+            CacheTransport::File(dir) => Ok(cache::read_file_traces(dir, input_hash)?),
         }
     }
 }
@@ -132,7 +86,7 @@ impl Backend for InMemoryBackend {
 
     fn fetch_signatures(
         &self,
-        _cache_url: &str,
+        _cache: &CacheTransport,
         input_hash: &str,
     ) -> Result<Option<Vec<u8>>, Error> {
         Ok(self.signatures.get(input_hash).cloned())

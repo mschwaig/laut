@@ -1,4 +1,4 @@
-//! Sign / sign-and-upload command handlers.
+//! Sign / sign-and-upload / generate-key command handlers.
 //!
 //! Translate clap args into `laut_sign::sign::SignConfig`, dispatch, and
 //! pick the right exit code. Exit code `117` is preserved from the Python
@@ -6,14 +6,17 @@
 
 use std::process::ExitCode;
 
+use laut_sign::keyfiles;
 use laut_sign::sign::{self, SignConfig};
 
-use crate::cli::{SignAndUploadArgs, SignArgs};
+use crate::cli::{GenerateKeyArgs, SignAndUploadArgs, SignArgs};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
     Sign(#[from] sign::Error),
+    #[error("{0}")]
+    Key(#[from] keyfiles::Error),
 }
 
 pub fn run_sign(args: SignArgs) -> Result<ExitCode, Error> {
@@ -40,6 +43,13 @@ pub fn run_sign_and_upload(args: SignAndUploadArgs) -> Result<ExitCode, Error> {
         include_preimage: args.include_preimage,
     };
     sign::sign_and_upload(&cfg, &args.to)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+pub fn run_generate_key(args: GenerateKeyArgs) -> Result<ExitCode, Error> {
+    if !keyfiles::generate_keypair(&args.path)? {
+        eprintln!("{} exists, keeping it", args.path.display());
+    }
     Ok(ExitCode::SUCCESS)
 }
 

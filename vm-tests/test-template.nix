@@ -19,7 +19,6 @@
 let
   fullArgs = {
     inherit cacheStoreUrl cachePort verifierExtraConfig;
-    nixPackage = pkgs.nixVersions.nix_2_34;
   } // args;
   # `pkgs` is the infra Nix evaluator (rolling). We use its nixpkgs path to
   # locate the test-runner library, and its `nix` binary to drive the test
@@ -41,11 +40,9 @@ let
         cache = import ./machines/cache.nix (fullArgs);
       } // (if binaryCacheData == "" then {
         builderA = import ./machines/builder.nix (fullArgs // {
-          builderPublicKey = ../testkeys/builderA_key.public;
           builderPrivateKey = ../testkeys/builderA_key.private;
         });
         builderB = import ./machines/builder.nix (fullArgs // {
-          builderPublicKey = ../testkeys/builderB_key.public;
           builderPrivateKey = ../testkeys/builderB_key.private;
         });
       } else {
@@ -58,8 +55,6 @@ let
         cacheStoreUrl = "${cacheStoreUrl}"
         addressing = "${addressing}"
         isMemoryConstrained = ${if isMemoryConstrained then "True" else "False"}
-        builderA_pub = "${../testkeys/builderA_key.public}"
-        builderB_pub = "${../testkeys/builderB_key.public}"
         binaryCacheData = "${binaryCacheData}"
 
         ${builtins.readFile testScriptFile}

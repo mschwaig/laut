@@ -5,7 +5,9 @@
 //! collide on the cache file and are detected via 412 Precondition Failed;
 //! the retry loop then GETs the now-populated traces file and appends.
 
-use serde_json::{Value, json};
+use serde_json::Value;
+
+use crate::cache;
 
 const MAX_RETRIES: u32 = 5;
 
@@ -69,42 +71,26 @@ fn get_existing(url: &str) -> Result<Option<(Value, String)>, Error> {
     }
 }
 
-/// Upload `signature` to `<store_url>/traces/<input_hash>`. If another builder
+/// Upload `signature` to `<base_url>/traces/<input_hash>`. If another builder
 /// is publishing the same input hash concurrently, ETag-based optimistic
 /// concurrency merges the lists across retries.
-pub fn upload_signature(store_url: &str, input_hash: &str, signature: &str) -> Result<(), Error> {
-    let base_url = parse_http_cache_url(store_url)?;
+pub fn upload_signature(base_url: &str, input_hash: &str, signature: &str) -> Result<(), Error> {
     let url = format!("{}/traces/{}", base_url, input_hash);
 
     for _ in 0..MAX_RETRIES {
-        let response = match get_existing(&url)? {
-            None => {
-                // No traces file yet — conditional create. If a concurrent
-                // builder created it between our GET and PUT, the server
-                // returns 412 and we retry through the merge path.
-                let body = json!({ "signatures": [signature] }).to_string();
-                ureq::request("PUT", &url)
-                    .set("Content-Type", "application/json")
-                    .set("If-None-Match", "*")
-                    .send_string(&body)
-            }
-            Some((content, etag)) => {
-                let mut signatures: Vec<Value> = content
-                    .get("signatures")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
-                if signatures.iter().any(|s| s.as_str() == Some(signature)) {
-                    return Ok(());
-                }
-                signatures.push(Value::String(signature.to_owned()));
-                let body = json!({ "signatures": signatures }).to_string();
-                ureq::request("PUT", &url)
-                    .set("Content-Type", "application/json")
-                    .set("If-Match", &format!("\"{}\"", etag))
-                    .send_string(&body)
-            }
+        let (existing, etag) = get_existing(&url)?.unzip();
+        let Some(body) = cache::merge_signature(existing, signature) else {
+            return Ok(());
         };
+        let request = ureq::request("PUT", &url).set("Content-Type", "application/json");
+        let response = match etag {
+            // No traces file yet — conditional create. If a concurrent builder
+            // created it between our GET and PUT, the server returns 412 and
+            // we retry through the merge path.
+            None => request.set("If-None-Match", "*"),
+            Some(etag) => request.set("If-Match", &format!("\"{}\"", etag)),
+        }
+        .send_string(&body);
 
         match response {
             Ok(_) => return Ok(()),

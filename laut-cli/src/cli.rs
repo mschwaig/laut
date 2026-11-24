@@ -22,6 +22,10 @@ pub enum Command {
     /// Sign a derivation and POST the JWS to an HTTP cache.
     #[command(name = "sign-and-upload")]
     SignAndUpload(SignAndUploadArgs),
+    /// Generate a signing key named `local` at PATH (and its public half at
+    /// PATH.public) unless PATH already exists.
+    #[command(name = "generate-key")]
+    GenerateKey(GenerateKeyArgs),
     /// Verify signatures for a derivation or flake reference.
     #[cfg(feature = "verify")]
     Verify(VerifyArgs),
@@ -57,7 +61,8 @@ pub struct SignAndUploadArgs {
     #[arg(long)]
     pub secret_key_file: PathBuf,
 
-    /// URL of the target store (e.g. http://cache:9000).
+    /// Where to store the signed trace: an HTTP cache (e.g. http://cache:9000)
+    /// or a local directory (file:///var/lib/laut).
     #[arg(long = "to")]
     pub to: String,
 
@@ -70,20 +75,35 @@ pub struct SignAndUploadArgs {
     pub include_preimage: bool,
 }
 
+#[derive(Debug, Args)]
+pub struct GenerateKeyArgs {
+    /// Where to write the secret key.
+    pub path: PathBuf,
+}
+
 #[cfg(feature = "verify")]
 #[derive(Debug, Args)]
 pub struct VerifyArgs {
     /// Either a derivation path (`/nix/store/....drv`) or a flake reference
     /// (`nixpkgs#hello`); the type is inferred from the format.
-    pub target: String,
+    #[arg(required_unless_present = "check_config")]
+    pub target: Option<String>,
 
-    /// URL of an HTTP signature cache to query. Repeatable.
-    #[arg(long = "cache")]
-    pub cache: Vec<String>,
+    /// Only validate the config file and exit (0 if valid). Needs no network
+    /// and doesn't read `generated` keys, so it works in a Nix build sandbox.
+    #[arg(long, conflicts_with_all = ["target", "cache", "debug_preimage_corpus", "debug_out_dir"])]
+    pub check_config: bool,
 
-    /// Path to a trusted public key file. Repeatable.
-    #[arg(long = "trusted-key")]
-    pub trusted_key: Vec<PathBuf>,
+    /// Signature cache to query (`http(s)://` or `file://`). Repeatable.
+    /// When given, replaces the config file's `caches`.
+    #[arg(long = "cache", value_parser = laut_sign::cache::parse_cache_url)]
+    pub cache: Vec<laut_sign::cache::CacheTransport>,
+
+    /// JSON config with `caches` and `trust_model`, e.g.:
+    ///   {"caches": ["https://cache"], "trust_model": {"threshold": 2, "of": [{"key": "name:base64"}, ...]}}
+    /// The NixOS module writes it from `services.laut.verify`.
+    #[arg(long, env = "LAUT_CONFIG", default_value = laut_verify::config::DEFAULT_PATH)]
+    pub config: PathBuf,
 
     /// Cache URL to scan for signer-side debug preimages. When a
     /// resolved-input-hash lookup misses, runs difft against any preimage

@@ -25,12 +25,13 @@ tamper_output = verifier.succeed(
 )
 print(f"tamper output:\n{tamper_output}")
 
-# Run verify pointing at the on-disk cache. We expect failure (the tampered
-# signature is invalid for the hash it lives under) and probe activation.
+# Run verify pointing at the on-disk cache (`--cache` replaces the module's
+# HTTP cache; the trust model comes from /etc/laut/verify.json). We expect
+# failure (the tampered signature is invalid for the hash it lives under) and
+# probe activation.
 debug_cmd = (
     f"laut verify "
     f"--cache 'file:///var/lib/cache' "
-    f"--trusted-key {builderA_pub} --trusted-key {builderB_pub} "
     f"--debug-preimage-corpus 'file:///var/lib/cache' "
     f"--debug-out-dir /tmp/laut-debug "
     f"$(nix-instantiate '<nixpkgs-ca>' -A {packageToBuild}) 2>&1"

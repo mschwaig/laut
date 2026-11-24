@@ -8,14 +8,12 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ed25519_dalek::{Signer, SigningKey};
 use serde_json::{Map, Value, json};
 
-use crate::thumbprint::{self, ed25519_thumbprint};
+use crate::thumbprint;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("{0}")]
-    Thumbprint(#[from] thumbprint::Error),
 }
 
 /// Build the laut trace JWS for one resolved derivation and sign it.
@@ -36,14 +34,13 @@ pub fn create_trace_signature(
     from_ia: bool,
 ) -> Result<String, Error> {
     let public = signing_key.verifying_key().to_bytes();
-    let thumbprint = ed25519_thumbprint(&public)?;
 
     let header = json!({
         "type": "laut",
         "alg": "EdDSA",
         "crv": "Ed25519",
         "v": "3",
-        "kid": format!("{}:{}", key_name, &thumbprint[..16]),
+        "kid": thumbprint::kid(key_name, &public),
         "detachHash": "nix-ca-path",
     });
 
@@ -156,11 +153,8 @@ mod tests {
         assert_eq!(header["type"], "laut");
         // from_ia omitted entirely when false to keep CA payloads stable.
         assert!(payload["in"].get("from_ia").is_none());
-        let kid = header["kid"].as_str().unwrap();
-        let (name, head) = kid.split_once(':').unwrap();
-        assert_eq!(name, "builderA");
         let pk = signing_key.verifying_key().to_bytes();
-        assert_eq!(ed25519_thumbprint(&pk).unwrap()[..16], *head);
+        assert_eq!(header["kid"], thumbprint::kid("builderA", &pk));
 
         // Payload roundtrips its inputs verbatim.
         assert_eq!(payload["in"]["rdrv_aterm_ca"], "input-hash-here");

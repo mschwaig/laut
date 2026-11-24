@@ -24,3 +24,4 @@ serde = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive", "env"] }
 rand = "0.8"
 regex = "1"
+tempfile = "3"
