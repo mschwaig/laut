@@ -5,11 +5,19 @@
 //! ed25519 point validity of the embedded public half. We hand back the
 //! parsed `ed25519_dalek::SigningKey` directly — requires adding an accessor
 //! in snix.
+//!
+//! Also generates the keypair for a host without a provided key, see
+//! [`generate_keypair`].
 
-use std::path::Path;
+use std::fs::{OpenOptions, Permissions};
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::path::{Path, PathBuf};
 
+use data_encoding::BASE64;
 use ed25519_dalek::SigningKey;
-use nix_compat::narinfo::{SigningKeyError, parse_keypair};
+use nix_compat::narinfo::{SigningKeyError, VerifyingKey, parse_keypair};
+use rand::RngCore;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -38,21 +46,64 @@ pub fn parse_private_key_file(path: &Path) -> Result<(String, SigningKey), Error
     parse_private_key_content(&content)
 }
 
+/// Where [`generate_keypair`] puts the public half of the key at `secret`.
+pub fn public_key_path(secret: &Path) -> PathBuf {
+    let mut p = secret.as_os_str().to_owned();
+    p.push(".public");
+    p.into()
+}
+
+/// Generate a Nix-format keypair named `local`: the secret key at `path`
+/// (mode 0600) and its public half at [`public_key_path`] (mode 0644). No-op
+/// returning `false` if `path` already exists. The public half is renamed
+/// into place first, so an existing secret always has its public half next
+/// to it.
+pub fn generate_keypair(path: &Path) -> Result<bool, Error> {
+    if path.exists() {
+        return Ok(false);
+    }
+    let mut seed = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut seed);
+    let (secret, public) = nix_keypair_strings("local", &SigningKey::from_bytes(&seed));
+    write_atomic(&public_key_path(path), 0o644, &public)?;
+    write_atomic(path, 0o600, &secret)?;
+    Ok(true)
+}
+
+/// Nix's `name:base64(seed||pk)` secret and `name:base64(pk)` public key strings.
+fn nix_keypair_strings(name: &str, key: &SigningKey) -> (String, String) {
+    let secret = format!("{name}:{}", BASE64.encode(&key.to_keypair_bytes()));
+    let public = VerifyingKey::new(name.to_owned(), key.verifying_key()).to_string();
+    (secret, public)
+}
+
+fn write_atomic(path: &Path, mode: u32, content: &str) -> Result<(), Error> {
+    let io_err = |source| Error::Io { path: path.display().to_string(), source };
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let mut f = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(mode)
+        .open(&tmp)
+        .map_err(io_err)?;
+    // `mode()` only applies on creation and is masked by the umask.
+    f.set_permissions(Permissions::from_mode(mode)).map_err(io_err)?;
+    f.write_all(content.as_bytes()).map_err(io_err)?;
+    f.sync_all().map_err(io_err)?;
+    std::fs::rename(&tmp, path).map_err(io_err)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_encoding::BASE64;
-    use ed25519_dalek::{SECRET_KEY_LENGTH, SigningKey};
+    use ed25519_dalek::SECRET_KEY_LENGTH;
 
     /// Build a Nix-formatted `name:base64(seed||pk)` string from a real key,
     /// so the embedded public half is on-curve and snix accepts it.
     fn nix_format(name: &str, seed: &[u8; SECRET_KEY_LENGTH]) -> String {
-        let signing = SigningKey::from_bytes(seed);
-        let public = signing.verifying_key().to_bytes();
-        let mut payload = Vec::with_capacity(64);
-        payload.extend_from_slice(seed);
-        payload.extend_from_slice(&public);
-        format!("{}:{}", name, BASE64.encode(&payload))
+        nix_keypair_strings(name, &SigningKey::from_bytes(seed)).0
     }
 
     #[test]
@@ -89,5 +140,25 @@ mod tests {
             err,
             Error::Snix(SigningKeyError::InvalidSigningKeyLen(_))
         ));
+    }
+
+    #[test]
+    fn generated_keypair_matches_and_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let secret = dir.path().join("local.key");
+        assert!(generate_keypair(&secret).unwrap());
+
+        let (name, signing) = parse_private_key_file(&secret).unwrap();
+        assert_eq!(name, "local");
+        let public = std::fs::read_to_string(public_key_path(&secret)).unwrap();
+        let public = VerifyingKey::parse(&public).unwrap();
+        assert_eq!(public.name(), "local");
+        assert_eq!(*public.verifying_key(), signing.verifying_key());
+        let mode = std::fs::metadata(&secret).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+
+        let before = std::fs::read(&secret).unwrap();
+        assert!(!generate_keypair(&secret).unwrap());
+        assert_eq!(std::fs::read(&secret).unwrap(), before);
     }
 }

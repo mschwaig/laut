@@ -5,7 +5,6 @@
   system,
   pkgs,
   laut,
-  laut-sign-only,
   nixPackage,
   ...
 }:
@@ -20,7 +19,7 @@ testLib.runTest {
 
     services.laut.sign = {
       enable = true;
-      package = laut-sign-only;
+      package = laut;
     };
     services.laut.verify = {
       enable = true;

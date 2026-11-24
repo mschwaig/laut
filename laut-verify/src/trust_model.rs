@@ -17,9 +17,10 @@
 //! format Nix uses for `trusted-public-keys`). The resolver decodes the
 //! public key, computes the JWK thumbprint, and builds the `kid =
 //! name:thumbprint16` that signers put in the JWS header.
-//! `key_file` names a file holding such a string, read at resolution time
-//! (the NixOS module uses it for the host's own, runtime-generated key).
-//! [`check_spec`] validates a spec without reading key files.
+//! `generated` names the secret key `laut generate-key` created on this host
+//! (the only key not known when the config is written); its public half is
+//! read at resolution time and it then counts as a plain `key`.
+//! [`check_spec`] validates a spec without reading generated keys.
 
 use std::path::PathBuf;
 
@@ -28,7 +29,7 @@ use serde::Deserialize;
 
 use crate::string_interner::{KeyId, StringInterner};
 use crate::verifier::TrustModel;
-use laut_sign::thumbprint;
+use laut_sign::{keyfiles, thumbprint};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -42,8 +43,8 @@ pub enum Error {
     DuplicateKey { first: String, second: String },
     #[error("trust model validation: {0}")]
     Validation(String),
-    #[error("reading key file {path:?}: {source}")]
-    KeyFile {
+    #[error("reading generated public key {path:?}: {source}")]
+    GeneratedKey {
         path: PathBuf,
         #[source]
         source: std::io::Error,
@@ -66,10 +67,10 @@ pub enum TrustModelSpec {
     KeyLegacy {
         key_legacy: String,
     },
-    /// A single trusted key read from a file containing
-    /// `name:base64-public-key`.
-    KeyFile {
-        key_file: PathBuf,
+    /// The key `laut generate-key` generated at this secret-key path. Only
+    /// its public half is read.
+    Generated {
+        generated: PathBuf,
     },
     /// A threshold of sub-models. `threshold` of the `of` children must be
     /// satisfied.
@@ -97,8 +98,8 @@ pub fn resolve_spec(
     resolve_validated(spec, interner, true)
 }
 
-/// Validate `spec` like [`resolve_spec`] but without reading `key_file`s,
-/// which may not exist yet (e.g. in a Nix build sandbox). Each `key_file`
+/// Validate `spec` like [`resolve_spec`] but without reading generated keys,
+/// which may not exist yet (e.g. in a Nix build sandbox). Each `generated`
 /// leaf stands in as a placeholder key identified by its path.
 pub fn check_spec(spec: &TrustModelSpec) -> Result<(), Error> {
     resolve_validated(spec, &mut StringInterner::new(), false).map(|_| ())
@@ -107,9 +108,9 @@ pub fn check_spec(spec: &TrustModelSpec) -> Result<(), Error> {
 fn resolve_validated(
     spec: &TrustModelSpec,
     interner: &mut StringInterner,
-    read_key_files: bool,
+    read_generated: bool,
 ) -> Result<(TrustModel, Vec<TrustedKey>), Error> {
-    let mut resolver = Resolver { interner, keys: Vec::new(), read_key_files };
+    let mut resolver = Resolver { interner, keys: Vec::new(), read_generated };
     let model = resolver.resolve(spec)?;
     model.validate().map_err(Error::Validation)?;
     Ok((model, resolver.keys))
@@ -118,7 +119,7 @@ fn resolve_validated(
 struct Resolver<'a> {
     interner: &'a mut StringInterner,
     keys: Vec<TrustedKey>,
-    read_key_files: bool,
+    read_generated: bool,
 }
 
 impl Resolver<'_> {
@@ -128,15 +129,14 @@ impl Resolver<'_> {
             TrustModelSpec::KeyLegacy { key_legacy } => {
                 TrustModel::KeyLegacy(self.resolve_key(key_legacy)?)
             }
-            TrustModelSpec::KeyFile { key_file } if self.read_key_files => {
-                let key = std::fs::read_to_string(key_file).map_err(|source| Error::KeyFile {
-                    path: key_file.clone(),
-                    source,
-                })?;
+            TrustModelSpec::Generated { generated } if self.read_generated => {
+                let path = keyfiles::public_key_path(generated);
+                let key = std::fs::read_to_string(&path)
+                    .map_err(|source| Error::GeneratedKey { path, source })?;
                 TrustModel::Key(self.resolve_key(key.trim())?)
             }
-            TrustModelSpec::KeyFile { key_file } => {
-                TrustModel::Key(self.interner.key(&format!("key_file:{}", key_file.display())))
+            TrustModelSpec::Generated { generated } => {
+                TrustModel::Key(self.interner.key(&format!("generated:{}", generated.display())))
             }
             TrustModelSpec::Threshold { threshold, of } => TrustModel::Threshold(
                 *threshold,
@@ -171,6 +171,16 @@ mod tests {
     use super::*;
     use data_encoding::BASE64;
     use ed25519_dalek::SigningKey;
+
+    /// A `laut generate-key` key in a tempdir: (dir guard, secret path,
+    /// public `name:base64`).
+    fn generated_key() -> (tempfile::TempDir, PathBuf, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let secret = dir.path().join("local.key");
+        keyfiles::generate_keypair(&secret).unwrap();
+        let public = std::fs::read_to_string(keyfiles::public_key_path(&secret)).unwrap();
+        (dir, secret, public)
+    }
 
     fn key_spec(name: &str, seed: &[u8; 32]) -> String {
         let pk = SigningKey::from_bytes(seed).verifying_key().to_bytes();
@@ -233,7 +243,7 @@ mod tests {
 
     /// A key may appear in at most one leaf (otherwise one signature could
     /// light several leaves at once), whatever name it is given and whether
-    /// it comes inline, as legacy, or from a file.
+    /// it comes inline, as legacy, or generated.
     #[test]
     fn same_key_in_two_leaves_rejected() {
         let nested = TrustModelSpec::Threshold {
@@ -256,16 +266,15 @@ mod tests {
                 TrustModelSpec::Key { key: key_spec("self", &[1u8; 32]) },
             ],
         };
-        let f = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(f.path(), key_spec("b", &[1u8; 32])).unwrap();
-        let renamed_file = TrustModelSpec::Threshold {
+        let (_dir, generated, public) = generated_key();
+        let renamed_generated = TrustModelSpec::Threshold {
             threshold: 2,
             of: vec![
-                TrustModelSpec::Key { key: key_spec("a", &[1u8; 32]) },
-                TrustModelSpec::KeyFile { key_file: f.path().to_owned() },
+                TrustModelSpec::Key { key: public.replacen("local", "a", 1) },
+                TrustModelSpec::Generated { generated },
             ],
         };
-        for spec in [nested, renamed_legacy, renamed_file] {
+        for spec in [nested, renamed_legacy, renamed_generated] {
             let err = resolve_spec(&spec, &mut StringInterner::new()).unwrap_err();
             assert!(matches!(err, Error::DuplicateKey { .. }), "{err}");
         }
@@ -293,19 +302,20 @@ mod tests {
         }
     }
 
-    /// `check_spec` runs where key files don't exist yet (Nix build sandbox).
+    /// `check_spec` runs where generated keys don't exist yet (Nix build
+    /// sandbox).
     #[test]
-    fn check_spec_skips_key_files() {
+    fn check_spec_skips_generated_keys() {
         let spec = TrustModelSpec::Threshold {
             threshold: 2,
             of: vec![
                 TrustModelSpec::Key { key: key_spec("a", &[1u8; 32]) },
-                TrustModelSpec::KeyFile { key_file: "/nonexistent/local.key.public".into() },
+                TrustModelSpec::Generated { generated: "/nonexistent/local.key".into() },
             ],
         };
         check_spec(&spec).unwrap();
         let err = resolve_spec(&spec, &mut StringInterner::new()).unwrap_err();
-        assert!(matches!(err, Error::KeyFile { .. }));
+        assert!(matches!(err, Error::GeneratedKey { .. }));
     }
 
     #[test]
@@ -330,15 +340,14 @@ mod tests {
     }
 
     #[test]
-    fn key_file_resolves_like_key() {
-        let spec = key_spec("local", &[5u8; 32]);
-        let f = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(f.path(), format!("{spec}\n")).unwrap();
-        let from_file = TrustModelSpec::KeyFile { key_file: f.path().to_owned() };
-        let (_, file_keys) = resolve_spec(&from_file, &mut StringInterner::new()).unwrap();
+    fn generated_resolves_like_key() {
+        let (_dir, generated, public) = generated_key();
+        let (_, generated_keys) =
+            resolve_spec(&TrustModelSpec::Generated { generated }, &mut StringInterner::new())
+                .unwrap();
         let (_, inline_keys) =
-            resolve_spec(&TrustModelSpec::Key { key: spec }, &mut StringInterner::new()).unwrap();
-        assert_eq!(file_keys, inline_keys);
+            resolve_spec(&TrustModelSpec::Key { key: public }, &mut StringInterner::new()).unwrap();
+        assert_eq!(generated_keys, inline_keys);
     }
 
     #[test]

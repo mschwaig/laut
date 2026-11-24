@@ -8,7 +8,7 @@
 //!   "caches": ["https://cache.example.org", "file:///var/lib/laut"],
 //!   "trust_model": { "threshold": 1, "of": [
 //!     { "key": "builderA:diZIhvLSthXHFH+qz5dY/Fegz/u7Z+8aMekjrabc+fI=" },
-//!     { "key_file": "/var/lib/laut/local.key.public" }
+//!     { "generated": "/var/lib/laut/local.key" }
 //!   ] }
 //! }
 //! ```

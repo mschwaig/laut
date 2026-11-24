@@ -9,28 +9,16 @@ let
   cfg = config.services.laut.sign;
   nix = "${config.nix.package}/bin/nix --extra-experimental-features nix-command";
   stateDir = "/var/lib/laut";
-  keyFile = lib.defaultTo "${stateDir}/local.key" cfg.secretKeyFile;
-
-  # Unique tmp name: parallel post-build hooks may run this concurrently.
-  derivePublicKey = ''
-    tmp=$(mktemp "${cfg.publicKeyFile}.XXXXXX")
-    ${nix} key convert-secret-to-public < "${keyFile}" > "$tmp"
-    chmod 644 "$tmp"
-    mv "$tmp" "${cfg.publicKeyFile}"
-  '';
+  keyFile = lib.defaultTo cfg.generatedKeyFile cfg.secretKeyFile;
 in {
   options.services.laut.sign = {
     enable = lib.mkEnableOption "laut build-trace signing via a Nix post-build hook";
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.laut-sign-only or (import ../default.nix { inherit pkgs; }).laut-sign-only;
-      defaultText = lib.literalExpression "pkgs.laut-sign-only";
-      description = ''
-        The laut-sign-only package to use. This contains only the signing
-        side of laut (no verification code) and is what should run on
-        builders.
-      '';
+      default = pkgs.laut or (import ../default.nix { inherit pkgs; }).laut;
+      defaultText = lib.literalExpression "pkgs.laut";
+      description = "The laut package to use.";
     };
 
     cacheUrl = lib.mkOption {
@@ -68,20 +56,23 @@ in {
         for narinfo signing (`nix copy --secret-key-files`) and for laut
         trace signing.
 
-        If null, a key named `local` is generated in `${stateDir}/local.key`
-        on first boot.
+        Trust it by its public key, a `{ key = "name:base64"; }` leaf in
+        `services.laut.verify.trustModel`.
+
+        If null, `laut generate-key` creates a key named `local` at
+        `generatedKeyFile` on first boot, which a `{ generated = true; }`
+        leaf stands for.
       '';
     };
 
-    publicKeyFile = lib.mkOption {
+    generatedKeyFile = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
-      default = "${stateDir}/local.key.public";
+      internal = true;
+      default = "${stateDir}/local.key";
       description = ''
-        Public half of the signing key, derived at boot and before every
-        signing, so it follows a rotated `secretKeyFile`. This is the key a
-        `{ local = true; }` leaf in `services.laut.verify.trustModel` stands
-        for.
+        Where the key is generated if `secretKeyFile` is null. Its public
+        half is next to it, in `local.key.public`.
       '';
     };
 
@@ -101,23 +92,15 @@ in {
 
     # The post-build hook runs inside the nix-daemon, so the key must exist
     # before it starts.
-    systemd.services.laut-keygen = {
-      description = "Prepare laut signing key";
+    systemd.services.laut-keygen = lib.mkIf (cfg.secretKeyFile == null) {
+      description = "Generate laut signing key";
       wantedBy = [ "multi-user.target" "nix-daemon.service" ];
       before = [ "nix-daemon.service" ];
       serviceConfig = {
         Type = "oneshot";
         StateDirectory = "laut";
+        ExecStart = "${cfg.package}/bin/laut generate-key ${cfg.generatedKeyFile}";
       };
-      script = ''
-        ${lib.optionalString (cfg.secretKeyFile == null) ''
-          if [ ! -e "${keyFile}" ]; then
-            (umask 077; ${nix} key generate-secret --key-name local > "${keyFile}.tmp")
-            mv "${keyFile}.tmp" "${keyFile}"
-          fi
-        ''}
-        ${derivePublicKey}
-      '';
     };
 
     nix.settings.post-build-hook = lib.mkDefault (pkgs.writeShellScript "laut-post-build-hook" ''
@@ -126,11 +109,6 @@ in {
 
       [ -n "$OUT_PATHS" ]
       [ -n "$DRV_PATH" ]
-
-      # Follow secret-manager key rotation.
-      if [ "${keyFile}" -nt "${cfg.publicKeyFile}" ]; then
-        ${derivePublicKey}
-      fi
 
       ${lib.optionalString cfg.copyStorePaths ''
         echo Pushing "$OUT_PATHS" to ${cfg.cacheUrl}

@@ -106,6 +106,9 @@ laut sign-and-upload --to [HTTP_CACHE_URL or file://DIR] --secret-key-file [KEY]
 Exit codes: `0` = signed or no-op (the hook fired on the unresolved drv or
 on a FOD/IA), `1` = error. Plain `laut sign` exits `117` on a no-op.
 
+`laut generate-key PATH` creates a host key (and `PATH.public`) unless PATH
+exists; a `generated` trust-model leaf refers to it by that PATH.
+
 ### Verification
 ```bash
 laut verify [--config verify.json] [--cache URL] [DRV_PATH_OR_FLAKE_REF]
@@ -147,7 +150,7 @@ corpus URL accepts `http(s)://` (requires the cache to expose
   - `compute.rs` — resolved-input-hash computation + signature fetch/verify.
   - `report.rs` — success/failure formatting + candidate-output-map collection.
 - **Trust models**: `laut-verify/src/config.rs` loads `verify.json`;
-  `trust_model.rs` resolves its trust-model spec (keys, `key_file` leaves,
+  `trust_model.rs` resolves its trust-model spec (keys, `generated` leaves,
   validation) into the `TrustModel` type in `verifier.rs`. The `Verifier`
   there checks for witness families of signer-disjoint grounded paths (see
   `docs/semantics.md` for the formal definition).

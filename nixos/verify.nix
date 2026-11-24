@@ -16,25 +16,25 @@ let
   trustModelType = types.oneOf [
     (node "key" { key = mkOption { type = types.str; }; })
     (node "key_legacy" { key_legacy = mkOption { type = types.str; }; })
-    # This host's own signing key, which only exists at runtime.
-    (node "local" { local = mkOption { type = types.enum [ true ]; }; })
+    # The key services.laut.sign generated on this host.
+    (node "generated" { generated = mkOption { type = types.enum [ true ]; }; })
     (node "threshold" {
       threshold = mkOption { type = types.ints.positive; };
       of = mkOption { type = types.nonEmptyListOf trustModelType; };
     })
   ];
 
-  hasLocal = m: m.local or false || (m ? threshold && lib.any hasLocal m.of);
+  hasGenerated = m: m.generated or false || (m ? threshold && lib.any hasGenerated m.of);
 
-  # Traces this host signs itself (e.g. a `local` key) are verifiable too.
+  # Traces this host signs itself are verifiable too.
   # `or false`: the sign module may not be imported (`nixosModules.laut-verify`).
   signEnabled = config.services.laut.sign.enable or false;
-  caches = lib.unique (cfg.caches ++ lib.optional signEnabled config.services.laut.sign.cacheUrl);
+  signCfg = config.services.laut.sign;
+  caches = lib.unique (cfg.caches ++ lib.optional signEnabled signCfg.cacheUrl);
 
-  # `local` is Nix-side sugar for the sign module's public key file.
   toSpec =
     m:
-    if m.local or false then { key_file = config.services.laut.sign.publicKeyFile; }
+    if m.generated or false then { generated = signCfg.generatedKeyFile; }
     else if m ? threshold then m // { of = map toSpec m.of; }
     else m;
 
@@ -82,7 +82,7 @@ in
 
     trustModel = mkOption {
       type = trustModelType;
-      default = { local = true; };
+      default = { generated = true; };
       example = lib.literalExpression ''
         {
           threshold = 2;
@@ -95,8 +95,8 @@ in
       description = ''
         Trust model: a `{ key = "name:base64"; }` leaf, a
         `{ key_legacy = "name:base64"; }` leaf (only as a direct child of a
-        top-level `threshold = 1`), a `{ local = true; }` leaf (this host's
-        own key from `services.laut.sign`), or
+        top-level `threshold = 1`), a `{ generated = true; }` leaf (the key
+        `services.laut.sign` generated on this host), or
         `{ threshold = n; of = [ ... ]; }`. Each key may appear in at most
         one leaf.
 
@@ -117,14 +117,13 @@ in
         message = "services.laut.verify: set `caches` or enable `services.laut.sign` on this host.";
       }
       {
-        assertion = signEnabled || !(hasLocal cfg.trustModel);
-        message = "services.laut.verify.trustModel: a `local` leaf needs `services.laut.sign` enabled on this host.";
+        assertion = !(hasGenerated cfg.trustModel) || (signEnabled && signCfg.secretKeyFile == null);
+        message = "services.laut.verify.trustModel: a `generated` leaf needs `services.laut.sign` enabled on this host without `secretKeyFile`. For a provided key, use `{ key = \"name:base64-public-key\"; }`.";
       }
     ];
 
     environment = {
-      # Wins over the sign module's `laut-sign-only`, which also ships `bin/laut`.
-      systemPackages = [ (lib.hiPrio cfg.package) ];
+      systemPackages = [ cfg.package ];
       etc."laut/verify.json".source = configFile;
     };
   };

@@ -22,6 +22,10 @@ pub enum Command {
     /// Sign a derivation and POST the JWS to an HTTP cache.
     #[command(name = "sign-and-upload")]
     SignAndUpload(SignAndUploadArgs),
+    /// Generate a signing key named `local` at PATH (and its public half at
+    /// PATH.public) unless PATH already exists.
+    #[command(name = "generate-key")]
+    GenerateKey(GenerateKeyArgs),
     /// Verify signatures for a derivation or flake reference.
     #[cfg(feature = "verify")]
     Verify(VerifyArgs),
@@ -71,6 +75,12 @@ pub struct SignAndUploadArgs {
     pub include_preimage: bool,
 }
 
+#[derive(Debug, Args)]
+pub struct GenerateKeyArgs {
+    /// Where to write the secret key.
+    pub path: PathBuf,
+}
+
 #[cfg(feature = "verify")]
 #[derive(Debug, Args)]
 pub struct VerifyArgs {
@@ -80,7 +90,7 @@ pub struct VerifyArgs {
     pub target: Option<String>,
 
     /// Only validate the config file and exit (0 if valid). Needs no network
-    /// and doesn't read `key_file`s, so it works in a Nix build sandbox.
+    /// and doesn't read `generated` keys, so it works in a Nix build sandbox.
     #[arg(long, conflicts_with_all = ["target", "cache", "debug_preimage_corpus", "debug_out_dir"])]
     pub check_config: bool,
 

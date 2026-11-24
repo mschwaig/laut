@@ -1,6 +1,6 @@
 //! `laut` — Nix build trace signature CLI.
 //!
-//! Subcommands: `sign`, `sign-and-upload`, and (verify-feature-gated)
+//! Subcommands: `sign`, `sign-and-upload`, `generate-key`, and (verify-feature-gated)
 //! `verify`. The orchestration lives in [`laut_sign::sign`] (and, for
 //! verify, [`laut_verify::orchestrator`]); this binary is just argument
 //! parsing + dispatch.
@@ -30,6 +30,7 @@ fn main() -> ExitCode {
     let result: Result<ExitCode, CliError> = match cli.command {
         Command::Sign(args) => sign_cmd::run_sign(args).map_err(Into::into),
         Command::SignAndUpload(args) => sign_cmd::run_sign_and_upload(args).map_err(Into::into),
+        Command::GenerateKey(args) => sign_cmd::run_generate_key(args).map_err(Into::into),
         #[cfg(feature = "verify")]
         Command::Verify(args) => verify_cmd::run(args).map_err(Into::into),
     };

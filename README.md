@@ -85,7 +85,7 @@ services.laut.verify.enable = true;
 shared cache, point `cacheUrl` at it (store paths are then copied there too,
 see `copyStorePaths`) and bring your own key, e.g. a sops-nix or agenix
 secret. `secretKeyFile` is a runtime path, so the key never lands in the Nix
-store, and laut never overwrites it:
+store. Its public key goes into the trust model as a plain `key` leaf:
 
 ```nix
 services.laut.sign = {
@@ -100,8 +100,8 @@ services.laut.sign = {
 caches and trust model to `/etc/laut/verify.json`, which `laut verify` reads
 by default, so `laut verify nixpkgs#hello` needs no flags. If
 `services.laut.sign` is enabled on the same host, its `cacheUrl` is queried
-too, and a `{ local = true; }` leaf stands for its key (the default trust
-model is just that leaf). laut validates the generated config when the
+too, and a `{ generated = true; }` leaf stands for the key it generated
+(the default trust model is just that leaf). laut validates the generated config when the
 system is built, so a malformed trust model fails `nixos-rebuild`:
 
 ```nix
@@ -119,7 +119,7 @@ services.laut.verify = {
         ];
       }
       # This host's own builds, signed via services.laut.sign.
-      { local = true; }
+      { generated = true; }
     ];
   };
 };
@@ -132,10 +132,11 @@ The trust model is a recursive structure built from these nodes:
 - `key` — a leaf naming a single trusted signing key, as a
   `name:base64-public-key` string (the same format Nix uses for
   `trusted-public-keys`).
-- `{ key_file = "/path"; }` — like `key`, but read from a file at runtime
-  (`verify.json` only; the NixOS module uses `local` for this).
-- `{ local = true; }` — this host's own signing key from
-  `services.laut.sign` (NixOS module only; becomes a `key_file` leaf).
+- `{ generated = true; }` — the key `services.laut.sign` generated on this
+  host (no `secretKeyFile`), the only key whose public half isn't known when
+  the config is written. In `verify.json` it is
+  `{ "generated": "/var/lib/laut/local.key" }`: the path `laut generate-key`
+  wrote the secret key to. Only the public half next to it is read.
 - `{ threshold, of }` — `threshold` of the `of` sub-models must be satisfied.
   Children may themselves be leaves or further thresholds.
 
@@ -143,7 +144,7 @@ Some canonical shapes:
 
 ```nix
 # Self-build only — trust only this host's own key
-{ local = true; }
+{ generated = true; }
 
 # Reproducibility, 2-of-2 — both builders must agree
 { threshold = 2; of = [
